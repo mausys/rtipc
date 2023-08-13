@@ -23,6 +23,7 @@ struct rtipc
 {
     abx_t *abx;
     struct {
+        void *shm;
         object_map_t *map;
         unsigned num;
         size_t size;
@@ -160,8 +161,9 @@ static rtipc_t* rtipc_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
     if (!rtipc->abx)
         goto fail_abx;
 
-    return rtipc;
+    rtipc->tx.shm = abx_send(rtipc->abx);
 
+    return rtipc;
 
 fail_abx:
 fail_tx:
@@ -199,12 +201,16 @@ int rtipc_get_fd(rtipc_t *rtipc)
 
 int rtipc_send(rtipc_t *rtipc)
 {
-    if (rtipc->tx.shm)
+    int r = -1;
+
+    if (rtipc->tx.shm) {
         memcpy(rtipc->tx.shm, rtipc->tx.cache, rtipc->tx.size);
+        r = 0;
+    }
 
     rtipc->tx.shm = abx_send(rtipc->abx);
 
-    return rtipc->tx.shm ? 0 : -1;
+    return r;
 }
 
 
@@ -216,14 +222,19 @@ bool rtipc_ackd(rtipc_t *rtipc)
 
 int rtipc_recv(rtipc_t *rtipc)
 {
-    void *shm = abx_recv(rtipc->abx);
+    void *old = rtipc->rx.shm;
 
-    if (!shm)
+    rtipc->rx.shm = abx_recv(rtipc->abx);
+
+    if (!rtipc->rx.shm)
         return -1;
 
-    map_opjects(shm, rtipc->rx.map, rtipc->rx.num);
+    if (old == rtipc->rx.shm)
+        return 0;
 
-    return 0;
+    map_opjects(rtipc->rx.shm, rtipc->rx.map, rtipc->rx.num);
+
+    return 1;
 }
 
 
