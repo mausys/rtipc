@@ -45,26 +45,6 @@ static void map_opjects(void *base, object_map_t map[], unsigned n)
 }
 
 
-static void rtipc_destroy(rtipc_t *rtipc)
-{
-    if (rtipc->rx.map) {
-        free(rtipc->rx.map);
-        rtipc->rx.map = NULL;
-    }
-
-
-    if (rtipc->tx.cache) {
-        free(rtipc->tx.cache);
-        rtipc->tx.cache = 0;
-    }
-
-    if (rtipc->abx) {
-        abx_delete(rtipc->abx);
-        rtipc->abx = NULL;
-    }
-}
-
-
 static size_t init_objects(object_map_t map[], const rtipc_object_t *objects, unsigned n)
 {
     size_t offset = 0;
@@ -145,13 +125,13 @@ static rtipc_t* rtipc_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
     r = init_rx(rtipc, rx_objects, nrobjs);
 
     if (r < 0)
-        goto fail_rx;
+        goto fail;
 
 
     r = init_tx(rtipc, tx_objects, ntobjs);
 
     if (r < 0)
-        goto fail_tx;
+        goto fail;
 
     if (fd < 0)
         rtipc->abx = abx_owner_new(rtipc->rx.size, rtipc->tx.size);
@@ -159,17 +139,14 @@ static rtipc_t* rtipc_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
         rtipc->abx = abx_remote_new(fd, rtipc->rx.size, rtipc->tx.size);
 
     if (!rtipc->abx)
-        goto fail_abx;
+        goto fail;
 
     rtipc->tx.shm = abx_send(rtipc->abx);
 
     return rtipc;
 
-fail_abx:
-fail_tx:
-    rtipc_destroy(rtipc);
-fail_rx:
-    free(rtipc);
+fail:
+    rtipc_delete(rtipc);
     return NULL;
 }
 
@@ -188,8 +165,22 @@ rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
 
 void rtipc_delete(rtipc_t *rtipc)
 {
-    abx_delete(rtipc->abx);
-    rtipc_destroy(rtipc);
+    if (rtipc->rx.map) {
+        free(rtipc->rx.map);
+        rtipc->rx.map = NULL;
+    }
+
+    if (rtipc->tx.cache) {
+        free(rtipc->tx.cache);
+        rtipc->tx.cache = 0;
+    }
+
+    if (rtipc->abx) {
+        abx_delete(rtipc->abx);
+        rtipc->abx = NULL;
+    }
+
+    free(rtipc);
 }
 
 
