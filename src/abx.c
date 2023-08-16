@@ -261,25 +261,25 @@ void abx_delete(abx_t *abx)
 }
 
 
-size_t abx_size_rx(abx_t *abx)
+size_t abx_size_rx(const abx_t *abx)
 {
     return abx->rx.channel.buffer_size;
 }
 
 
-size_t abx_size_tx(abx_t *abx)
+size_t abx_size_tx(const abx_t *abx)
 {
     return abx->tx.channel.buffer_size;
 }
 
 
-int abx_get_fd(abx_t *abx)
+int abx_get_fd(const abx_t *abx)
 {
     return abx->shm.fd;
 }
 
 
-bool abx_ackd(abx_t *abx)
+bool abx_ackd(const abx_t *abx)
 {
     if (abx->tx.channel.buffer_size == 0)
         return false;

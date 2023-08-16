@@ -184,7 +184,7 @@ void rtipc_delete(rtipc_t *rtipc)
 }
 
 
-int rtipc_get_fd(rtipc_t *rtipc)
+int rtipc_get_fd(const rtipc_t *rtipc)
 {
     return abx_get_fd(rtipc->abx);
 }
@@ -205,7 +205,7 @@ int rtipc_send(rtipc_t *rtipc)
 }
 
 
-bool rtipc_ackd(rtipc_t *rtipc)
+bool rtipc_ackd(const rtipc_t *rtipc)
 {
     return abx_ackd(rtipc->abx);
 }

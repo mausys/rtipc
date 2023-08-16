@@ -23,13 +23,13 @@ rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
 
 void rtipc_delete(rtipc_t *rtipc);
 
-int rtipc_get_fd(rtipc_t *rtipc);
+int rtipc_get_fd(const rtipc_t *rtipc);
 
 int rtipc_send(rtipc_t *rtipc);
 
 int rtipc_recv(rtipc_t *rtipc);
 
-bool rtipc_ackd(rtipc_t *rtipc);
+bool rtipc_ackd(const rtipc_t *rtipc);
 
 #ifdef __cplusplus
 }
