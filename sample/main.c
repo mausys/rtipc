@@ -11,12 +11,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-typedef struct
-{
-    uint32_t seqno;
-    uint32_t timestamp;
-} msg_header_t;
-
+#include "object.h"
 
 typedef enum
 {
@@ -24,83 +19,25 @@ typedef enum
     CMD_SET_U16,
     CMD_SET_U32,
     CMD_SET_F64,
-    CMD_SET_STR,
 } cmd_id_t;
 
 
-typedef union
-{
-    uint8_t u8;
-    uint16_t u16;
-    uint32_t u32;
-    double f64;
-} cmd_arg_t;
 
 
 typedef struct
 {
-    msg_header_t header;
-    cmd_id_t id;
-    cmd_arg_t arg;
-} cmd_t;
-
-
-typedef struct
-{
-    msg_header_t header;
-    int ret;
-} rsp_t;
-
-
-typedef struct
-{
-    msg_header_t header;
-    uint8_t data;
-} data_u8_t;
-
-
-typedef struct
-{
-    msg_header_t header;
-    uint16_t data;
-} data_u16_t;
-
-
-typedef struct
-{
-    msg_header_t header;
-    uint32_t data;
-} data_u32_t;
-
-
-typedef struct
-{
-    msg_header_t header;
-    double data;
-} data_double_t;
-
-
-typedef struct
-{
-    msg_header_t header;
-    char str[128];
-} data_string_t;
-
-
-typedef struct
-{
-    rsp_t *rsp;
-    data_u8_t *u8;
-    data_u16_t *u16;
-    data_u32_t *u32;
-    data_string_t *str;
-    data_double_t *f64;
+    object_rsp_t *rsp;
+    object_u8_t *u8;
+    object_u16_t *u16;
+    object_u32_t *u32;
+    object_f64_t *f64;
 } s2c_t;
 
 
 typedef struct
 {
-    cmd_t *cmd;
+    object_cmd_t *cmd;
+    object_arg_t *arg1;
 } c2s_t;
 
 
@@ -116,7 +53,7 @@ typedef struct
 typedef struct
 {
     rtipc_t *rtipc;
-    uint32_t cmd_seqno;
+    bool connected;
     c2s_t rx;
     s2c_t tx;
 } server_t;
@@ -180,7 +117,7 @@ static int recvfd(int socket)  // receive fd from socket
 }
 
 
-static void set_header(msg_header_t *header)
+static void set_header(object_header_t *header)
 {
     header->seqno++;
     header->timestamp = now();
@@ -201,26 +138,28 @@ static void server_process(server_t *server)
     if (r != 1)
         return;
 
+    if (!server->connected) {
+        if (server->rx.cmd->header.seqno == 0)
+            return;
+        server->connected = true;
+    }
+
     switch (server->rx.cmd->id) {
         case CMD_SET_U8:
             set_header(&server->tx.u8->header);
-            server->tx.u8->data = server->rx.cmd->arg.u8;
+            server->tx.u8->data = server->rx.arg1->u8;
             break;
         case CMD_SET_U16:
             set_header(&server->tx.u16->header);
-            server->tx.u16->data = server->rx.cmd->arg.u16;
+            server->tx.u16->data = server->rx.arg1->u16;
             break;
         case CMD_SET_U32:
             set_header(&server->tx.u32->header);
-            server->tx.u32->data = server->rx.cmd->arg.u32;
+            server->tx.u32->data = server->rx.arg1->u32;
             break;
         case CMD_SET_F64:
             set_header(&server->tx.f64->header);
-            server->tx.f64->data = server->rx.cmd->arg.f64;
-            break;
-        case CMD_SET_STR:
-            set_header(&server->tx.str->header);
-            snprintf(server->tx.str->str, sizeof(server->tx.str->str), "%u", server->rx.cmd->arg.u32);
+            server->tx.f64->data = server->rx.arg1->f64;
             break;
         default:
             error(-1, EINVAL, "unknown cmd received %u", server->rx.cmd->id);
@@ -238,21 +177,18 @@ static void client_set_cmd(client_t *client)
 
     switch (client->tx.cmd->id) {
         case CMD_SET_U16:
-            client->tx.cmd->arg.u16 = client->arg;
+            client->tx.arg1->u16 = client->arg;
             break;
         case CMD_SET_U32:
-            client->tx.cmd->arg.u32 =  client->arg;
+            client->tx.arg1->u32 =  client->arg;
             break;
         case CMD_SET_F64:
-            client->tx.cmd->arg.f64 = client->arg;
-            break;
-        case CMD_SET_STR:
-            client->tx.cmd->arg.u32 =  client->arg;
+            client->tx.arg1->f64 = client->arg;
             break;
         default:
         case CMD_SET_U8:
             client->tx.cmd->id = CMD_SET_U8;
-            client->tx.cmd->arg.u32 = client->arg;
+            client->tx.arg1->u32 = client->arg;
             break;
     }
 }
@@ -276,10 +212,6 @@ static void client_check_data(client_t *client)
         case CMD_SET_F64:
             if (client->rx.f64->data != (double)client->arg)
                 printf("client_check_data got wrong data: %f expected: %f\n", client->rx.f64->data, (double)client->arg);
-            break;
-        case CMD_SET_STR:
-            //TODO
-            //printf("client_check_data got wrong data: %s %u\n", client->rx.str->str, client->arg);
             break;
         default:
             printf("client_check_data unknown cmd_id\n");
@@ -327,11 +259,11 @@ static client_t *client_new(int fd)
         RTIPC_OBJECT_ITEM(client->rx.u16),
         RTIPC_OBJECT_ITEM(client->rx.u32),
         RTIPC_OBJECT_ITEM(client->rx.f64),
-        RTIPC_OBJECT_ITEM(client->rx.str),
     };
 
     rtipc_object_t client_tx_objs[] = {
         RTIPC_OBJECT_ITEM(client->tx.cmd),
+        RTIPC_OBJECT_ITEM(client->tx.arg1),
     };
 
     client->rtipc = rtipc_client_new(fd, client_rx_objs, sizeof(client_rx_objs) / sizeof(client_rx_objs[0]),
@@ -354,6 +286,7 @@ static server_t *server_new(void)
 
     rtipc_object_t server_rx_objs[] = {
         RTIPC_OBJECT_ITEM(server->rx.cmd),
+    RTIPC_OBJECT_ITEM(server->rx.arg1),
     };
 
     rtipc_object_t server_tx_objs[] = {
@@ -362,7 +295,6 @@ static server_t *server_new(void)
         RTIPC_OBJECT_ITEM(server->tx.u16),
         RTIPC_OBJECT_ITEM(server->tx.u32),
         RTIPC_OBJECT_ITEM(server->tx.f64),
-        RTIPC_OBJECT_ITEM(server->tx.str),
     };
 
     server->rtipc = rtipc_server_new(server_rx_objs, sizeof(server_rx_objs) / sizeof(server_rx_objs[0]),
@@ -376,6 +308,21 @@ static server_t *server_new(void)
 fail_rtipc:
     free(server);
     return NULL;
+}
+
+
+static void client_delete(client_t *client)
+{
+    rtipc_delete(client->rtipc);
+    free(client);
+}
+
+
+
+static void server_delete(server_t *server)
+{
+    rtipc_delete(server->rtipc);
+    free(server);
 }
 
 
@@ -399,6 +346,7 @@ static void client_task(int socket)
     }
 
     printf("client_task arg=%u\n", client->arg);
+    client_delete(client);
 }
 
 
@@ -419,10 +367,12 @@ static void server_task(int socket)
     if (r < 0)
         error(r, -r, "sendfd failed");
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 100000; i++) {
         server_process(server);
-        usleep(100);
+        usleep(10);
     }
+
+    server_delete(server);
 }
 
 
