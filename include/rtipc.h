@@ -18,9 +18,9 @@ typedef struct rtipc_object {
 #define RTIPC_OBJECT_ITEM(x) { .p = &(x), .size = sizeof(*(x)) }
 #define RTIPC_OBJECT_NULL(s) { .p = NULL, .size = (s) }
 
-rtipc_t* rtipc_server_new(const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs);
+rtipc_t* rtipc_server_new(const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache);
 
-rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs);
+rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache);
 
 void rtipc_delete(rtipc_t *rtipc);
 

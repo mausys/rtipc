@@ -18,21 +18,19 @@ typedef struct
     void **p;
 } object_map_t;
 
+typedef struct {
+    void *shm;
+    object_map_t *map;
+    unsigned num;
+    size_t size;
+} channel_t;
 
 struct rtipc
 {
     abx_t *abx;
-    struct {
-        void *shm;
-        object_map_t *map;
-        unsigned num;
-        size_t size;
-    } rx;
-    struct {
-        void *shm;
-        void *cache;
-        size_t size;
-    } tx;
+    channel_t rx;
+    channel_t tx;
+    void *cache;
 };
 
 
@@ -45,90 +43,50 @@ static void map_opjects(void *base, object_map_t map[], unsigned n)
 }
 
 
-static size_t init_objects(object_map_t map[], const rtipc_object_t *objects, unsigned n)
+static int init_channel(channel_t *channel, const rtipc_object_t *objects, unsigned n)
 {
-    size_t offset = 0;
+    if (n == 0)
+        return 0;
 
-    for (unsigned i = 0; i < n; i++) {
-        map[i] = (object_map_t) {
+    channel->map = malloc(n * sizeof(object_map_t));
+
+    if (!channel->map)
+        return -ENOMEM;
+
+    channel->num = n;
+
+    for (unsigned i = 0; i < channel->num; i++) {
+        channel->map[i] = (object_map_t) {
             .p = objects[i].p,
             .size = objects[i].size,
-            .offset = offset,
+            .offset = channel->size,
         };
 
-        offset += map[i].size;
-        offset = mem_align(offset, RTIPC_DATA_ALIGN);
+        channel->size += channel->map[i].size;
+        channel->size = mem_align(channel->size, RTIPC_DATA_ALIGN);
 
-        if (map[i].p)
-            *map[i].p = NULL;
+        if (channel->map[i].p)
+            *channel->map[i].p = NULL;
     }
 
-    return offset;
-}
-
-
-static int init_rx(rtipc_t *rtipc, const rtipc_object_t *objects, unsigned n)
-{
-    if (n == 0)
-        return 0;
-
-    rtipc->rx.map = malloc(n * sizeof(object_map_t));
-
-    if (!rtipc->rx.map)
-        return -ENOMEM;
-
-    rtipc->rx.size = init_objects(rtipc->rx.map, objects, n);
-    rtipc->rx.num = n;
-
     return 0;
 }
 
 
-static int init_tx(rtipc_t *rtipc, const rtipc_object_t *objects, unsigned n)
-{
-    if (n == 0)
-        return 0;
-
-    object_map_t *map = malloc(n * sizeof(object_map_t));
-
-    if (!map)
-        return -ENOMEM;
-
-    rtipc->tx.size = init_objects(map, objects, n);
-
-    rtipc->tx.cache = calloc(1, rtipc->tx.size);
-
-    if (!rtipc->tx.cache)
-        goto fail_cache;
-
-    map_opjects(rtipc->tx.cache, map, n);
-
-    free(map);
-
-    return 0;
-
-fail_cache:
-    free(map);
-    rtipc->tx.size = 0;
-    return -ENOMEM;
-}
-
-
-static rtipc_t* rtipc_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs)
+static rtipc_t* rtipc_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
 {
     int r;
     rtipc_t *rtipc = calloc(1, sizeof(rtipc_t));
 
     if (!rtipc)
-        return rtipc;
+        return NULL;
 
-    r = init_rx(rtipc, rx_objects, nrobjs);
+    r = init_channel(&rtipc->rx, rx_objects, nrobjs);
 
     if (r < 0)
         goto fail;
 
-
-    r = init_tx(rtipc, tx_objects, ntobjs);
+    r = init_channel(&rtipc->tx, tx_objects, ntobjs);
 
     if (r < 0)
         goto fail;
@@ -143,6 +101,17 @@ static rtipc_t* rtipc_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
 
     rtipc->tx.shm = abx_send(rtipc->abx);
 
+    if (cache) {
+        rtipc->cache = calloc(1, rtipc->tx.size);
+
+        if (!rtipc->cache)
+            goto fail;
+
+        map_opjects(rtipc->cache, rtipc->tx.map, rtipc->tx.num);
+    } else {
+        map_opjects(rtipc->tx.shm, rtipc->tx.map, rtipc->tx.num);
+    }
+
     return rtipc;
 
 fail:
@@ -151,15 +120,15 @@ fail:
 }
 
 
-rtipc_t* rtipc_server_new(const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs)
+rtipc_t* rtipc_server_new(const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
 {
-    return rtipc_new(-1, rx_objects, nrobjs, tx_objects, ntobjs);
+    return rtipc_new(-1, rx_objects, nrobjs, tx_objects, ntobjs, cache);
 }
 
 
-rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs)
+rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
 {
-    return rtipc_new(fd, rx_objects, nrobjs, tx_objects, ntobjs);
+    return rtipc_new(fd, rx_objects, nrobjs, tx_objects, ntobjs, cache);
 }
 
 
@@ -170,9 +139,14 @@ void rtipc_delete(rtipc_t *rtipc)
         rtipc->rx.map = NULL;
     }
 
-    if (rtipc->tx.cache) {
-        free(rtipc->tx.cache);
-        rtipc->tx.cache = 0;
+    if (rtipc->tx.map) {
+        free(rtipc->tx.map);
+        rtipc->tx.map = NULL;
+    }
+
+    if (rtipc->cache) {
+        free(rtipc->cache);
+        rtipc->cache = 0;
     }
 
     if (rtipc->abx) {
@@ -192,16 +166,18 @@ int rtipc_get_fd(const rtipc_t *rtipc)
 
 int rtipc_send(rtipc_t *rtipc)
 {
-    int r = -1;
+    if (!rtipc->tx.shm)
+        return -1;
 
-    if (rtipc->tx.shm) {
-        memcpy(rtipc->tx.shm, rtipc->tx.cache, rtipc->tx.size);
-        r = 0;
+    if (rtipc->cache) {
+        memcpy(rtipc->tx.shm, rtipc->cache, rtipc->tx.size);
+        rtipc->tx.shm = abx_send(rtipc->abx);
+    } else {
+        rtipc->tx.shm = abx_send(rtipc->abx);
+        map_opjects(rtipc->tx.shm, rtipc->tx.map, rtipc->tx.num);
     }
 
-    rtipc->tx.shm = abx_send(rtipc->abx);
-
-    return r;
+    return 0;
 }
 
 
