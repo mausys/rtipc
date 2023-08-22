@@ -1,10 +1,10 @@
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 
-#include "abx.h"
+#include "rtipc/abx.h"
 #include "mem_utils.h"
 
 

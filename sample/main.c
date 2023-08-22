@@ -1,4 +1,4 @@
-#include "rtipc.h"
+#include <rtipc/rtipc.h>
 
 #include <unistd.h>
 #include <errno.h>
