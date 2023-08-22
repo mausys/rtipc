@@ -22,8 +22,6 @@ typedef enum
 } cmd_id_t;
 
 
-
-
 typedef struct
 {
     object_rsp_t *rsp;
@@ -267,7 +265,7 @@ static client_t *client_new(int fd)
     };
 
     client->rtipc = rtipc_client_new(fd, client_rx_objs, sizeof(client_rx_objs) / sizeof(client_rx_objs[0]),
-                                     client_tx_objs, sizeof(client_tx_objs) / sizeof(client_tx_objs[0]));
+                                     client_tx_objs, sizeof(client_tx_objs) / sizeof(client_tx_objs[0]), true);
 
     if (!client->rtipc)
         goto fail_rtipc;
@@ -298,7 +296,7 @@ static server_t *server_new(void)
     };
 
     server->rtipc = rtipc_server_new(server_rx_objs, sizeof(server_rx_objs) / sizeof(server_rx_objs[0]),
-                                     server_tx_objs, sizeof(server_tx_objs) / sizeof(server_tx_objs[0]));
+                                     server_tx_objs, sizeof(server_tx_objs) / sizeof(server_tx_objs[0]), true);
 
     if (!server->rtipc)
         goto fail_rtipc;
