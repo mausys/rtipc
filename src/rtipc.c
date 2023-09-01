@@ -34,6 +34,15 @@ struct rtipc
 };
 
 
+static void nullify_opjects(object_map_t map[], unsigned n)
+{
+    for (unsigned i = 0; i < n; i++) {
+        if (map[i].p)
+            *map[i].p = NULL;
+    }
+}
+
+
 static void map_opjects(void *base, object_map_t map[], unsigned n)
 {
     for (unsigned i = 0; i < n; i++) {
@@ -135,11 +144,13 @@ rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nro
 void rtipc_delete(rtipc_t *rtipc)
 {
     if (rtipc->rx.map) {
+        nullify_opjects(rtipc->rx.map, rtipc->rx.num);
         free(rtipc->rx.map);
         rtipc->rx.map = NULL;
     }
 
     if (rtipc->tx.map) {
+        nullify_opjects(rtipc->tx.map, rtipc->tx.num);
         free(rtipc->tx.map);
         rtipc->tx.map = NULL;
     }
@@ -193,8 +204,10 @@ int rtipc_recv(rtipc_t *rtipc)
 
     rtipc->rx.shm = abx_recv(rtipc->abx);
 
-    if (!rtipc->rx.shm)
+    if (!rtipc->rx.shm) {
+        nullify_opjects(rtipc->rx.map, rtipc->rx.num);
         return -1;
+    }
 
     if (old == rtipc->rx.shm)
         return 0;
