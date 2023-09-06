@@ -1,6 +1,7 @@
 #include "mem_utils.h"
 
 #include <unistd.h>
+#include <stdatomic.h>
 
 #define MIN_CACHE_LINE_SIZE 0x10
 #define MAX_SANE_CACHE_LINE_SIZE 0x1000
@@ -28,7 +29,8 @@ static size_t get_cls_level(int level, size_t min)
 
 size_t cache_line_size(void)
 {
-    static size_t cls = 0;
+    static atomic_ulong s_cls = 0;
+    size_t cls = atomic_load_explicit(&s_cls, memory_order_relaxed);
 
     if (cls != 0)
         return cls;
@@ -36,6 +38,8 @@ size_t cache_line_size(void)
     cls = get_cls_level(_SC_LEVEL1_DCACHE_LINESIZE, MIN_CACHE_LINE_SIZE);
     cls = get_cls_level(_SC_LEVEL2_CACHE_LINESIZE, cls);
     cls = get_cls_level(_SC_LEVEL3_CACHE_LINESIZE, cls);
+
+    atomic_store_explicit(&s_cls, cls, memory_order_relaxed);
 
     return cls;
 }

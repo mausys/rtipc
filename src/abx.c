@@ -41,7 +41,6 @@ typedef struct {
 } channel_t;
 
 
-
 struct abx {
     shm_t shm;
     struct {
@@ -87,7 +86,7 @@ static void swap_channels(channel_t *channels[2])
 
 static void abx_map(abx_t *abx, bool owner)
 {
-    void *xchng[] = { abx->shm.base, mem_offset(abx->shm.base, sizeof(xchg_t))};
+    void *xchng[] = { abx->shm.base, mem_offset(abx->shm.base, sizeof(xchg_t)) };
     channel_t *channels[] = { &abx->rx.channel, &abx->tx.channel };
 
     if (owner)
