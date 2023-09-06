@@ -264,7 +264,7 @@ static client_t *client_new(int fd)
         RTIPC_OBJECT_ITEM(client->tx.arg1),
     };
 
-    client->rtipc = rtipc_client_new(fd, client_rx_objs, sizeof(client_rx_objs) / sizeof(client_rx_objs[0]),
+    client->rtipc = rtipc_remote_new(fd, client_rx_objs, sizeof(client_rx_objs) / sizeof(client_rx_objs[0]),
                                      client_tx_objs, sizeof(client_tx_objs) / sizeof(client_tx_objs[0]), true);
 
     if (!client->rtipc)
@@ -284,7 +284,7 @@ static server_t *server_new(void)
 
     rtipc_object_t server_rx_objs[] = {
         RTIPC_OBJECT_ITEM(server->rx.cmd),
-    RTIPC_OBJECT_ITEM(server->rx.arg1),
+        RTIPC_OBJECT_ITEM(server->rx.arg1),
     };
 
     rtipc_object_t server_tx_objs[] = {
@@ -295,7 +295,7 @@ static server_t *server_new(void)
         RTIPC_OBJECT_ITEM(server->tx.f64),
     };
 
-    server->rtipc = rtipc_server_new(server_rx_objs, sizeof(server_rx_objs) / sizeof(server_rx_objs[0]),
+    server->rtipc = rtipc_owner_new(server_rx_objs, sizeof(server_rx_objs) / sizeof(server_rx_objs[0]),
                                      server_tx_objs, sizeof(server_tx_objs) / sizeof(server_tx_objs[0]), true);
 
     if (!server->rtipc)

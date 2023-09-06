@@ -130,13 +130,13 @@ fail:
 }
 
 
-rtipc_t* rtipc_server_new(const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
+rtipc_t* rtipc_owner_new(const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
 {
     return rtipc_new(-1, rx_objects, nrobjs, tx_objects, ntobjs, cache);
 }
 
 
-rtipc_t* rtipc_client_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
+rtipc_t* rtipc_remote_new(int fd, const rtipc_object_t *rx_objects, unsigned nrobjs, const rtipc_object_t *tx_objects, unsigned ntobjs, bool cache)
 {
     return rtipc_new(fd, rx_objects, nrobjs, tx_objects, ntobjs, cache);
 }

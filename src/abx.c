@@ -85,31 +85,27 @@ static void swap_channels(channel_t *channels[2])
 }
 
 
-static void abx_mmap(abx_t *abx)
+static void abx_map(abx_t *abx, bool owner)
 {
-
     void *xchng[] = { abx->shm.base, mem_offset(abx->shm.base, sizeof(xchg_t))};
     channel_t *channels[] = { &abx->rx.channel, &abx->tx.channel };
 
-    if (abx->shm.owner)
+    if (owner)
         swap_channels(channels);
 
     size_t offset = get_header_size();
 
     for (int i = 0; i < 2; i++)
         offset = map_channel(channels[i], abx->shm.base, xchng[i], offset);
-
-    if (abx->shm.owner) {
-        atomic_store_explicit(abx->rx.channel.xchg, BUFFER_NONE, memory_order_relaxed);
-        atomic_store_explicit(abx->tx.channel.xchg, BUFFER_NONE, memory_order_relaxed);
-    }
 }
 
 
 static abx_t* abx_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
 {
+    int r;
     size_t size;
     abx_t *abx = calloc(1, sizeof(abx_t));
+    bool owner = fd < 0;
 
     if (!abx)
         return abx;
@@ -121,12 +117,20 @@ static abx_t* abx_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
     size += NUM_BUFFERS * abx->rx.channel.buffer_size;
     size += NUM_BUFFERS * abx->tx.channel.buffer_size;
 
-    int r = shm_init(&abx->shm, size, fd);
+    if (owner)
+        r = shm_create(&abx->shm, size);
+    else
+        r = shm_map(&abx->shm, size, fd);
 
     if (r < 0)
         goto fail;
 
-    abx_mmap(abx);
+    abx_map(abx, owner);
+
+    if (owner) {
+        atomic_store_explicit(abx->rx.channel.xchg, BUFFER_NONE, memory_order_relaxed);
+        atomic_store_explicit(abx->tx.channel.xchg, BUFFER_NONE, memory_order_relaxed);
+    }
 
     return abx;
 fail:

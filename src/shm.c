@@ -53,26 +53,35 @@ fail:
 }
 
 
-int shm_init(shm_t *shm, size_t size, int fd)
+int shm_map(shm_t *shm, size_t size, int fd)
+{
+    shm->size = size;
+    shm->fd = fd;
+
+    shm->base = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
+
+    if (shm->base == MAP_FAILED)
+        return -errno;
+
+    return 0;
+}
+
+
+int shm_create(shm_t *shm, size_t size)
 {
     shm->size = size;
 
-    if (fd < 0) {
-        shm->owner = true;
-        shm->fd = create_shm(size);
-        if (shm->fd < 0)
-            return -errno;
-    } else {
-        shm->owner = false;
-        shm->fd = fd;
-    }
+    shm->fd = create_shm(size);
+
+    if (shm->fd < 0)
+        return -errno;
 
     shm->base = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
 
     if (shm->base == MAP_FAILED) {
-        if (shm->owner)
-            close(shm->fd);
-        return -errno;
+        int r = -errno;
+        close(shm->fd);
+        return r;
     }
 
     return 0;

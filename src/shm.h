@@ -12,10 +12,10 @@ typedef struct shm {
     void *base;
     int fd;
     size_t size;
-    bool owner;
 } shm_t;
 
-int shm_init(shm_t *shm, size_t size, int fd);
+int shm_create(shm_t *shm, size_t size);
+int shm_map(shm_t *shm, size_t size, int fd);
 void shm_destroy(shm_t *shm);
 
 #ifdef __cplusplus
