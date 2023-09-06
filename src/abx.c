@@ -35,6 +35,11 @@ typedef enum {
 
 
 typedef struct {
+    xchg_t xchgs[2];
+} abx_header_t;
+
+
+typedef struct {
     size_t buffer_size;
     xchg_t *xchg;
     void *buffers[NUM_BUFFERS];
@@ -56,7 +61,7 @@ struct abx {
 
 static size_t get_header_size(void)
 {
-    return mem_align(2 * sizeof(xchg_t), cache_line_size());
+    return mem_align(sizeof(abx_header_t), cache_line_size());
 }
 
 
@@ -86,16 +91,15 @@ static void swap_channels(channel_t *channels[2])
 
 static void abx_map(abx_t *abx, bool owner)
 {
-    void *xchng[] = { abx->shm.base, mem_offset(abx->shm.base, sizeof(xchg_t)) };
     channel_t *channels[] = { &abx->rx.channel, &abx->tx.channel };
-
-    if (owner)
-        swap_channels(channels);
-
+    abx_header_t *header = abx->shm.base;
     size_t offset = get_header_size();
 
+    if (!owner)
+        swap_channels(channels);
+
     for (int i = 0; i < 2; i++)
-        offset = map_channel(channels[i], abx->shm.base, xchng[i], offset);
+        offset = map_channel(channels[i], abx->shm.base, &header->xchgs[i], offset);
 }
 
 
