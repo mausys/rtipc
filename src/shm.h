@@ -18,8 +18,6 @@ typedef struct shm {
 int shm_init(shm_t *shm, size_t size, int fd);
 void shm_destroy(shm_t *shm);
 
-size_t cache_line_size(void);
-
 #ifdef __cplusplus
 }
 #endif

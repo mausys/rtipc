@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 
-#include "rtipc/shm.h"
+#include "shm.h"
 #include "mem_utils.h"
 
 

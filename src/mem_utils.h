@@ -13,3 +13,6 @@ static inline void* mem_offset(void *base, size_t offset)
 {
     return (void*)((uintptr_t)base + offset);
 }
+
+
+size_t cache_line_size(void);
