@@ -1,18 +1,13 @@
 #include "rtipc/abx.h"
 
-#define _GNU_SOURCE
-
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
 
-#include <sys/mman.h> // memfd_create
 
+#include "rtipc/shm.h"
 #include "mem_utils.h"
+
 
 #if ATOMIC_INT_LOCK_FREE == 2
 typedef atomic_uint xchg_t;
@@ -25,9 +20,6 @@ typedef atomic_uchar xchg_t;
 typedef atomic_uint xchg_t;
 #endif
 
-
-#define MIN_CACHE_LINE_SIZE 0x10
-#define MAX_SANE_CACHE_LINE_SIZE 0x1000
 
 #define NUM_BUFFERS 3
 
@@ -49,16 +41,8 @@ typedef struct {
 } channel_t;
 
 
-typedef struct {
-    void *base;
-    size_t size;
-    int fd;
-} shm_t;
-
 
 struct abx {
-    bool owner;
-    size_t alignment;
     shm_t shm;
     struct {
         channel_t channel;
@@ -71,81 +55,9 @@ struct abx {
 };
 
 
-
-
-
-static int create_shm(size_t size)
+static size_t get_header_size(void)
 {
-    static atomic_uint anr = 0;
-
-    unsigned nr = atomic_fetch_add_explicit(&anr, 1, memory_order_relaxed);
-
-    char name[64];
-
-    snprintf(name, sizeof(name) - 1, "abx_%u", nr);
-
-    int r = memfd_create(name, MFD_ALLOW_SEALING);
-
-    if (r < 0)
-        return -errno;
-
-    int fd = r;
-
-    r = ftruncate(fd, size);
-
-    if (r < 0) {
-        r = -errno;
-        goto fail;
-    }
-
-    r = fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
-
-    if (r < 0) {
-        r = -errno;
-        goto fail;
-    }
-
-    return fd;
-
-fail:
-    close(fd);
-    return r;
-}
-
-
-static size_t get_cache_line_size(int level, size_t min)
-{
-    long r = sysconf(level);
-
-    if (r < 0)
-        return min;
-
-    size_t size = r;
-
-    // check for single bit
-    if (!size || (size & (size - 1)))
-        return min;
-
-    if (size > MAX_SANE_CACHE_LINE_SIZE)
-        return min;
-
-    return size;
-}
-
-
-static size_t get_alignment(void)
-{
-    size_t alignment = get_cache_line_size(_SC_LEVEL1_DCACHE_LINESIZE, MIN_CACHE_LINE_SIZE);
-    alignment = get_cache_line_size(_SC_LEVEL2_CACHE_LINESIZE, alignment);
-    return get_cache_line_size(_SC_LEVEL3_CACHE_LINESIZE, alignment);
-}
-
-
-
-
-static size_t get_header_size(const abx_t *abx)
-{
-    return mem_align(2 * sizeof(xchg_t), abx->alignment);
+    return mem_align(2 * sizeof(xchg_t), cache_line_size());
 }
 
 
@@ -173,69 +85,51 @@ static void swap_channels(channel_t *channels[2])
 }
 
 
-static int abx_mmap(abx_t *abx)
+static void abx_mmap(abx_t *abx)
 {
-    abx->shm.base = mmap(NULL, abx->shm.size, PROT_READ | PROT_WRITE, MAP_SHARED, abx->shm.fd, 0);
-
-    if (abx->shm.base == MAP_FAILED)
-        return -errno;
 
     void *xchng[] = { abx->shm.base, mem_offset(abx->shm.base, sizeof(xchg_t))};
     channel_t *channels[] = { &abx->rx.channel, &abx->tx.channel };
 
-    if (abx->owner)
+    if (abx->shm.owner)
         swap_channels(channels);
 
-    size_t offset = get_header_size(abx);
+    size_t offset = get_header_size();
 
     for (int i = 0; i < 2; i++)
         offset = map_channel(channels[i], abx->shm.base, xchng[i], offset);
 
-    if (abx->owner) {
+    if (abx->shm.owner) {
         atomic_store_explicit(abx->rx.channel.xchg, BUFFER_NONE, memory_order_relaxed);
         atomic_store_explicit(abx->tx.channel.xchg, BUFFER_NONE, memory_order_relaxed);
     }
-
-    return 0;
 }
 
 
 static abx_t* abx_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
 {
+    size_t size;
     abx_t *abx = calloc(1, sizeof(abx_t));
 
     if (!abx)
         return abx;
 
-    abx->alignment = get_alignment();
+    abx->rx.channel.buffer_size = mem_align(rx_buffer_size, cache_line_size());
+    abx->tx.channel.buffer_size = mem_align(tx_buffer_size, cache_line_size());
 
-    abx->rx.channel.buffer_size = mem_align(rx_buffer_size, abx->alignment);
-    abx->tx.channel.buffer_size = mem_align(tx_buffer_size, abx->alignment);
+    size = get_header_size();
+    size += NUM_BUFFERS * abx->rx.channel.buffer_size;
+    size += NUM_BUFFERS * abx->tx.channel.buffer_size;
 
-    abx->shm.size = get_header_size(abx);
-    abx->shm.size += NUM_BUFFERS * abx->rx.channel.buffer_size;
-    abx->shm.size += NUM_BUFFERS * abx->tx.channel.buffer_size;
-
-    if (fd < 0) {
-        abx->owner = true;
-        abx->shm.fd = create_shm(abx->shm.size);
-        if (abx->shm.fd < 0)
-            goto create_shm_failed;
-    } else {
-        abx->owner = false;
-        abx->shm.fd = fd;
-    }
-
-    int r = abx_mmap(abx);
+    int r = shm_init(&abx->shm, size, fd);
 
     if (r < 0)
-        goto mmap_failed;
+        goto fail;
+
+    abx_mmap(abx);
 
     return abx;
-
-mmap_failed:
-    close(abx->shm.fd);
-create_shm_failed:
+fail:
     free(abx);
     return NULL;
 }
@@ -255,8 +149,7 @@ abx_t *abx_remote_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
 
 void abx_delete(abx_t *abx)
 {
-    munmap(abx->shm.base, abx->shm.size);
-    close(abx->shm.fd);
+    shm_destroy(&abx->shm);
     free(abx);
 }
 
