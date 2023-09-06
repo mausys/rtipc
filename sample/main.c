@@ -11,7 +11,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "object.h"
 
 typedef enum
 {
@@ -21,21 +20,43 @@ typedef enum
     CMD_SET_F64,
 } cmd_id_t;
 
+typedef struct
+{
+    uint32_t seqno;
+    uint32_t timestamp;
+} header_t;
+
+
+typedef union {
+    uint8_t u8;
+    int8_t s8;
+    uint16_t u16;
+    int16_t s16;
+    uint32_t u32;
+    int32_t s32;
+    uint64_t u64;
+    int64_t s64;
+    float f32;
+    double f64;
+} generic_t;
+
 
 typedef struct
 {
-    object_rsp_t *rsp;
-    object_u8_t *u8;
-    object_u16_t *u16;
-    object_u32_t *u32;
-    object_f64_t *f64;
+    header_t *header;
+    int32_t *rsp;
+    uint8_t *u8;
+    uint16_t *u16;
+    uint32_t *u32;
+    double *f64;
 } s2c_t;
 
 
 typedef struct
 {
-    object_cmd_t *cmd;
-    object_arg_t *arg1;
+    header_t *header;
+    uint32_t *cmd;
+    generic_t *arg1;
 } c2s_t;
 
 
@@ -115,7 +136,7 @@ static int recvfd(int socket)  // receive fd from socket
 }
 
 
-static void set_header(object_header_t *header)
+static void set_header(header_t *header)
 {
     header->seqno++;
     header->timestamp = now();
@@ -123,9 +144,9 @@ static void set_header(object_header_t *header)
 
 static void server_set_rsp(server_t *server)
 {
-    server->tx.rsp->header.seqno = server->rx.cmd->header.seqno;
-    server->tx.rsp->header.timestamp = now();
-    server->tx.rsp->ret = 0;
+    server->tx.header->seqno = server->rx.header->seqno;
+    server->tx.header->timestamp = now();
+    *server->tx.rsp = 0;
 }
 
 
@@ -137,30 +158,26 @@ static void server_process(server_t *server)
         return;
 
     if (!server->connected) {
-        if (server->rx.cmd->header.seqno == 0)
+        if (server->rx.header->seqno == 0)
             return;
         server->connected = true;
     }
 
-    switch (server->rx.cmd->id) {
+    switch (*server->rx.cmd) {
         case CMD_SET_U8:
-            set_header(&server->tx.u8->header);
-            server->tx.u8->data = server->rx.arg1->u8;
+            *server->tx.u8 = server->rx.arg1->u8;
             break;
         case CMD_SET_U16:
-            set_header(&server->tx.u16->header);
-            server->tx.u16->data = server->rx.arg1->u16;
+            *server->tx.u16 = server->rx.arg1->u16;
             break;
         case CMD_SET_U32:
-            set_header(&server->tx.u32->header);
-            server->tx.u32->data = server->rx.arg1->u32;
+            *server->tx.u32 = server->rx.arg1->u32;
             break;
         case CMD_SET_F64:
-            set_header(&server->tx.f64->header);
-            server->tx.f64->data = server->rx.arg1->f64;
+            *server->tx.f64 = server->rx.arg1->f64;
             break;
         default:
-            error(-1, EINVAL, "unknown cmd received %u", server->rx.cmd->id);
+            error(-1, EINVAL, "unknown cmd received %u", *server->rx.cmd);
             break;
     }
 
@@ -171,9 +188,9 @@ static void server_process(server_t *server)
 
 static void client_set_cmd(client_t *client)
 {
-    set_header(&client->tx.cmd->header);
+    set_header(client->tx.header);
 
-    switch (client->tx.cmd->id) {
+    switch (*client->tx.cmd) {
         case CMD_SET_U16:
             client->tx.arg1->u16 = client->arg;
             break;
@@ -185,7 +202,7 @@ static void client_set_cmd(client_t *client)
             break;
         default:
         case CMD_SET_U8:
-            client->tx.cmd->id = CMD_SET_U8;
+            *client->tx.cmd = CMD_SET_U8;
             client->tx.arg1->u32 = client->arg;
             break;
     }
@@ -194,22 +211,22 @@ static void client_set_cmd(client_t *client)
 
 static void client_check_data(client_t *client)
 {
-    switch (client->tx.cmd->id) {
+    switch (*client->tx.cmd) {
         case CMD_SET_U8:
-            if (client->rx.u8->data != (uint8_t)client->arg)
-                printf("client_check_data got wrong data: %u expected: %u\n", client->rx.u8->data, (uint8_t)client->arg);
+            if (*client->rx.u8 != (uint8_t)client->arg)
+                printf("client_check_data got wrong data: %u expected: %u\n", *client->rx.u8, (uint8_t)client->arg);
             break;
         case CMD_SET_U16:
-            if (client->rx.u16->data != (uint16_t)client->arg)
-                printf("client_check_data got wrong data: %u expected: %u\n", client->rx.u16->data, (uint16_t)client->arg);
+            if (*client->rx.u16 != (uint16_t)client->arg)
+                printf("client_check_data got wrong data: %u expected: %u\n", *client->rx.u16, (uint16_t)client->arg);
             break;
         case CMD_SET_U32:
-            if (client->rx.u32->data != (uint32_t)client->arg)
-                printf("client_check_data got wrong data: %u expected: %u\n", client->rx.u32->data, (uint32_t)client->arg);
+            if (*client->rx.u32 != (uint32_t)client->arg)
+                printf("client_check_data got wrong data: %u expected: %u\n", *client->rx.u32, (uint32_t)client->arg);
             break;
         case CMD_SET_F64:
-            if (client->rx.f64->data != (double)client->arg)
-                printf("client_check_data got wrong data: %f expected: %f\n", client->rx.f64->data, (double)client->arg);
+            if (*client->rx.f64 != (double)client->arg)
+                printf("client_check_data got wrong data: %f expected: %f\n", *client->rx.f64, (double)client->arg);
             break;
         default:
             printf("client_check_data unknown cmd_id\n");
@@ -220,7 +237,7 @@ static void client_check_data(client_t *client)
 
 static void client_process(client_t *client)
 {
-    if (client->tx.cmd->header.seqno == 0) {
+    if (client->tx.header->seqno == 0) {
         client_set_cmd(client);
         rtipc_send(client->rtipc);
         return;
@@ -233,16 +250,16 @@ static void client_process(client_t *client)
 
     //printf("client_task rx=%u\n", client->rx.rsp->header.seqno);
 
-    if (client->tx.cmd->header.seqno == client->rx.rsp->header.seqno + 1)
+    if (client->tx.header->seqno == client->rx.header->seqno + 1)
         return;
-    else if (client->tx.cmd->header.seqno == client->rx.rsp->header.seqno) {
+    else if (client->tx.header->seqno == client->rx.header->seqno) {
         client_check_data(client);
         client->arg++;
-        client->tx.cmd->id++;
+        (*client->tx.cmd)++;
         client_set_cmd(client);
         rtipc_send(client->rtipc);
     } else {
-        printf("client_task %u %u\n", client->tx.cmd->header.seqno, client->rx.rsp->header.seqno);
+        printf("client_task %u %u\n", client->tx.header->seqno, client->rx.header->seqno);
     }
 }
 
