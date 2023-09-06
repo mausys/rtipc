@@ -8,9 +8,6 @@
 #include "mem_utils.h"
 
 
-#define RTIPC_DATA_ALIGN sizeof(uint64_t)
-
-
 typedef struct
 {
     size_t offset;
@@ -65,6 +62,10 @@ static int init_channel(channel_t *channel, const rtipc_object_t *objects, unsig
     channel->num = n;
 
     for (unsigned i = 0; i < channel->num; i++) {
+
+        if (objects[i].align != 0)
+            channel->size = mem_align(channel->size, objects[i].align);
+
         channel->map[i] = (object_map_t) {
             .p = objects[i].p,
             .size = objects[i].size,
@@ -72,7 +73,7 @@ static int init_channel(channel_t *channel, const rtipc_object_t *objects, unsig
         };
 
         channel->size += channel->map[i].size;
-        channel->size = mem_align(channel->size, RTIPC_DATA_ALIGN);
+
 
         if (channel->map[i].p)
             *channel->map[i].p = NULL;
