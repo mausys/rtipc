@@ -22,6 +22,5 @@ void rtipc_log(int priority, const char *file, const char *line,
   va_start(ap, format);
   vfprintf(out, format, ap);
   va_end(ap);
-  fprintf(out, "\n");
 }
 
