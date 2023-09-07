@@ -4,7 +4,7 @@ project(rtipc LANGUAGES C)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_library(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/src/abx.c ${PROJECT_SOURCE_DIR}/src/rtipc.c ${PROJECT_SOURCE_DIR}/src/shm.c ${PROJECT_SOURCE_DIR}/src/mem_utils.c)
+add_library(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/src/abx.c ${PROJECT_SOURCE_DIR}/src/rtipc.c ${PROJECT_SOURCE_DIR}/src/shm.c ${PROJECT_SOURCE_DIR}/src/mem_utils.c ${PROJECT_SOURCE_DIR}/src/log.c)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 11)
 

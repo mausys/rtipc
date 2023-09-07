@@ -8,15 +8,13 @@ extern "C" {
 #endif
 
 
-typedef struct shm {
-    void *base;
-    int fd;
-    size_t size;
-} shm_t;
+typedef struct shm shm_t;
 
-int shm_create(shm_t *shm, size_t size);
-int shm_map(shm_t *shm, size_t size, int fd);
-void shm_destroy(shm_t *shm);
+shm_t* shm_create(size_t size);
+shm_t* shm_map(size_t size, int fd);
+void shm_delete(shm_t *shm);
+void* shm_get_address(shm_t* shm);
+int shm_get_fd(shm_t* shm);
 
 #ifdef __cplusplus
 }

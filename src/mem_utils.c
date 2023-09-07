@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <stdatomic.h>
 
+#include "log.h"
+
 #define MIN_CACHE_LINE_SIZE 0x10
 #define MAX_SANE_CACHE_LINE_SIZE 0x1000
 
@@ -40,6 +42,8 @@ size_t cache_line_size(void)
     cls = get_cls_level(_SC_LEVEL3_CACHE_LINESIZE, cls);
 
     atomic_store_explicit(&s_cls, cls, memory_order_relaxed);
+
+    LOG_INF("cache_line_size=%zu", cls);
 
     return cls;
 }

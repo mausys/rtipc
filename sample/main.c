@@ -269,6 +269,7 @@ static client_t *client_new(int fd)
     client_t *client = calloc(1, sizeof(client_t));
 
     rtipc_object_t client_rx_objs[] = {
+        RTIPC_OBJECT_ITEM(client->rx.header),
         RTIPC_OBJECT_ITEM(client->rx.rsp),
         RTIPC_OBJECT_ITEM(client->rx.u8),
         RTIPC_OBJECT_ITEM(client->rx.u16),
@@ -277,6 +278,7 @@ static client_t *client_new(int fd)
     };
 
     rtipc_object_t client_tx_objs[] = {
+        RTIPC_OBJECT_ITEM(client->tx.header),
         RTIPC_OBJECT_ITEM(client->tx.cmd),
         RTIPC_OBJECT_ITEM(client->tx.arg1),
     };
@@ -300,11 +302,13 @@ static server_t *server_new(void)
     server_t *server = calloc(1, sizeof(server_t));
 
     rtipc_object_t server_rx_objs[] = {
+        RTIPC_OBJECT_ITEM(server->rx.header),
         RTIPC_OBJECT_ITEM(server->rx.cmd),
         RTIPC_OBJECT_ITEM(server->rx.arg1),
     };
 
     rtipc_object_t server_tx_objs[] = {
+        RTIPC_OBJECT_ITEM(server->tx.header),
         RTIPC_OBJECT_ITEM(server->tx.rsp),
         RTIPC_OBJECT_ITEM(server->tx.u8),
         RTIPC_OBJECT_ITEM(server->tx.u16),

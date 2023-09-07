@@ -47,7 +47,7 @@ typedef struct {
 
 
 struct abx {
-    shm_t shm;
+    shm_t *shm;
     struct {
         channel_t channel;
         buffer_idx_t current;
@@ -65,12 +65,14 @@ static size_t get_header_size(void)
 }
 
 
-static size_t map_channel(channel_t *channel, void *base, void *xchg, size_t offset)
+static size_t map_channel(channel_t *channel, void *base, unsigned xchg, size_t offset)
 {
     if (channel->buffer_size == 0)
         return offset;
 
-    channel->xchg = xchg;
+    abx_header_t *header = base;
+
+    channel->xchg = &header->xchgs[xchg];
 
     for (int i = 0; i < NUM_BUFFERS; i++) {
         channel->buffers[i] = mem_offset(base, offset);
@@ -91,21 +93,21 @@ static void swap_channels(channel_t *channels[2])
 
 static void abx_map(abx_t *abx, bool owner)
 {
+    void *p = shm_get_address(abx->shm);
     channel_t *channels[] = { &abx->rx.channel, &abx->tx.channel };
-    abx_header_t *header = abx->shm.base;
+
     size_t offset = get_header_size();
 
     if (!owner)
         swap_channels(channels);
 
-    for (int i = 0; i < 2; i++)
-        offset = map_channel(channels[i], abx->shm.base, &header->xchgs[i], offset);
+    for (unsigned i = 0; i < 2; i++)
+        offset = map_channel(channels[i], p, i, offset);
 }
 
 
 static abx_t* abx_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
 {
-    int r;
     size_t size;
     abx_t *abx = calloc(1, sizeof(abx_t));
     bool owner = fd < 0;
@@ -121,11 +123,11 @@ static abx_t* abx_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
     size += NUM_BUFFERS * abx->tx.channel.buffer_size;
 
     if (owner)
-        r = shm_create(&abx->shm, size);
+        abx->shm = shm_create(size);
     else
-        r = shm_map(&abx->shm, size, fd);
+        abx->shm = shm_map(size, fd);
 
-    if (r < 0)
+    if (!abx->shm)
         goto fail;
 
     abx_map(abx, owner);
@@ -156,7 +158,7 @@ abx_t *abx_remote_new(int fd, size_t rx_buffer_size, size_t tx_buffer_size)
 
 void abx_delete(abx_t *abx)
 {
-    shm_destroy(&abx->shm);
+    shm_delete(abx->shm);
     free(abx);
 }
 
@@ -175,7 +177,7 @@ size_t abx_size_tx(const abx_t *abx)
 
 int abx_get_fd(const abx_t *abx)
 {
-    return abx->shm.fd;
+    return shm_get_fd(abx->shm);
 }
 
 
