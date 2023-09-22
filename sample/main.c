@@ -1,4 +1,5 @@
-#include <rtipc/rtipc.h>
+#include <rtipc/object.h>
+#include <rtipc/posix.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -7,21 +8,20 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
+#include <threads.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 
 
-typedef enum
-{
+typedef enum {
     CMD_SET_U8 = 111,
     CMD_SET_U16,
     CMD_SET_U32,
     CMD_SET_F64,
 } cmd_id_t;
 
-typedef struct
-{
+typedef struct {
     uint32_t seqno;
     uint32_t timestamp;
 } header_t;
@@ -52,26 +52,27 @@ typedef struct
 } s2c_t;
 
 
-typedef struct
-{
+typedef struct {
     header_t *header;
     uint32_t *cmd;
     generic_t *arg1;
 } c2s_t;
 
 
-typedef struct
-{
-    rtipc_t *rtipc;
+typedef struct {
+    ri_shm_t *shm;
+    ri_rom_t *rom;
+    ri_tom_t *tom;
     uint32_t arg;
     s2c_t rx;
     c2s_t tx;
 } client_t;
 
 
-typedef struct
-{
-    rtipc_t *rtipc;
+typedef struct {
+    ri_shm_t *shm;
+    ri_rom_t *rom;
+    ri_tom_t *tom;
     bool connected;
     c2s_t rx;
     s2c_t tx;
@@ -138,7 +139,7 @@ static int recvfd(int socket)  // receive fd from socket
 
 static void set_header(header_t *header)
 {
-    header->seqno++;
+    ++header->seqno;
     header->timestamp = now();
 }
 
@@ -152,7 +153,7 @@ static void server_set_rsp(server_t *server)
 
 static void server_process(server_t *server)
 {
-    int r = rtipc_recv(server->rtipc);
+    int r = ri_rom_update(server->rom);
 
     if (r != 1)
         return;
@@ -182,7 +183,7 @@ static void server_process(server_t *server)
     }
 
     server_set_rsp(server);
-    rtipc_send(server->rtipc);
+    ri_tom_update(server->tom);
 }
 
 
@@ -239,11 +240,11 @@ static void client_process(client_t *client)
 {
     if (client->tx.header->seqno == 0) {
         client_set_cmd(client);
-        rtipc_send(client->rtipc);
+        ri_tom_update(client->tom);
         return;
     }
 
-    int r = rtipc_recv(client->rtipc);
+    int r = ri_rom_update(client->rom);
 
     if (r != 1)
         return;
@@ -257,37 +258,61 @@ static void client_process(client_t *client)
         client->arg++;
         (*client->tx.cmd)++;
         client_set_cmd(client);
-        rtipc_send(client->rtipc);
+        ri_tom_update(client->tom);
     } else {
         printf("client_task %u %u\n", client->tx.header->seqno, client->rx.header->seqno);
     }
 }
 
+client_t *g_client;
+server_t *g_server;
 
 static client_t *client_new(int fd)
 {
     client_t *client = calloc(1, sizeof(client_t));
 
-    rtipc_object_t client_rx_objs[] = {
-        RTIPC_OBJECT_ITEM(client->rx.header),
-        RTIPC_OBJECT_ITEM(client->rx.rsp),
-        RTIPC_OBJECT_ITEM(client->rx.u8),
-        RTIPC_OBJECT_ITEM(client->rx.u16),
-        RTIPC_OBJECT_ITEM(client->rx.u32),
-        RTIPC_OBJECT_ITEM(client->rx.f64),
+    g_client = client;
+
+    ri_obj_desc_t client_robjs[] = {
+        RI_OBJECT_ITEM(client->rx.header),
+        RI_OBJECT_ITEM(client->rx.rsp),
+        RI_OBJECT_ITEM(client->rx.u8),
+        RI_OBJECT_ITEM(client->rx.u16),
+        RI_OBJECT_ITEM(client->rx.u32),
+        RI_OBJECT_ITEM(client->rx.f64),
+        RI_OBJECT_END,
     };
 
-    rtipc_object_t client_tx_objs[] = {
-        RTIPC_OBJECT_ITEM(client->tx.header),
-        RTIPC_OBJECT_ITEM(client->tx.cmd),
-        RTIPC_OBJECT_ITEM(client->tx.arg1),
+    ri_obj_desc_t client_tobjs[] = {
+        RI_OBJECT_ITEM(client->tx.header),
+        RI_OBJECT_ITEM(client->tx.cmd),
+        RI_OBJECT_ITEM(client->tx.arg1),
+        RI_OBJECT_END,
     };
 
-    client->rtipc = rtipc_remote_new(fd, client_rx_objs, sizeof(client_rx_objs) / sizeof(client_rx_objs[0]),
-                                     client_tx_objs, sizeof(client_tx_objs) / sizeof(client_tx_objs[0]), true);
+    client->shm = ri_posix_shm_map(fd);
 
-    if (!client->rtipc)
-        goto fail_rtipc;
+    ri_rchn_t rchn;
+    ri_tchn_t tchn;
+
+    size_t offset = ri_shm_get_rchn(client->shm, 0, &rchn);
+    if (offset == 0)
+        error(-1, 0, "client_new ri_shm_get_rchn failed");
+
+    offset = ri_shm_get_tchn(client->shm, 0, &tchn);
+    if (offset == 0)
+        error(-1, 0, "client_new ri_shm_get_tchn failed");
+
+
+    client->rom = ri_rom_new(&rchn, client_robjs);
+    if (!client->rom)
+        error(-1, 0, "client_new ri_rom_new failed");
+
+    client->tom = ri_tom_new(&tchn, client_tobjs, true);
+    if (!client->tom)
+        error(-1, 0, "client_new ri_tom_new failed");
+
+
 
     return client;
 
@@ -300,27 +325,51 @@ fail_rtipc:
 static server_t *server_new(void)
 {
     server_t *server = calloc(1, sizeof(server_t));
+    g_server = server;
 
-    rtipc_object_t server_rx_objs[] = {
-        RTIPC_OBJECT_ITEM(server->rx.header),
-        RTIPC_OBJECT_ITEM(server->rx.cmd),
-        RTIPC_OBJECT_ITEM(server->rx.arg1),
+    ri_obj_desc_t server_robjs[] = {
+        RI_OBJECT_ITEM(server->rx.header),
+        RI_OBJECT_ITEM(server->rx.cmd),
+        RI_OBJECT_ITEM(server->rx.arg1),
+        RI_OBJECT_END,
     };
 
-    rtipc_object_t server_tx_objs[] = {
-        RTIPC_OBJECT_ITEM(server->tx.header),
-        RTIPC_OBJECT_ITEM(server->tx.rsp),
-        RTIPC_OBJECT_ITEM(server->tx.u8),
-        RTIPC_OBJECT_ITEM(server->tx.u16),
-        RTIPC_OBJECT_ITEM(server->tx.u32),
-        RTIPC_OBJECT_ITEM(server->tx.f64),
+    ri_obj_desc_t server_tobjs[] = {
+        RI_OBJECT_ITEM(server->tx.header),
+        RI_OBJECT_ITEM(server->tx.rsp),
+        RI_OBJECT_ITEM(server->tx.u8),
+        RI_OBJECT_ITEM(server->tx.u16),
+        RI_OBJECT_ITEM(server->tx.u32),
+        RI_OBJECT_ITEM(server->tx.f64),
+        RI_OBJECT_END,
     };
 
-    server->rtipc = rtipc_owner_new(server_rx_objs, sizeof(server_rx_objs) / sizeof(server_rx_objs[0]),
-                                     server_tx_objs, sizeof(server_tx_objs) / sizeof(server_tx_objs[0]), true);
+    size_t rbuf_size = ri_calc_buffer_size(server_robjs);
+    size_t tbuf_size = ri_calc_buffer_size(server_tobjs);
 
-    if (!server->rtipc)
-        goto fail_rtipc;
+    size_t rchn_size = ri_shm_calc_chn_size(rbuf_size);
+    size_t tchn_size = ri_shm_calc_chn_size(tbuf_size);
+
+    server->shm = ri_posix_shm_create(rchn_size + tchn_size);
+
+    ri_rchn_t rchn;
+    ri_tchn_t tchn;
+
+    size_t offset = ri_shm_set_rchn(server->shm, 0, rbuf_size, false, &rchn);
+    if (offset == 0)
+        error(-1, 0, "server_new ri_shm_set_rchn failed");
+
+    offset = ri_shm_set_tchn(server->shm, offset, tbuf_size, true, &tchn);
+    if (offset == 0)
+        error(-1, 0, "server_new ri_shm_set_tchn failed");
+
+    server->rom = ri_rom_new(&rchn, server_robjs);
+    if (!server->rom)
+        error(-1, 0, "server_new ri_rom_new failed");
+
+    server->tom = ri_tom_new(&tchn, server_tobjs, true);
+    if (!server->tom)
+        error(-1, 0, "server_new ri_tom_new failed");
 
     return server;
 
@@ -332,7 +381,9 @@ fail_rtipc:
 
 static void client_delete(client_t *client)
 {
-    rtipc_delete(client->rtipc);
+    ri_rom_delete(client->rom);
+    ri_tom_delete(client->tom);
+    ri_posix_shm_delete(client->shm);
     free(client);
 }
 
@@ -340,7 +391,9 @@ static void client_delete(client_t *client)
 
 static void server_delete(server_t *server)
 {
-    rtipc_delete(server->rtipc);
+    ri_rom_delete(server->rom);
+    ri_tom_delete(server->tom);
+    ri_posix_shm_delete(server->shm);
     free(server);
 }
 
@@ -377,7 +430,7 @@ static void server_task(int socket)
         error(-1, 0, "create server failed");
     }
 
-    int fd = rtipc_get_fd(server->rtipc);
+    int fd = ri_posix_shm_get_fd(server->shm);
 
     int r = sendfd(socket, fd);
 
@@ -394,26 +447,35 @@ static void server_task(int socket)
     server_delete(server);
 }
 
+int thrd_server_entry(void *ud)
+{
+    int fd = *(int*)ud;
+    server_task(fd);
+    return 0;
+}
+
+int thrd_client_entry(void *ud)
+{
+    int fd = *(int*)ud;
+    client_task(fd);
+    return 0;
+}
+
+int sv[2];
+
+thrd_t thrd_server;
+thrd_t thrd_client;
 
 int main(void)
 {
-    int sv[2];
     int r =  socketpair(AF_UNIX, SOCK_DGRAM, 0, sv);
 
-    if (r < 0)
-         error(-1, errno, "socketpair failed");
+    thrd_create(&thrd_server, thrd_server_entry, &sv[0]);
 
-   pid_t pid = fork();
+    thrd_create(&thrd_client, thrd_client_entry, &sv[1]);
 
-    if (pid == 0) {
-        close(sv[1]);
-        server_task(sv[0]);
-    } else if (pid != -1) {
-        close(sv[0]);
-        client_task(sv[1]);
-    } else {
-        error(errno, errno, "fork failed");
-    }
+    thrd_join(thrd_server, NULL);
+    thrd_join(thrd_client, NULL);
 
     return 0;
 }

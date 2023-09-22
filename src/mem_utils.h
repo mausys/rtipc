@@ -9,10 +9,11 @@ static inline size_t mem_align(size_t size, size_t alignment)
 }
 
 
-static inline void* mem_offset(void *base, size_t offset)
+static inline void* mem_offset(void *p, size_t offset)
 {
-    return (void*)((uintptr_t)base + offset);
+    return (void*)((uintptr_t)p + offset);
 }
 
 
 size_t cache_line_size(void);
+size_t mem_alignment(void);

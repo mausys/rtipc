@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <stdatomic.h>
 
-#include "log.h"
+#include "rtipc/log.h"
 
 #define MIN_CACHE_LINE_SIZE 0x10
 #define MAX_SANE_CACHE_LINE_SIZE 0x1000
@@ -29,7 +29,7 @@ static size_t get_cls_level(int level, size_t min)
 }
 
 
-size_t cache_line_size(void)
+size_t mem_alignment(void)
 {
     static atomic_ulong s_cls = 0;
     size_t cls = atomic_load_explicit(&s_cls, memory_order_relaxed);

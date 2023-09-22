@@ -1,4 +1,4 @@
-#include "log.h"
+#include "rtipc/log.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -9,7 +9,7 @@
 
 static int m_log_min_level = LOG_LEVEL_INF;
 
-void rtipc_log(int priority, const char *file, const char *line,
+void ri_log(int priority, const char *file, const char *line,
                                 const char *func, const char *format, ...)
 {
   if (priority > m_log_min_level)
