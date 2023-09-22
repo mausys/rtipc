@@ -22,10 +22,11 @@ typedef enum {
 typedef struct {
     uint32_t magic;
     uint32_t size;
-    uint32_t flags;
+    uint8_t flags;
     uint8_t xchg_size;
-    uint8_t align;
+    uint16_t align;
     uint16_t xchg_offset;
+    uint16_t hdr_size;
     ri_xchg_t xchg;
 } chn_hdr_t;
 
@@ -43,7 +44,7 @@ static bool check_hdr(const chn_hdr_t *hdr)
         return false;
     }
 
-    if (hdr->align != (uint8_t)mem_alignment()) {
+    if (hdr->align != (uint16_t)mem_alignment()) {
         LOG_ERR("invalid align field: is=%x expected=%x", hdr->align, (uint8_t)mem_alignment());
         return false;
     }
@@ -58,6 +59,11 @@ static bool check_hdr(const chn_hdr_t *hdr)
         return false;
     }
 
+    if (hdr->hdr_size != (uint16_t)get_hdr_size()) {
+        LOG_ERR("invalid hdr_size field: is=%x expected=%x", hdr->hdr_size, (uint16_t)get_hdr_size());
+        return false;
+    }
+
     return true;
 }
 
@@ -68,10 +74,11 @@ static void set_hdr(chn_hdr_t *hdr, size_t size, chn_dir_t dir, bool last)
         .magic = MAGIC,
         .size = size,
         .xchg = RI_BUFFER_NONE,
-        .flags = (uint32_t)dir | (last ? LAST_CHANNEL_MASK : 0),
+        .flags = (uint8_t)dir | (last ? LAST_CHANNEL_MASK : 0),
         .xchg_size = (uint8_t)sizeof(hdr->xchg),
-        .align = (uint8_t)mem_alignment(),
+        .align = (uint16_t)mem_alignment(),
         .xchg_offset = (uint16_t)offsetof(chn_hdr_t, xchg),
+        .hdr_size = (uint16_t)get_hdr_size(),
     };
 }
 
