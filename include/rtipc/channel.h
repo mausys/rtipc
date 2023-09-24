@@ -39,7 +39,7 @@ typedef struct {
 } ri_rchn_t;
 
 
-void* ri_tchn_init(ri_tchn_t *chn);
+void ri_tchn_init(ri_tchn_t *chn);
 
 void* ri_rchn_update(ri_rchn_t *chn);
 

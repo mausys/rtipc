@@ -79,6 +79,49 @@ typedef struct {
 } server_t;
 
 
+static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t *s2c_chns[])
+{
+    unsigned n_c2s = 0;
+
+    for (const ri_obj_desc_t **d = c2s_chns; *d; d++)
+        n_c2s++;
+
+    size_t c2s_sizes[n_c2s + 1];
+
+    for (unsigned i = 0; i < n_c2s; i++)
+        c2s_sizes[i] = ri_calc_buffer_size(c2s_chns[i]);
+
+    c2s_sizes[n_c2s] = 0;
+
+
+    unsigned n_s2c = 0;
+
+    for (const ri_obj_desc_t **d = s2c_chns; *d; d++)
+        n_s2c++;
+
+    size_t s2c_sizes[n_s2c + 1];
+
+    for (unsigned i = 0; i < n_s2c; i++)
+        s2c_sizes[i] = ri_calc_buffer_size(s2c_chns[i]);
+
+    s2c_sizes[n_s2c] = 0;
+
+    size_t shm_size = ri_shm_calc_size(c2s_sizes, s2c_sizes);
+
+    ri_shm_t *shm = ri_posix_shm_create(shm_size);
+
+    if (!shm)
+        return NULL;
+
+    int r = ri_shm_map_channels(shm, c2s_sizes, s2c_sizes);
+
+    if (r < 0) {
+        ri_posix_shm_delete(shm);
+        return NULL;
+    }
+    return shm;
+}
+
 static uint32_t now(void)
 {
     struct timespec ts;
@@ -295,14 +338,8 @@ static client_t *client_new(int fd)
     ri_rchn_t rchn;
     ri_tchn_t tchn;
 
-    size_t offset = ri_shm_get_rchn(client->shm, 0, &rchn);
-    if (offset == 0)
-        error(-1, 0, "client_new ri_shm_get_rchn failed");
-
-    offset = ri_shm_get_tchn(client->shm, 0, &tchn);
-    if (offset == 0)
-        error(-1, 0, "client_new ri_shm_get_tchn failed");
-
+    ri_shm_client_get_rx_channel(client->shm, 0, &rchn);
+    ri_shm_client_get_tx_channel(client->shm, 0, &tchn);
 
     client->rom = ri_rom_new(&rchn, client_robjs);
     if (!client->rom)
@@ -344,24 +381,20 @@ static server_t *server_new(void)
         RI_OBJECT_END,
     };
 
-    size_t rbuf_size = ri_calc_buffer_size(server_robjs);
-    size_t tbuf_size = ri_calc_buffer_size(server_tobjs);
+    ri_obj_desc_t *c2s_chns[] = {&server_robjs[0] , NULL};
+    ri_obj_desc_t *s2s_chns[] = {&server_tobjs[0] , NULL};
 
-    size_t rchn_size = ri_shm_calc_chn_size(rbuf_size);
-    size_t tchn_size = ri_shm_calc_chn_size(tbuf_size);
+    server->shm = create_shm(c2s_chns, s2s_chns);
 
-    server->shm = ri_posix_shm_create(rchn_size + tchn_size);
+    if (!server->shm)
+        error(-1, 0, "create_shm failed");
+
 
     ri_rchn_t rchn;
     ri_tchn_t tchn;
 
-    size_t offset = ri_shm_set_rchn(server->shm, 0, rbuf_size, false, &rchn);
-    if (offset == 0)
-        error(-1, 0, "server_new ri_shm_set_rchn failed");
-
-    offset = ri_shm_set_tchn(server->shm, offset, tbuf_size, true, &tchn);
-    if (offset == 0)
-        error(-1, 0, "server_new ri_shm_set_tchn failed");
+    ri_shm_server_get_rx_channel(server->shm, 0, &rchn);
+    ri_shm_server_get_tx_channel(server->shm, 0, &tchn);
 
     server->rom = ri_rom_new(&rchn, server_robjs);
     if (!server->rom)

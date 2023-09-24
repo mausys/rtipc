@@ -9,25 +9,32 @@
 extern "C" {
 #endif
 
+
+typedef enum {
+    RI_CHN_C2S = 0,
+    RI_CHN_S2C = 1
+} ri_chn_dir_t;
+
+
 typedef struct ri_shm {
     void *p;
     size_t size;
 } ri_shm_t;
 
 
-size_t ri_shm_calc_chn_size(size_t buffer_size);
+size_t ri_shm_calc_size(const size_t c2s_chns[], const size_t s2c_chns[]);
 
-size_t ri_shm_set_rchn(const ri_shm_t *shm, size_t offset, size_t buf_size, bool last, ri_rchn_t *chn);
+int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chns[], const size_t s2c_chns[]);
 
-size_t ri_shm_set_tchn(const ri_shm_t *shm, size_t offset, size_t buf_size, bool last, ri_tchn_t *chn);
+int ri_shm_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_rchn_t *chn);
 
-size_t ri_shm_get_rchn(const ri_shm_t *shm, size_t offset, ri_rchn_t *chn);
+int ri_shm_server_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_rchn_t *chn);
 
-size_t ri_shm_get_tchn(const ri_shm_t *shm, size_t offset, ri_tchn_t *chn);
+int ri_shm_server_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_tchn_t *chn);
 
-int ri_shm_count_rchn(const ri_shm_t *shm);
+int ri_shm_client_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_rchn_t *chn);
 
-int ri_shm_count_tchn(const ri_shm_t *shm);
+int ri_shm_client_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_tchn_t *chn);
 
 #ifdef __cplusplus
 }
