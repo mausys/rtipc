@@ -30,7 +30,7 @@ void ri_log(int priority, const char *file, const char *line,
                                 __attribute__((format(printf, 5, 6)));
 
 #define RI_LOG(priority, format, ...)  ri_log(priority, \
-                                        __FILE__, LOG_STRINGIFY(__LINE__), \
+                                        __FILE_NAME__, LOG_STRINGIFY(__LINE__), \
                                         __func__, format "\n", ##__VA_ARGS__)
 
 

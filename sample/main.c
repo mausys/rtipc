@@ -50,6 +50,7 @@ typedef struct
     uint8_t *u8;
     uint16_t *u16;
     uint32_t *u32;
+    uint32_t *array;
     double *f64;
 } s2c_t;
 
@@ -277,19 +278,20 @@ static client_t *client_new(int fd)
     g_client = client;
 
     ri_obj_desc_t client_robjs[] = {
-        RI_OBJECT_ITEM(client->rx.header),
-        RI_OBJECT_ITEM(client->rx.rsp),
-        RI_OBJECT_ITEM(client->rx.u8),
-        RI_OBJECT_ITEM(client->rx.u16),
-        RI_OBJECT_ITEM(client->rx.u32),
-        RI_OBJECT_ITEM(client->rx.f64),
+        RI_OBJECT(client->rx.header),
+        RI_OBJECT(client->rx.rsp),
+        RI_OBJECT(client->rx.u8),
+        RI_OBJECT(client->rx.u16),
+        RI_OBJECT(client->rx.u32),
+        RI_OBJECT_ARRAY(client->rx.array, 64),
+        RI_OBJECT(client->rx.f64),
         RI_OBJECT_END,
     };
 
     ri_obj_desc_t client_tobjs[] = {
-        RI_OBJECT_ITEM(client->tx.header),
-        RI_OBJECT_ITEM(client->tx.cmd),
-        RI_OBJECT_ITEM(client->tx.arg1),
+        RI_OBJECT(client->tx.header),
+        RI_OBJECT(client->tx.cmd),
+        RI_OBJECT(client->tx.arg1),
         RI_OBJECT_END,
     };
 
@@ -325,19 +327,20 @@ static server_t *server_new(void)
     g_server = server;
 
     ri_obj_desc_t server_robjs[] = {
-        RI_OBJECT_ITEM(server->rx.header),
-        RI_OBJECT_ITEM(server->rx.cmd),
-        RI_OBJECT_ITEM(server->rx.arg1),
+        RI_OBJECT(server->rx.header),
+        RI_OBJECT(server->rx.cmd),
+        RI_OBJECT(server->rx.arg1),
         RI_OBJECT_END,
     };
 
     ri_obj_desc_t server_tobjs[] = {
-        RI_OBJECT_ITEM(server->tx.header),
-        RI_OBJECT_ITEM(server->tx.rsp),
-        RI_OBJECT_ITEM(server->tx.u8),
-        RI_OBJECT_ITEM(server->tx.u16),
-        RI_OBJECT_ITEM(server->tx.u32),
-        RI_OBJECT_ITEM(server->tx.f64),
+        RI_OBJECT(server->tx.header),
+        RI_OBJECT(server->tx.rsp),
+        RI_OBJECT(server->tx.u8),
+        RI_OBJECT(server->tx.u16),
+        RI_OBJECT(server->tx.u32),
+        RI_OBJECT_ARRAY(server->tx.array, 64),
+        RI_OBJECT(server->tx.f64),
         RI_OBJECT_END,
     };
 

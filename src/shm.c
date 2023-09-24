@@ -166,10 +166,10 @@ int ri_shm_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, r
 }
 
 
-size_t ri_shm_calc_size(const size_t c2s_chns[], const size_t s2c_chns[])
+size_t ri_shm_calc_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
 {
-    unsigned n_c2s_chns = count_channels(c2s_chns);
-    unsigned n_s2c_chns = count_channels(s2c_chns);
+    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
+    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
 
     size_t offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
 
@@ -177,12 +177,12 @@ size_t ri_shm_calc_size(const size_t c2s_chns[], const size_t s2c_chns[])
     offset = mem_align(offset + tbl_size, mem_alignment());
 
     for (unsigned i = 0; i < n_c2s_chns; i++) {
-        size_t buf_size = mem_align(c2s_chns[i], mem_alignment());
+        size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
         offset += 3 * buf_size;
     }
 
     for (unsigned i = 0; i < n_s2c_chns; i++) {
-        size_t buf_size = mem_align(s2c_chns[i], mem_alignment());
+        size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
         offset += 3 * buf_size;
     }
 
@@ -191,10 +191,10 @@ size_t ri_shm_calc_size(const size_t c2s_chns[], const size_t s2c_chns[])
 
 
 
-int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chns[], const size_t s2c_chns[])
+int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
 {
-    unsigned n_c2s_chns = count_channels(c2s_chns);
-    unsigned n_s2c_chns = count_channels(s2c_chns);
+    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
+    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
 
     size_t tbl_offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
 
@@ -212,7 +212,7 @@ int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chns[], const size
     tbl_entry_t *tbl = mem_offset(shm->p, tbl_offset);
 
     for (unsigned i = 0; i < n_c2s_chns; i++) {
-        offset = map_channel(&tbl[i], offset, c2s_chns[i], shm->size);
+        offset = map_channel(&tbl[i], offset, c2s_chn_sizes[i], shm->size);
         if (offset == 0) {
             LOG_ERR("rx channel[%u] doesn't fit in shm", i);
             return -ENOMEM;
@@ -220,7 +220,7 @@ int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chns[], const size
     }
 
     for (unsigned i = 0; i < n_s2c_chns; i++) {
-        offset = map_channel(&tbl[n_c2s_chns + i], offset, s2c_chns[i], shm->size);
+        offset = map_channel(&tbl[n_c2s_chns + i], offset, s2c_chn_sizes[i], shm->size);
         if (offset == 0) {
             LOG_ERR("tx channel[%u] doesn't fit in shm", i);
             return -ENOMEM;
