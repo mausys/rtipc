@@ -1,5 +1,7 @@
 #include <rtipc/object.h>
 #include <rtipc/posix.h>
+#include <rtipc/server.h>
+#include <rtipc/client.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -79,48 +81,6 @@ typedef struct {
 } server_t;
 
 
-static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t *s2c_chns[])
-{
-    unsigned n_c2s = 0;
-
-    for (const ri_obj_desc_t **d = c2s_chns; *d; d++)
-        n_c2s++;
-
-    size_t c2s_sizes[n_c2s + 1];
-
-    for (unsigned i = 0; i < n_c2s; i++)
-        c2s_sizes[i] = ri_calc_buffer_size(c2s_chns[i]);
-
-    c2s_sizes[n_c2s] = 0;
-
-
-    unsigned n_s2c = 0;
-
-    for (const ri_obj_desc_t **d = s2c_chns; *d; d++)
-        n_s2c++;
-
-    size_t s2c_sizes[n_s2c + 1];
-
-    for (unsigned i = 0; i < n_s2c; i++)
-        s2c_sizes[i] = ri_calc_buffer_size(s2c_chns[i]);
-
-    s2c_sizes[n_s2c] = 0;
-
-    size_t shm_size = ri_shm_calc_size(c2s_sizes, s2c_sizes);
-
-    ri_shm_t *shm = ri_posix_shm_create(shm_size);
-
-    if (!shm)
-        return NULL;
-
-    int r = ri_shm_map_channels(shm, c2s_sizes, s2c_sizes);
-
-    if (r < 0) {
-        ri_posix_shm_delete(shm);
-        return NULL;
-    }
-    return shm;
-}
 
 static uint32_t now(void)
 {
@@ -338,8 +298,8 @@ static client_t *client_new(int fd)
     ri_rchn_t rchn;
     ri_tchn_t tchn;
 
-    ri_shm_client_get_rx_channel(client->shm, 0, &rchn);
-    ri_shm_client_get_tx_channel(client->shm, 0, &tchn);
+    ri_client_get_rx_channel(client->shm, 0, &rchn);
+    ri_client_get_tx_channel(client->shm, 0, &tchn);
 
     client->rom = ri_rom_new(&rchn, client_robjs);
     if (!client->rom)
@@ -384,7 +344,7 @@ static server_t *server_new(void)
     ri_obj_desc_t *c2s_chns[] = {&server_robjs[0] , NULL};
     ri_obj_desc_t *s2s_chns[] = {&server_tobjs[0] , NULL};
 
-    server->shm = create_shm(c2s_chns, s2s_chns);
+    server->shm = ri_server_create_shm(c2s_chns, s2s_chns);
 
     if (!server->shm)
         error(-1, 0, "create_shm failed");
@@ -393,8 +353,8 @@ static server_t *server_new(void)
     ri_rchn_t rchn;
     ri_tchn_t tchn;
 
-    ri_shm_server_get_rx_channel(server->shm, 0, &rchn);
-    ri_shm_server_get_tx_channel(server->shm, 0, &tchn);
+    ri_server_get_rx_channel(server->shm, 0, &rchn);
+    ri_server_get_tx_channel(server->shm, 0, &tchn);
 
     server->rom = ri_rom_new(&rchn, server_robjs);
     if (!server->rom)
