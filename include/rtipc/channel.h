@@ -39,7 +39,9 @@ typedef struct {
 } ri_rchn_t;
 
 
-void ri_tchn_init(ri_tchn_t *chn);
+void ri_rchn_init(ri_rchn_t *chn, const ri_chnmap_t *map);
+
+void ri_tchn_init(ri_tchn_t *chn, const ri_chnmap_t *map);
 
 void* ri_rchn_update(ri_rchn_t *chn);
 

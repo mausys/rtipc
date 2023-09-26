@@ -2,6 +2,7 @@
 #include <rtipc/posix.h>
 #include <rtipc/server.h>
 #include <rtipc/client.h>
+#include <rtipc/log.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -16,11 +17,14 @@
 #include <sys/socket.h>
 
 
+#define ARRAY_LEN 100
+
 typedef enum {
     CMD_SET_U8 = 111,
     CMD_SET_U16,
     CMD_SET_U32,
     CMD_SET_F64,
+    CMD_SET_ARRAY,
 } cmd_id_t;
 
 typedef struct {
@@ -59,6 +63,7 @@ typedef struct {
     header_t *header;
     uint32_t *cmd;
     generic_t *arg1;
+    generic_t *arg2;
 } c2s_t;
 
 
@@ -67,6 +72,7 @@ typedef struct {
     ri_rom_t *rom;
     ri_tom_t *tom;
     uint32_t arg;
+    uint8_t idx;
     s2c_t rx;
     c2s_t tx;
 } client_t;
@@ -141,6 +147,37 @@ static int recvfd(int socket)  // receive fd from socket
 }
 
 
+static void map_s2c(s2c_t *s2c, ri_obj_desc_t  descs[])
+{
+    ri_obj_desc_t tmp[] =  {
+        RI_OBJECT(s2c->header),
+        RI_OBJECT(s2c->rsp),
+        RI_OBJECT(s2c->u8),
+        RI_OBJECT(s2c->u16),
+        RI_OBJECT(s2c->u32),
+        RI_OBJECT_ARRAY(s2c->array, ARRAY_LEN),
+        RI_OBJECT(s2c->f64),
+        RI_OBJECT_END,
+    };
+
+    memcpy(descs, tmp, sizeof(tmp));
+}
+
+
+static void map_c2s(c2s_t *c2s, ri_obj_desc_t  descs[])
+{
+    ri_obj_desc_t tmp[] = {
+        RI_OBJECT(c2s->header),
+        RI_OBJECT(c2s->cmd),
+        RI_OBJECT(c2s->arg1),
+        RI_OBJECT(c2s->arg2),
+        RI_OBJECT_END,
+    };
+
+    memcpy(descs, tmp, sizeof(tmp));
+}
+
+
 static void set_header(header_t *header)
 {
     ++header->seqno;
@@ -181,8 +218,11 @@ static void server_process(server_t *server)
         case CMD_SET_F64:
             *server->tx.f64 = server->rx.arg1->f64;
             break;
+        case CMD_SET_ARRAY:
+            server->tx.array[server->rx.arg2->u32] = server->rx.arg1->u32;
+            break;
         default:
-            error(-1, EINVAL, "unknown cmd received %u", *server->rx.cmd);
+            LOG_ERR("unknown cmd received %u", *server->rx.cmd);
             break;
     }
 
@@ -205,6 +245,10 @@ static void client_set_cmd(client_t *client)
         case CMD_SET_F64:
             client->tx.arg1->f64 = client->arg;
             break;
+        case CMD_SET_ARRAY:
+            client->tx.arg1->u32 = client->arg;
+            client->tx.arg2->u32 = client->idx;
+            break;
         default:
         case CMD_SET_U8:
             *client->tx.cmd = CMD_SET_U8;
@@ -219,19 +263,23 @@ static void client_check_data(client_t *client)
     switch (*client->tx.cmd) {
         case CMD_SET_U8:
             if (*client->rx.u8 != (uint8_t)client->arg)
-                printf("client_check_data got wrong data: %u expected: %u\n", *client->rx.u8, (uint8_t)client->arg);
+                printf("client_check_data [CMD_SET_U8] got wrong data: %u expected: %u\n", *client->rx.u8, (uint8_t)client->arg);
             break;
         case CMD_SET_U16:
             if (*client->rx.u16 != (uint16_t)client->arg)
-                printf("client_check_data got wrong data: %u expected: %u\n", *client->rx.u16, (uint16_t)client->arg);
+                printf("client_check_data [CMD_SET_U16] got wrong data: %u expected: %u\n", *client->rx.u16, (uint16_t)client->arg);
             break;
         case CMD_SET_U32:
             if (*client->rx.u32 != (uint32_t)client->arg)
-                printf("client_check_data got wrong data: %u expected: %u\n", *client->rx.u32, (uint32_t)client->arg);
+                printf("client_check_data [CMD_SET_U32] got wrong data: %u expected: %u\n", *client->rx.u32, (uint32_t)client->arg);
             break;
         case CMD_SET_F64:
             if (*client->rx.f64 != (double)client->arg)
-                printf("client_check_data got wrong data: %f expected: %f\n", *client->rx.f64, (double)client->arg);
+                printf("client_check_data [CMD_SET_F64] got wrong data: %f expected: %f\n", *client->rx.f64, (double)client->arg);
+            break;
+        case CMD_SET_ARRAY:
+            if (client->rx.array[client->idx] != (uint32_t)client->arg)
+                printf("client_check_data [CMD_SET_ARRAY] got wrong data: %u expected: %u\n", client->rx.array[client->idx], (uint32_t)client->arg);
             break;
         default:
             printf("client_check_data unknown cmd_id\n");
@@ -261,6 +309,7 @@ static void client_process(client_t *client)
         client_check_data(client);
         client->arg++;
         (*client->tx.cmd)++;
+        client->idx = (client->idx + 1) % ARRAY_LEN;
         client_set_cmd(client);
         ri_tom_update(client->tom);
     } else {
@@ -271,31 +320,29 @@ static void client_process(client_t *client)
 client_t *g_client;
 server_t *g_server;
 
+
+
+
 static client_t *client_new(int fd)
 {
     client_t *client = calloc(1, sizeof(client_t));
 
-    g_client = client;
-
-    ri_obj_desc_t client_robjs[] = {
-        RI_OBJECT(client->rx.header),
-        RI_OBJECT(client->rx.rsp),
-        RI_OBJECT(client->rx.u8),
-        RI_OBJECT(client->rx.u16),
-        RI_OBJECT(client->rx.u32),
-        RI_OBJECT_ARRAY(client->rx.array, 64),
-        RI_OBJECT(client->rx.f64),
-        RI_OBJECT_END,
-    };
-
-    ri_obj_desc_t client_tobjs[] = {
-        RI_OBJECT(client->tx.header),
-        RI_OBJECT(client->tx.cmd),
-        RI_OBJECT(client->tx.arg1),
-        RI_OBJECT_END,
-    };
+    if (!client)
+        return NULL;
 
     client->shm = ri_posix_shm_map(fd);
+
+    if (!client->shm)
+        goto fail_shm;
+
+    g_client = client;
+
+    ri_obj_desc_t robjs[16];
+    ri_obj_desc_t tobjs[16];
+
+    map_c2s(&client->tx, tobjs);
+    map_s2c(&client->rx, robjs);
+
 
     ri_rchn_t rchn;
     ri_tchn_t tchn;
@@ -303,19 +350,25 @@ static client_t *client_new(int fd)
     ri_client_get_rx_channel(client->shm, 0, &rchn);
     ri_client_get_tx_channel(client->shm, 0, &tchn);
 
-    client->rom = ri_rom_new(&rchn, client_robjs);
-    if (!client->rom)
-        error(-1, 0, "client_new ri_rom_new failed");
+    client->rom = ri_rom_new(&rchn, robjs);
+    if (!client->rom) {
+        LOG_ERR("client_new ri_rom_new failed");
+        goto fail_rom;
+    }
 
-    client->tom = ri_tom_new(&tchn, client_tobjs, true);
-    if (!client->tom)
-        error(-1, 0, "client_new ri_tom_new failed");
-
-
+    client->tom = ri_tom_new(&tchn, tobjs, true);
+    if (!client->tom) {
+        LOG_ERR("client_new ri_tom_new failed");
+        goto fail_tom;
+    }
 
     return client;
 
-fail_rtipc:
+fail_tom:
+    ri_rom_delete(client->rom);
+fail_rom:
+    ri_posix_shm_delete(client->shm);
+fail_shm:
     free(client);
     return NULL;
 }
@@ -326,31 +379,19 @@ static server_t *server_new(void)
     server_t *server = calloc(1, sizeof(server_t));
     g_server = server;
 
-    ri_obj_desc_t server_robjs[] = {
-        RI_OBJECT(server->rx.header),
-        RI_OBJECT(server->rx.cmd),
-        RI_OBJECT(server->rx.arg1),
-        RI_OBJECT_END,
-    };
+    ri_obj_desc_t robjs[16];
+    ri_obj_desc_t tobjs[16];
 
-    ri_obj_desc_t server_tobjs[] = {
-        RI_OBJECT(server->tx.header),
-        RI_OBJECT(server->tx.rsp),
-        RI_OBJECT(server->tx.u8),
-        RI_OBJECT(server->tx.u16),
-        RI_OBJECT(server->tx.u32),
-        RI_OBJECT_ARRAY(server->tx.array, 64),
-        RI_OBJECT(server->tx.f64),
-        RI_OBJECT_END,
-    };
+    map_c2s(&server->rx, robjs);
+    map_s2c(&server->tx, tobjs);
 
-    ri_obj_desc_t *c2s_chns[] = {&server_robjs[0] , NULL};
-    ri_obj_desc_t *s2s_chns[] = {&server_tobjs[0] , NULL};
+    const ri_obj_desc_t *c2s_chns[] = {&robjs[0] , NULL};
+    const ri_obj_desc_t *s2s_chns[] = {&tobjs[0] , NULL};
 
     server->shm = ri_server_create_shm(c2s_chns, s2s_chns);
 
     if (!server->shm)
-        error(-1, 0, "create_shm failed");
+        goto fail_shm;
 
 
     ri_rchn_t rchn;
@@ -359,17 +400,25 @@ static server_t *server_new(void)
     ri_server_get_rx_channel(server->shm, 0, &rchn);
     ri_server_get_tx_channel(server->shm, 0, &tchn);
 
-    server->rom = ri_rom_new(&rchn, server_robjs);
-    if (!server->rom)
-        error(-1, 0, "server_new ri_rom_new failed");
+    server->rom = ri_rom_new(&rchn, robjs);
+    if (!server->rom) {
+        LOG_ERR("server_new ri_rom_new failed");
+        goto fail_rom;
+    }
 
-    server->tom = ri_tom_new(&tchn, server_tobjs, true);
-    if (!server->tom)
-        error(-1, 0, "server_new ri_tom_new failed");
+    server->tom = ri_tom_new(&tchn, tobjs, true);
+    if (!server->tom) {
+        LOG_ERR("server_new ri_tom_new failed");
+        goto fail_tom;
+    }
 
     return server;
 
-fail_rtipc:
+fail_tom:
+    ri_rom_delete(server->rom);
+fail_rom:
+    ri_posix_shm_delete(server->shm);
+fail_shm:
     free(server);
     return NULL;
 }
@@ -400,13 +449,17 @@ static void client_task(int socket)
 
     close(socket);
 
-    if (fd < 0)
-        error(fd, -fd, "recvfd failed");
+    if (fd < 0) {
+        LOG_ERR("recvfd failed");
+        return;
+    }
 
     client_t *client = client_new(fd);
 
-    if (!client)
-        error(-1, 0, "create client failed");
+    if (!client) {
+        LOG_ERR("create client failed");
+        return;
+    }
 
     for (int i = 0; i < 10000; i++) {
         client_process(client);
@@ -414,7 +467,9 @@ static void client_task(int socket)
     }
 
     printf("client_task arg=%u\n", client->arg);
+
     client_delete(client);
+    return;
 }
 
 
@@ -423,7 +478,8 @@ static void server_task(int socket)
     server_t *server = server_new();
 
     if (!server) {
-        error(-1, 0, "create server failed");
+        LOG_ERR("create server failed");
+        return;
     }
 
     int fd = ri_posix_shm_get_fd(server->shm);
@@ -432,15 +488,19 @@ static void server_task(int socket)
 
     close(socket);
 
-    if (r < 0)
-        error(r, -r, "sendfd failed");
+    if (r < 0) {
+        LOG_ERR("sendfd failed");
+        goto cleanup;
+    }
 
     for (int i = 0; i < 100000; i++) {
         server_process(server);
         usleep(10);
     }
 
+ cleanup:
     server_delete(server);
+    return;
 }
 
 int thrd_server_entry(void *ud)
@@ -457,21 +517,53 @@ int thrd_client_entry(void *ud)
     return 0;
 }
 
-int sv[2];
 
-thrd_t thrd_server;
-thrd_t thrd_client;
-
-int main(void)
+static void threads(int fd_server, int fd_client)
 {
-    int r =  socketpair(AF_UNIX, SOCK_DGRAM, 0, sv);
+    thrd_t thrd_server;
+    thrd_t thrd_client;
+    thrd_create(&thrd_server, thrd_server_entry, &fd_server);
 
-    thrd_create(&thrd_server, thrd_server_entry, &sv[0]);
-
-    thrd_create(&thrd_client, thrd_client_entry, &sv[1]);
+    thrd_create(&thrd_client, thrd_client_entry, &fd_client);
 
     thrd_join(thrd_server, NULL);
     thrd_join(thrd_client, NULL);
+}
+
+
+static void processes(int fd_server, int fd_client)
+{
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        close(fd_client);
+        server_task(fd_server);
+    } else if (pid >= 0) {
+        close(fd_server);
+        client_task(fd_client);
+    } else {
+        LOG_ERR("fork failed");
+    }
+}
+
+
+
+int main(void)
+{
+    bool use_threads = true;
+
+    int sv[2];
+    int r =  socketpair(AF_UNIX, SOCK_DGRAM, 0, sv);
+
+    if (r < 0) {
+        LOG_ERR("socketpair failed");
+        return -1;
+    }
+
+    if (use_threads)
+        threads(sv[0], sv[1]);
+    else
+        processes(sv[0], sv[1]);
 
     return 0;
 }

@@ -14,6 +14,7 @@
 #define MAGIC 0x1f0ca3be // lock-free zero-copy atomic triple buffer exchange :)
 
 #define DIRECTION_MASK    0x1
+
 #define LAST_CHANNEL_MASK 0x2
 
 
@@ -59,8 +60,10 @@ static bool check_hdr(const shm_hdr_t *hdr)
 static unsigned count_channels(const size_t chns[])
 {
     unsigned i;
+
     for (i = 0; chns[i] != 0; i++)
         ;
+
     return i;
 }
 
@@ -92,9 +95,8 @@ static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_c
 
     shm_hdr_t *hdr = shm->p;
 
-    if (!check_hdr(hdr)) {
+    if (!check_hdr(hdr))
         return -EPROTO;
-    }
 
     unsigned num_chns = hdr->n_c2s_chns + hdr->n_s2c_chns;
 
@@ -125,7 +127,6 @@ static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_c
 
     map->xchg = &tbl[idx].xchg;
 
-
     for (int i = 0; i < 3; i++) {
         map->bufs[i] = mem_offset(shm->p, offset);
         offset += buf_size;
@@ -144,7 +145,7 @@ int ri_shm_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, r
     if (r < 0)
         return r;
 
-    chn->map = map;
+    ri_rchn_init(chn, &map);
 
     return 0;
 }
@@ -159,8 +160,7 @@ int ri_shm_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, r
     if (r < 0)
         return r;
 
-    chn->map = map;
-    ri_tchn_init(chn);
+    ri_tchn_init(chn, &map);
 
     return 0;
 }

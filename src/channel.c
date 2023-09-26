@@ -28,11 +28,25 @@ void* ri_rchn_update(ri_rchn_t *chn)
     return chn->map.bufs[current];
 }
 
-void ri_tchn_init(ri_tchn_t *chn)
+
+
+void ri_rchn_init(ri_rchn_t *chn, const ri_chnmap_t *map)
 {
-    chn->current = RI_BUFFER_0;
-    chn->locked = RI_BUFFER_NONE;
+    *chn = (ri_rchn_t) {
+        .map = *map,
+    };
 }
+
+
+void ri_tchn_init(ri_tchn_t *chn, const ri_chnmap_t *map)
+{
+    *chn = (ri_tchn_t) {
+        .map = *map,
+        .current = RI_BUFFER_0,
+        .locked = RI_BUFFER_NONE
+    };
+}
+
 
 void* ri_tchn_update(ri_tchn_t *chn)
 {
