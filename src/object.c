@@ -115,7 +115,7 @@ ri_rom_t* ri_rom_new(const ri_rchn_t *chn, const ri_obj_desc_t *descs)
         .num = count_objs(descs),
     };
 
-    size_t chn_size = ri_chn_size(&chn->map);
+    size_t chn_size = ri_chn_buf_size(&chn->map);
 
     if (rom->buf_size > chn_size) {
         LOG_ERR("objects size exeeds channel size; objects size=%zu, channel size=%zu", rom->buf_size, chn_size);
@@ -157,7 +157,7 @@ ri_tom_t* ri_tom_new(const ri_tchn_t *chn, const ri_obj_desc_t *descs, bool cach
         .buf = chn->map.bufs[chn->current],
     };
 
-    size_t chn_size = ri_chn_size(&chn->map);
+    size_t chn_size = ri_chn_buf_size(&chn->map);
 
     if (tom->buf_size > chn_size) {
         LOG_ERR("objects size exeeds channel size; objects size=%zu, channel size=%zu", tom->buf_size, chn_size);

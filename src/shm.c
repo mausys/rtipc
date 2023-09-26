@@ -71,7 +71,7 @@ static unsigned count_channels(const size_t chns[])
 static size_t map_channel(tbl_entry_t *chn, size_t offset, size_t buf_size, size_t shm_size)
 {
     buf_size = mem_align(buf_size, mem_alignment());
-    size_t chn_size = 3 * buf_size;
+    size_t chn_size = ri_chn_calc_size(buf_size);
 
     if (offset + chn_size > shm_size) {
         LOG_ERR("channel(size=%zu) doesn't fit in shm(size=%zu)", chn_size, shm_size);
@@ -120,17 +120,12 @@ static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_c
     size_t offset = tbl[idx].offset;
     size_t buf_size = tbl[idx].buf_size;
 
-    if (offset + 3 * buf_size > shm->size) {
-        LOG_ERR("channel end (%zu) exeeds shm size(%zu)", offset + 3 * buf_size, shm->size);
+    if (offset + ri_chn_calc_size(buf_size) > shm->size) {
+        LOG_ERR("channel end (%zu) exeeds shm size(%zu)", offset + ri_chn_calc_size(buf_size), shm->size);
         return -ENOMEM;
     }
 
-    map->xchg = &tbl[idx].xchg;
-
-    for (int i = 0; i < 3; i++) {
-        map->bufs[i] = mem_offset(shm->p, offset);
-        offset += buf_size;
-    }
+    *map = ri_chnmap(&tbl[idx].xchg, mem_offset(shm->p, offset), buf_size);
 
     return 0;
 }
@@ -178,12 +173,12 @@ size_t ri_shm_calc_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes
 
     for (unsigned i = 0; i < n_c2s_chns; i++) {
         size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
-        offset += 3 * buf_size;
+        offset += ri_chn_calc_size(buf_size);
     }
 
     for (unsigned i = 0; i < n_s2c_chns; i++) {
         size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
-        offset += 3 * buf_size;
+        offset += ri_chn_calc_size(buf_size);
     }
 
     return offset;

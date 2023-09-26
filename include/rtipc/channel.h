@@ -15,6 +15,7 @@ typedef atomic_uchar ri_xchg_t;
 typedef atomic_uint ri_xchg_t;
 #endif
 
+#define RI_NUM_BUFFERS 3
 
 typedef enum {
     RI_BUFFER_0 = 0,
@@ -23,21 +24,23 @@ typedef enum {
     RI_BUFFER_NONE,
 } ri_buffer_t;
 
-typedef struct {
+typedef struct ri_chnmap {
     ri_xchg_t *xchg;
-    void *bufs[3];
+    void *bufs[RI_NUM_BUFFERS];
 } ri_chnmap_t;
 
-typedef struct {
+typedef struct ri_tchn {
     ri_chnmap_t map;
     ri_buffer_t current;
     ri_buffer_t locked;
 } ri_tchn_t;
 
-typedef struct {
+typedef struct ri_rchn {
     ri_chnmap_t map;
 } ri_rchn_t;
 
+
+ri_chnmap_t ri_chnmap(ri_xchg_t *xchg, void *p, size_t buf_size);
 
 void ri_rchn_init(ri_rchn_t *chn, const ri_chnmap_t *map);
 
@@ -49,8 +52,21 @@ void* ri_tchn_update(ri_tchn_t *chn);
 
 bool ri_tchn_ackd(const ri_tchn_t *chn);
 
-size_t ri_chn_size(const ri_chnmap_t *map);
 
-size_t ri_tchn_size(const ri_tchn_t *chn);
+size_t ri_chn_buf_size(const ri_chnmap_t *map);
 
-size_t ri_rchn_size(const ri_rchn_t *chn);
+size_t ri_tchn_buf_size(const ri_tchn_t *chn);
+
+size_t ri_rchn_buf_size(const ri_rchn_t *chn);
+
+
+static inline size_t ri_chn_calc_size(size_t buf_size)
+{
+    return RI_NUM_BUFFERS * buf_size;
+}
+
+
+static inline size_t ri_chn_size(const ri_chnmap_t *map)
+{
+    return RI_NUM_BUFFERS * ri_chn_buf_size(map);
+}
