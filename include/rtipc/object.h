@@ -22,7 +22,7 @@ typedef struct ri_tom ri_tom_t;
 
 #define RI_OBJECT(x) (ri_obj_desc_t) { .p = &(x), .size = sizeof(*(x)), .align = __alignof__(*(x)) }
 #define RI_OBJECT_ARRAY(x, s) (ri_obj_desc_t) { .p = &(x), .size = sizeof(*(x)) * (s), .align = __alignof__(*(x)) }
-#define RI_OBJECT_NULL(s) (ri_obj_desc_t) { .p = NULL, .size = (s) }
+#define RI_OBJECT_NULL(s, a) (ri_obj_desc_t) { .p = NULL, .size = (s) , .align = a }
 #define RI_OBJECT_END (ri_obj_desc_t) { .p = NULL, .size = 0 }
 
 
