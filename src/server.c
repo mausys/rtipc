@@ -1,5 +1,5 @@
 #include "rtipc/server.h"
-#include "rtipc/posix.h"
+#include "rtipc/sys.h"
 
 int ri_server_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_rchn_t *chn)
 {
@@ -42,7 +42,7 @@ ri_shm_t* ri_server_create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_des
 
     size_t shm_size = ri_shm_calc_size(c2s_sizes, s2c_sizes);
 
-    ri_shm_t *shm = ri_posix_shm_create(shm_size);
+    ri_shm_t *shm = ri_anon_shm_create(shm_size);
 
     if (!shm)
         return NULL;
@@ -50,7 +50,7 @@ ri_shm_t* ri_server_create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_des
     int r = ri_shm_map_channels(shm, c2s_sizes, s2c_sizes);
 
     if (r < 0) {
-        ri_posix_shm_delete(shm);
+        ri_shm_delete(shm);
         return NULL;
     }
 

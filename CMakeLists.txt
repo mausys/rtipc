@@ -4,7 +4,7 @@ project(rtipc LANGUAGES C)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_library(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/src/posix.c ${PROJECT_SOURCE_DIR}/src/object.c ${PROJECT_SOURCE_DIR}/src/shm.c ${PROJECT_SOURCE_DIR}/src/mem_utils.c ${PROJECT_SOURCE_DIR}/src/channel.c ${PROJECT_SOURCE_DIR}/src/log.c ${PROJECT_SOURCE_DIR}/src/server.c ${PROJECT_SOURCE_DIR}/src/client.c)
+add_library(${PROJECT_NAME} ${PROJECT_SOURCE_DIR}/src/sys.c ${PROJECT_SOURCE_DIR}/src/object.c ${PROJECT_SOURCE_DIR}/src/shm.c ${PROJECT_SOURCE_DIR}/src/mem_utils.c ${PROJECT_SOURCE_DIR}/src/channel.c ${PROJECT_SOURCE_DIR}/src/log.c ${PROJECT_SOURCE_DIR}/src/server.c ${PROJECT_SOURCE_DIR}/src/client.c)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 11)
 

@@ -1,5 +1,5 @@
 #include <rtipc/object.h>
-#include <rtipc/posix.h>
+#include <rtipc/sys.h>
 #include <rtipc/server.h>
 #include <rtipc/client.h>
 #include <rtipc/log.h>
@@ -330,7 +330,7 @@ static client_t *client_new(int fd)
     if (!client)
         return NULL;
 
-    client->shm = ri_posix_shm_map(fd);
+    client->shm = ri_shm_map(fd);
 
     if (!client->shm)
         goto fail_shm;
@@ -367,7 +367,7 @@ static client_t *client_new(int fd)
 fail_tom:
     ri_rom_delete(client->rom);
 fail_rom:
-    ri_posix_shm_delete(client->shm);
+    ri_shm_delete(client->shm);
 fail_shm:
     free(client);
     return NULL;
@@ -417,7 +417,7 @@ static server_t *server_new(void)
 fail_tom:
     ri_rom_delete(server->rom);
 fail_rom:
-    ri_posix_shm_delete(server->shm);
+    ri_shm_delete(server->shm);
 fail_shm:
     free(server);
     return NULL;
@@ -428,7 +428,7 @@ static void client_delete(client_t *client)
 {
     ri_rom_delete(client->rom);
     ri_tom_delete(client->tom);
-    ri_posix_shm_delete(client->shm);
+    ri_shm_delete(client->shm);
     free(client);
 }
 
@@ -438,7 +438,7 @@ static void server_delete(server_t *server)
 {
     ri_rom_delete(server->rom);
     ri_tom_delete(server->tom);
-    ri_posix_shm_delete(server->shm);
+    ri_shm_delete(server->shm);
     free(server);
 }
 
@@ -482,7 +482,7 @@ static void server_task(int socket)
         return;
     }
 
-    int fd = ri_posix_shm_get_fd(server->shm);
+    int fd = ri_shm_get_fd(server->shm);
 
     int r = sendfd(socket, fd);
 
