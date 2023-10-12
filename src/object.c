@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "rtipc/shm.h"
 #include "rtipc/log.h"
 
 #include "mem_utils.h"

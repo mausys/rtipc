@@ -30,7 +30,7 @@ typedef struct ri_sys {
 } ri_sys_t;
 
 
-static int sys_init(ri_sys_t *sys)
+static int sys_init(ri_sys_t *sys, bool sealing)
 {
     int r = ftruncate(sys->fd, sys->shm.size);
 
@@ -39,11 +39,13 @@ static int sys_init(ri_sys_t *sys)
         return r;
     }
 
-    r = fcntl(sys->fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
+    if (sealing) {
+        r = fcntl(sys->fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
 
-    if (r < 0) {
-        LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
-        return r;
+        if (r < 0) {
+            LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
+            return r;
+        }
     }
 
     sys->shm.p = mmap(NULL, sys->shm.size, PROT_READ | PROT_WRITE, MAP_SHARED, sys->fd, 0);
@@ -85,7 +87,7 @@ ri_shm_t* ri_anon_shm_create(size_t size)
         .owner = true,
     };
 
-    r = sys_init(sys);
+    r = sys_init(sys, true);
 
     if (r < 0)
         goto fail_init;
@@ -128,7 +130,7 @@ ri_shm_t* ri_named_shm_create(size_t size, const char* name, mode_t mode)
 
     sys->fd = r;
 
-    r = sys_init(sys);
+    r = sys_init(sys, false);
 
     if (r < 0)
         goto fail_init;

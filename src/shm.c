@@ -161,7 +161,7 @@ int ri_shm_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, r
 }
 
 
-size_t ri_shm_calc_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
+size_t ri_calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
 {
     unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
     unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
