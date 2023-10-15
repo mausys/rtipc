@@ -25,7 +25,7 @@ static size_t get_cls_level(int level, size_t min)
     if (size > MAX_SANE_CACHE_LINE_SIZE)
         return min;
 
-    return size;
+    return size > min ? size : min;
 }
 
 
