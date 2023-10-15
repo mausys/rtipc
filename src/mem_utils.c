@@ -1,11 +1,11 @@
 #include "mem_utils.h"
 
+#include <stdalign.h>
 #include <unistd.h>
 #include <stdatomic.h>
 
 #include "rtipc/log.h"
 
-#define MIN_CACHE_LINE_SIZE 0x10
 #define MAX_SANE_CACHE_LINE_SIZE 0x1000
 
 
@@ -37,7 +37,7 @@ size_t mem_alignment(void)
     if (cls != 0)
         return cls;
 
-    cls = get_cls_level(_SC_LEVEL1_DCACHE_LINESIZE, MIN_CACHE_LINE_SIZE);
+    cls = get_cls_level(_SC_LEVEL1_DCACHE_LINESIZE, alignof(max_align_t));
     cls = get_cls_level(_SC_LEVEL2_CACHE_LINESIZE, cls);
     cls = get_cls_level(_SC_LEVEL3_CACHE_LINESIZE, cls);
 
