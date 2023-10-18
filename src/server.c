@@ -1,5 +1,4 @@
 #include "rtipc/server.h"
-#include "rtipc/sys.h"
 
 
 static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t *s2c_chns[], const char *name, mode_t mode)
@@ -32,9 +31,9 @@ static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t
     size_t shm_size = ri_calc_shm_size(c2s_sizes, s2c_sizes);
 
     if (name)
-        shm = ri_named_shm_create(shm_size, name, mode);
+        shm = ri_named_shm_new(shm_size, name, mode);
     else
-        shm = ri_anon_shm_create(shm_size);
+        shm = ri_anon_shm_new(shm_size);
     if (!shm)
         return NULL;
 

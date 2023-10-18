@@ -1,5 +1,4 @@
 #include <rtipc/object.h>
-#include <rtipc/sys.h>
 #include <rtipc/server.h>
 #include <rtipc/client.h>
 #include <rtipc/log.h>
@@ -86,8 +85,6 @@ typedef struct {
     c2s_t rx;
     s2c_t tx;
 } server_t;
-
-static const char shm_path[] = "rtipc_shm";
 
 static uint32_t now(void)
 {
@@ -325,25 +322,20 @@ server_t *g_server;
 
 static client_t *client_new(int socket)
 {
-    int fd = -1;
-    if (socket >= 0) {
-        fd = recvfd(socket);
+    int fd = recvfd(socket);
 
-        if (fd < 0) {
-            LOG_ERR("recvfd failed");
-            return NULL;
-        }
+    if (fd < 0) {
+        LOG_ERR("recvfd failed");
+        return NULL;
     }
+
 
     client_t *client = calloc(1, sizeof(client_t));
 
     if (!client)
         return NULL;
 
-    if (fd >=0)
-        client->shm = ri_shm_map(fd);
-    else
-        client->shm = ri_named_shm_map(shm_path);
+    client->shm = ri_client_map_shm(fd);
 
     if (!client->shm)
         goto fail_shm;
@@ -401,10 +393,7 @@ static server_t *server_new(int socket)
     const ri_obj_desc_t *c2s_chns[] = {&robjs[0] , NULL};
     const ri_obj_desc_t *s2s_chns[] = {&tobjs[0] , NULL};
 
-    if (socket >= 0)
-        server->shm = ri_server_create_anon_shm(c2s_chns, s2s_chns);
-    else
-        server->shm = ri_server_create_named_shm(c2s_chns, s2s_chns, shm_path, 0777);
+    server->shm = ri_server_create_anon_shm(c2s_chns, s2s_chns);
 
     if (!server->shm)
         goto fail_shm;
@@ -427,16 +416,13 @@ static server_t *server_new(int socket)
         goto fail_tom;
     }
 
-    if (socket >=0) {
+    int fd = ri_shm_get_fd(server->shm);
 
-        int fd = ri_shm_get_fd(server->shm);
+    int r = sendfd(socket, fd);
 
-        int r = sendfd(socket, fd);
-
-        if (r < 0) {
-            LOG_ERR("sendfd failed");
-            goto fail_send;
-        }
+    if (r < 0) {
+        LOG_ERR("sendfd failed");
+        goto fail_send;
     }
 
     return server;
@@ -476,8 +462,7 @@ static void client_task(int socket)
 {
     client_t *client = client_new(socket);
 
-    if (socket >= 0)
-        close(socket);
+    close(socket);
 
     if (!client) {
         LOG_ERR("create client failed");
@@ -500,8 +485,7 @@ static void server_task(int socket)
 {
     server_t *server = server_new(socket);
 
-    if (socket >= 0)
-        close(socket);
+    close(socket);
 
     if (!server) {
         LOG_ERR("create server failed");

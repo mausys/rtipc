@@ -12,7 +12,7 @@ extern "C" {
 
 
 typedef struct ri_obj_desc {
-    void *p;
+    void *p; /**< actually this is a pointer to a pointer */
     size_t size;
     size_t align;
 } ri_obj_desc_t;
@@ -30,17 +30,17 @@ size_t ri_calc_buffer_size(const ri_obj_desc_t descs[]);
 
 ri_rom_t* ri_rom_new(const ri_rchn_t *chn, const ri_obj_desc_t *descs);
 
-void ri_rom_delete(ri_rom_t* rom);
-
 ri_tom_t* ri_tom_new(const ri_tchn_t *chn, const ri_obj_desc_t *descs, bool cache);
 
+void ri_rom_delete(ri_rom_t* rom);
+
 void ri_tom_delete(ri_tom_t* tom);
+
+int ri_rom_update(ri_rom_t *rom);
 
 void ri_tom_update(ri_tom_t *tom);
 
 bool ri_tom_ackd(const ri_tom_t *tom);
-
-int ri_rom_update(ri_rom_t *rom);
 
 
 #ifdef __cplusplus

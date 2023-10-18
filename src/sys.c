@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-#include "rtipc/sys.h"
+#include "rtipc/shm.h"
 
 #include <stdatomic.h>
 #include <stdint.h>
@@ -61,7 +61,7 @@ static int sys_init(ri_sys_t *sys, bool sealing)
 }
 
 
-ri_shm_t* ri_anon_shm_create(size_t size)
+ri_shm_t* ri_anon_shm_new(size_t size)
 {
     static atomic_uint anr = 0;
     ri_sys_t *sys = malloc(sizeof(ri_sys_t));
@@ -104,7 +104,7 @@ fail_create:
 }
 
 
-ri_shm_t* ri_named_shm_create(size_t size, const char* name, mode_t mode)
+ri_shm_t* ri_named_shm_new(size_t size, const char* name, mode_t mode)
 {
     ri_sys_t *sys = malloc(sizeof(ri_sys_t));
 
@@ -150,7 +150,7 @@ fail_path:
 }
 
 
-ri_shm_t* ri_shm_map(int fd)
+ri_shm_t* ri_map_shm(int fd)
 {
     struct stat stat;
     ri_sys_t *sys = malloc(sizeof(ri_sys_t));
@@ -190,7 +190,7 @@ fail_stat:
 }
 
 
-ri_shm_t* ri_named_shm_map(const char *name)
+ri_shm_t* ri_map_named_shm(const char *name)
 {
     struct stat stat;
     ri_sys_t *sys = calloc(1, sizeof(ri_sys_t));
