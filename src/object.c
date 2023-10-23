@@ -166,7 +166,7 @@ ri_tom_t* ri_tom_new(const ri_tchn_t *chn, const ri_obj_desc_t *descs, bool cach
 
     tom->objs = objs_new(descs, tom->num);
 
-    tom->buf = ri_tchn_update(&tom->chn);
+    tom->buf = ri_tchn_swap(&tom->chn);
 
     if (cache) {
         tom->cache = calloc(1, tom->buf_size);
@@ -208,9 +208,9 @@ void ri_tom_update(ri_tom_t *tom)
 {
     if (tom->cache) {
         memcpy(tom->buf, tom->cache, tom->buf_size);
-        tom->buf = ri_tchn_update(&tom->chn);
+        tom->buf = ri_tchn_swap(&tom->chn);
     } else {
-        tom->buf = ri_tchn_update(&tom->chn);
+        tom->buf = ri_tchn_swap(&tom->chn);
         map_opjects(tom->buf, tom->objs, tom->num);
     }
 }
@@ -226,7 +226,7 @@ int ri_rom_update(ri_rom_t *rom)
 {
     void *old = rom->buf;
 
-    rom->buf = ri_rchn_update(&rom->chn);
+    rom->buf = ri_rchn_fetch(&rom->chn);
 
     if (!rom->buf) {
         nullify_opjects(rom->objs, rom->num);

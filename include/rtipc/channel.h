@@ -46,9 +46,9 @@ void ri_rchn_init(ri_rchn_t *chn, const ri_chnmap_t *map);
 
 void ri_tchn_init(ri_tchn_t *chn, const ri_chnmap_t *map);
 
-void* ri_rchn_update(ri_rchn_t *chn);
+void* ri_rchn_fetch(ri_rchn_t *chn);
 
-void* ri_tchn_update(ri_tchn_t *chn);
+void* ri_tchn_swap(ri_tchn_t *chn);
 
 bool ri_tchn_ackd(const ri_tchn_t *chn);
 
