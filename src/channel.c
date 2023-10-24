@@ -7,11 +7,23 @@
 #define LOCK_FLAG 0x80
 
 
+static ri_bufidx_t ri_bufidx_inc(ri_bufidx_t i)
+{
+    static const ri_bufidx_t lut[] = {
+        RI_BUFIDX_1,
+        RI_BUFIDX_2,
+        RI_BUFIDX_0,
+        RI_BUFIDX_0
+    };
+
+    return lut[i];
+}
+
 bool ri_tchn_ackd(const ri_tchn_t *chn)
 {
     unsigned xchg = atomic_load_explicit(chn->map.xchg, memory_order_relaxed);
 
-    return xchg & LOCK_FLAG;
+    return !!(xchg & LOCK_FLAG);
 }
 
 
@@ -19,9 +31,9 @@ void* ri_rchn_fetch(ri_rchn_t *chn)
 {
     unsigned old = atomic_fetch_or_explicit(chn->map.xchg, LOCK_FLAG, memory_order_consume);
 
-    ri_buffer_t current = (ri_buffer_t)(old & 0x3);
+    ri_bufidx_t current = (ri_bufidx_t)(old & 0x3);
 
-    if (current == RI_BUFFER_NONE)
+    if (current == RI_BUFIDX_NONE)
         return NULL;
 
     return chn->map.bufs[current];
@@ -57,8 +69,8 @@ void ri_tchn_init(ri_tchn_t *chn, const ri_chnmap_t *map)
 {
     *chn = (ri_tchn_t) {
         .map = *map,
-        .current = RI_BUFFER_0,
-        .locked = RI_BUFFER_NONE
+        .current = RI_BUFIDX_NONE,
+        .locked = RI_BUFIDX_NONE
     };
 }
 
@@ -68,12 +80,12 @@ void* ri_tchn_swap(ri_tchn_t *chn)
     unsigned old = atomic_exchange_explicit(chn->map.xchg, chn->current, memory_order_release);
 
     if (old & LOCK_FLAG)
-        chn->locked = (ri_buffer_t)(old & 0x3);
+        chn->locked = (ri_bufidx_t)(old & 0x3);
 
-    chn->current = (chn->current + 1) % RI_NUM_BUFFERS;
+    chn->current = ri_bufidx_inc(chn->current);
 
     if (chn->current == chn->locked)
-        chn->current = (chn->current + 1) % RI_NUM_BUFFERS;
+        chn->current = ri_bufidx_inc(chn->current);
 
     return chn->map.bufs[chn->current];
 }

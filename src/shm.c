@@ -79,7 +79,7 @@ static size_t map_channel(tbl_entry_t *chn, size_t offset, size_t buf_size, size
     }
 
     chn->buf_size = buf_size;
-    chn->xchg = RI_BUFFER_NONE;
+    chn->xchg = RI_BUFIDX_NONE;
     chn->offset = offset;
 
     return  offset + chn_size;

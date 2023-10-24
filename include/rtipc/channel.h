@@ -18,11 +18,11 @@ typedef atomic_uint ri_xchg_t;
 #define RI_NUM_BUFFERS 3
 
 typedef enum {
-    RI_BUFFER_0 = 0,
-    RI_BUFFER_1,
-    RI_BUFFER_2,
-    RI_BUFFER_NONE,
-} ri_buffer_t;
+    RI_BUFIDX_0 = 0,
+    RI_BUFIDX_1,
+    RI_BUFIDX_2,
+    RI_BUFIDX_NONE,
+} ri_bufidx_t;
 
 typedef struct ri_chnmap {
     ri_xchg_t *xchg;
@@ -31,8 +31,8 @@ typedef struct ri_chnmap {
 
 typedef struct ri_tchn {
     ri_chnmap_t map;
-    ri_buffer_t current;
-    ri_buffer_t locked;
+    ri_bufidx_t current;
+    ri_bufidx_t locked;
 } ri_tchn_t;
 
 typedef struct ri_rchn {
