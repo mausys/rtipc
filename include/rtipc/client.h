@@ -6,9 +6,9 @@
 extern "C" {
 #endif
 
-int ri_client_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_rchn_t *chn);
+int ri_client_get_consumer(const ri_shm_t *shm, unsigned idx, ri_consumer_t *cns);
 
-int ri_client_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_tchn_t *chn);
+int ri_client_get_producer(const ri_shm_t *shm, unsigned idx, ri_producer_t *prd);
 
 ri_shm_t* ri_client_map_shm(int fd);
 

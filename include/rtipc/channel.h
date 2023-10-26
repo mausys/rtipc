@@ -24,49 +24,46 @@ typedef enum {
     RI_BUFIDX_NONE,
 } ri_bufidx_t;
 
-typedef struct ri_chnmap {
+typedef struct ri_channel {
     ri_xchg_t *xchg;
     void *bufs[RI_NUM_BUFFERS];
-} ri_chnmap_t;
+} ri_channel_t;
 
-typedef struct ri_tchn {
-    ri_chnmap_t map;
+typedef struct ri_producer {
+    ri_channel_t chn;
     ri_bufidx_t current;
     ri_bufidx_t locked;
-} ri_tchn_t;
+} ri_producer_t;
 
-typedef struct ri_rchn {
-    ri_chnmap_t map;
-} ri_rchn_t;
-
-
-ri_chnmap_t ri_chnmap(ri_xchg_t *xchg, void *p, size_t buf_size);
-
-void ri_rchn_init(ri_rchn_t *chn, const ri_chnmap_t *map);
-
-void ri_tchn_init(ri_tchn_t *chn, const ri_chnmap_t *map);
-
-void* ri_rchn_fetch(ri_rchn_t *chn);
-
-void* ri_tchn_swap(ri_tchn_t *chn);
-
-bool ri_tchn_ackd(const ri_tchn_t *chn);
+typedef struct ri_consumer {
+    ri_channel_t chn;
+} ri_consumer_t;
 
 
-size_t ri_chn_buf_size(const ri_chnmap_t *map);
+ri_channel_t ri_channel_create(ri_xchg_t *xchg, void *p, size_t buf_size);
 
-size_t ri_tchn_buf_size(const ri_tchn_t *chn);
+void ri_consumer_init(ri_consumer_t *cns, const ri_channel_t *chn);
 
-size_t ri_rchn_buf_size(const ri_rchn_t *chn);
+void ri_producer_init(ri_producer_t *prd, const ri_channel_t *chn);
+
+void* ri_consumer_fetch(ri_consumer_t *cns);
+
+void* ri_producer_swap(ri_producer_t *prd);
+
+bool ri_producer_ackd(const ri_producer_t *prd);
 
 
-static inline size_t ri_chn_calc_size(size_t buf_size)
+size_t ri_channel_get_buffer_size(const ri_channel_t *chn);
+
+
+
+static inline size_t ri_calc_channel_size(size_t buf_size)
 {
     return RI_NUM_BUFFERS * buf_size;
 }
 
 
-static inline size_t ri_chn_size(const ri_chnmap_t *map)
+static inline size_t ri_get_channel_size(const ri_channel_t *chn)
 {
-    return RI_NUM_BUFFERS * ri_chn_buf_size(map);
+    return RI_NUM_BUFFERS * ri_channel_get_buffer_size(chn);
 }

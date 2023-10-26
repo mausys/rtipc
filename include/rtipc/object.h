@@ -54,7 +54,7 @@ size_t ri_calc_buffer_size(const ri_obj_desc_t descs[]);
  * @param descs object describtion list, terminated with an entry with size=0
  * @return pointer to the new receive object mapper; NULL on error
  */
-ri_rom_t* ri_rom_new(const ri_rchn_t *chn, const ri_obj_desc_t *descs);
+ri_rom_t* ri_rom_new(const ri_consumer_t *cns, const ri_obj_desc_t *descs);
 
 
 /**
@@ -68,7 +68,7 @@ ri_rom_t* ri_rom_new(const ri_rchn_t *chn, const ri_obj_desc_t *descs);
  * Otherwise the producer is responsible for updating all transmit objects before calling this function.
  * @return pointer to the new transmit object mapper; NULL on error
  */
-ri_tom_t* ri_tom_new(const ri_tchn_t *chn, const ri_obj_desc_t *descs, bool cache);
+ri_tom_t* ri_tom_new(const ri_producer_t *prd, const ri_obj_desc_t *descs, bool cache);
 
 void ri_rom_delete(ri_rom_t* rom);
 

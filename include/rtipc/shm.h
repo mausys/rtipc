@@ -35,9 +35,9 @@ size_t ri_calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes
 
 int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[]);
 
-int ri_shm_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_rchn_t *chn);
+int ri_shm_get_consumer(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_consumer_t *cns);
 
-int ri_shm_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_tchn_t *chn);
+int ri_shm_get_producer(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_producer_t *prd);
 
 void ri_shm_delete(ri_shm_t *shm);
 

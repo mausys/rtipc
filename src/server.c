@@ -47,15 +47,15 @@ static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t
     return shm;
 }
 
-int ri_server_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_rchn_t *chn)
+int ri_server_get_consumer(const ri_shm_t *shm, unsigned idx, ri_consumer_t *cns)
 {
-    return ri_shm_get_rx_channel(shm, idx, RI_CHN_C2S, chn);
+    return ri_shm_get_consumer(shm, idx, RI_CHN_C2S, cns);
 }
 
 
-int ri_server_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_tchn_t *chn)
+int ri_server_get_producer(const ri_shm_t *shm, unsigned idx, ri_producer_t *prd)
 {
-    return ri_shm_get_tx_channel(shm, idx, RI_CHN_S2C, chn);
+    return ri_shm_get_producer(shm, idx, RI_CHN_S2C, prd);
 }
 
 

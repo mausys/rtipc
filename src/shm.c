@@ -71,7 +71,7 @@ static unsigned count_channels(const size_t chns[])
 static size_t map_channel(tbl_entry_t *chn, size_t offset, size_t buf_size, size_t shm_size)
 {
     buf_size = mem_align(buf_size, mem_alignment());
-    size_t chn_size = ri_chn_calc_size(buf_size);
+    size_t chn_size = ri_calc_channel_size(buf_size);
 
     if (offset + chn_size > shm_size) {
         LOG_ERR("channel(size=%zu) doesn't fit in shm(size=%zu)", chn_size, shm_size);
@@ -86,7 +86,7 @@ static size_t map_channel(tbl_entry_t *chn, size_t offset, size_t buf_size, size
 }
 
 
-static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_chnmap_t *map)
+static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_channel_t *chn)
 {
     if (sizeof(shm_hdr_t) > shm->size) {
         LOG_ERR("header (size=%zu) doesn't fit in shm (%zu)", sizeof(shm_hdr_t), shm->size);
@@ -120,42 +120,42 @@ static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_c
     size_t offset = tbl[idx].offset;
     size_t buf_size = tbl[idx].buf_size;
 
-    if (offset + ri_chn_calc_size(buf_size) > shm->size) {
-        LOG_ERR("channel end (%zu) exeeds shm size(%zu)", offset + ri_chn_calc_size(buf_size), shm->size);
+    if (offset + ri_calc_channel_size(buf_size) > shm->size) {
+        LOG_ERR("channel end (%zu) exeeds shm size(%zu)", offset + ri_calc_channel_size(buf_size), shm->size);
         return -ENOMEM;
     }
 
-    *map = ri_chnmap(&tbl[idx].xchg, mem_offset(shm->p, offset), buf_size);
+    *chn = ri_channel_create(&tbl[idx].xchg, mem_offset(shm->p, offset), buf_size);
 
     return 0;
 }
 
 
-int ri_shm_get_rx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_rchn_t *chn)
+int ri_shm_get_consumer(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_consumer_t *cns)
 {
-    ri_chnmap_t map;
+    ri_channel_t chn;
 
-    int r = get_channel(shm, idx, dir, &map);
+    int r = get_channel(shm, idx, dir, &chn);
 
     if (r < 0)
         return r;
 
-    ri_rchn_init(chn, &map);
+    ri_consumer_init(cns, &chn);
 
     return 0;
 }
 
 
-int ri_shm_get_tx_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_tchn_t *chn)
+int ri_shm_get_producer(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_producer_t *prd)
 {
-    ri_chnmap_t map;
+    ri_channel_t chn;
 
-    int r = get_channel(shm, idx, dir, &map);
+    int r = get_channel(shm, idx, dir, &chn);
 
     if (r < 0)
         return r;
 
-    ri_tchn_init(chn, &map);
+    ri_producer_init(prd, &chn);
 
     return 0;
 }
@@ -173,12 +173,12 @@ size_t ri_calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes
 
     for (unsigned i = 0; i < n_c2s_chns; i++) {
         size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
-        offset += ri_chn_calc_size(buf_size);
+        offset += ri_calc_channel_size(buf_size);
     }
 
     for (unsigned i = 0; i < n_s2c_chns; i++) {
         size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
-        offset += ri_chn_calc_size(buf_size);
+        offset += ri_calc_channel_size(buf_size);
     }
 
     return offset;

@@ -81,10 +81,10 @@ typedef struct {
     ri_shm_t *shm;
     ri_rom_t *rom;
     ri_tom_t *tom;
-    bool connected;
     c2s_t rx;
     s2c_t tx;
 } server_t;
+
 
 static uint32_t now(void)
 {
@@ -196,12 +196,6 @@ static void server_process(server_t *server)
     if (r != 1)
         return;
 
-    if (!server->connected) {
-        if (server->rx.header->seqno == 0)
-            return;
-        server->connected = true;
-    }
-
     switch (*server->rx.cmd) {
         case CMD_SET_U8:
             *server->tx.u8 = server->rx.arg1->u8;
@@ -252,6 +246,8 @@ static void client_set_cmd(client_t *client)
             client->tx.arg1->u32 = client->arg;
             break;
     }
+
+    ri_tom_update(client->tom);
 }
 
 
@@ -287,12 +283,6 @@ static void client_check_data(client_t *client)
 
 static void client_process(client_t *client)
 {
-    if (client->tx.header->seqno == 0) {
-        client_set_cmd(client);
-        ri_tom_update(client->tom);
-        return;
-    }
-
     int r = ri_rom_update(client->rom);
 
     if (r != 1)
@@ -308,7 +298,6 @@ static void client_process(client_t *client)
         (*client->tx.cmd)++;
         client->idx = (client->idx + 1) % ARRAY_LEN;
         client_set_cmd(client);
-        ri_tom_update(client->tom);
     } else {
         printf("client_task %u %u\n", client->tx.header->seqno, client->rx.header->seqno);
     }
@@ -322,6 +311,7 @@ server_t *g_server;
 
 static client_t *client_new(int socket)
 {
+    int r;
     int fd = recvfd(socket);
 
     if (fd < 0) {
@@ -349,19 +339,30 @@ static client_t *client_new(int socket)
     map_s2c(&client->rx, robjs);
 
 
-    ri_rchn_t rchn;
-    ri_tchn_t tchn;
+    ri_consumer_t cns;
+    ri_producer_t prd;
 
-    ri_client_get_rx_channel(client->shm, 0, &rchn);
-    ri_client_get_tx_channel(client->shm, 0, &tchn);
+    r = ri_client_get_consumer(client->shm, 0, &cns);
 
-    client->rom = ri_rom_new(&rchn, robjs);
+    if (r < 0) {
+        LOG_ERR("client_new ri_client_get_consumer failed");
+        goto fail_channel;
+    }
+
+    r = ri_client_get_producer(client->shm, 0, &prd);
+
+    if (r < 0) {
+        LOG_ERR("client_new ri_client_get_consumer failed");
+        goto fail_channel;
+    }
+
+    client->rom = ri_rom_new(&cns, robjs);
     if (!client->rom) {
         LOG_ERR("client_new ri_rom_new failed");
         goto fail_rom;
     }
 
-    client->tom = ri_tom_new(&tchn, tobjs, true);
+    client->tom = ri_tom_new(&prd, tobjs, true);
     if (!client->tom) {
         LOG_ERR("client_new ri_tom_new failed");
         goto fail_tom;
@@ -372,6 +373,7 @@ static client_t *client_new(int socket)
 fail_tom:
     ri_rom_delete(client->rom);
 fail_rom:
+fail_channel:
     ri_shm_delete(client->shm);
 fail_shm:
     free(client);
@@ -381,6 +383,7 @@ fail_shm:
 
 static server_t *server_new(int socket)
 {
+    int r;
     server_t *server = calloc(1, sizeof(server_t));
     g_server = server;
 
@@ -398,19 +401,32 @@ static server_t *server_new(int socket)
     if (!server->shm)
         goto fail_shm;
 
-    ri_rchn_t rchn;
-    ri_tchn_t tchn;
+    ri_consumer_t cns;
+    ri_producer_t prd;
 
-    ri_server_get_rx_channel(server->shm, 0, &rchn);
-    ri_server_get_tx_channel(server->shm, 0, &tchn);
+    r = ri_server_get_consumer(server->shm, 0, &cns);
 
-    server->rom = ri_rom_new(&rchn, robjs);
+    if (r < 0) {
+        LOG_ERR("server_new ri_server_get_consumer failed");
+        goto fail_channel;
+    }
+
+    r = ri_server_get_producer(server->shm, 0, &prd);
+
+    if (r < 0) {
+        LOG_ERR("server_new ri_server_get_producer failed");
+        goto fail_channel;
+    }
+
+    server->rom = ri_rom_new(&cns, robjs);
+
     if (!server->rom) {
         LOG_ERR("server_new ri_rom_new failed");
         goto fail_rom;
     }
 
-    server->tom = ri_tom_new(&tchn, tobjs, true);
+    server->tom = ri_tom_new(&prd, tobjs, true);
+
     if (!server->tom) {
         LOG_ERR("server_new ri_tom_new failed");
         goto fail_tom;
@@ -418,7 +434,7 @@ static server_t *server_new(int socket)
 
     int fd = ri_shm_get_fd(server->shm);
 
-    int r = sendfd(socket, fd);
+    r = sendfd(socket, fd);
 
     if (r < 0) {
         LOG_ERR("sendfd failed");
@@ -432,6 +448,7 @@ fail_send:
 fail_tom:
     ri_rom_delete(server->rom);
 fail_rom:
+fail_channel:
     ri_shm_delete(server->shm);
 fail_shm:
     free(server);
@@ -468,6 +485,8 @@ static void client_task(int socket)
         LOG_ERR("create client failed");
         return;
     }
+
+    client_set_cmd(client);
 
     for (int i = 0; i < 10000; i++) {
         client_process(client);

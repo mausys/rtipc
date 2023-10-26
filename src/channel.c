@@ -19,91 +19,81 @@ static ri_bufidx_t ri_bufidx_inc(ri_bufidx_t i)
     return lut[i];
 }
 
-bool ri_tchn_ackd(const ri_tchn_t *chn)
+bool ri_producer_ackd(const ri_producer_t *prd)
 {
-    unsigned xchg = atomic_load_explicit(chn->map.xchg, memory_order_relaxed);
+    unsigned xchg = atomic_load_explicit(prd->chn.xchg, memory_order_relaxed);
 
     return !!(xchg & LOCK_FLAG);
 }
 
 
-void* ri_rchn_fetch(ri_rchn_t *chn)
+void* ri_consumer_fetch(ri_consumer_t *cns)
 {
-    unsigned old = atomic_fetch_or_explicit(chn->map.xchg, LOCK_FLAG, memory_order_consume);
+    unsigned old = atomic_fetch_or_explicit(cns->chn.xchg, LOCK_FLAG, memory_order_consume);
 
     ri_bufidx_t current = (ri_bufidx_t)(old & 0x3);
 
     if (current == RI_BUFIDX_NONE)
         return NULL;
 
-    return chn->map.bufs[current];
+    return cns->chn.bufs[current];
 }
 
 
-ri_chnmap_t ri_chnmap(ri_xchg_t *xchg, void *p, size_t buf_size)
+ri_channel_t ri_channel_create(ri_xchg_t *xchg, void *p, size_t buf_size)
 {
     size_t offset = 0;
 
-    ri_chnmap_t map;
+    ri_channel_t chn;
 
-    map.xchg = xchg;
+    chn.xchg = xchg;
 
     for (int i = 0; i < RI_NUM_BUFFERS; i++) {
-        map.bufs[i] = mem_offset(p, offset);
+        chn.bufs[i] = mem_offset(p, offset);
         offset += buf_size;
     }
 
-    return map;
+    return chn;
 }
 
 
-void ri_rchn_init(ri_rchn_t *chn, const ri_chnmap_t *map)
+void ri_consumer_init(ri_consumer_t *cns, const ri_channel_t *chn)
 {
-    *chn = (ri_rchn_t) {
-        .map = *map,
+    *cns = (ri_consumer_t) {
+        .chn = *chn,
     };
 }
 
 
-void ri_tchn_init(ri_tchn_t *chn, const ri_chnmap_t *map)
+void ri_producer_init(ri_producer_t *prd, const ri_channel_t *chn)
 {
-    *chn = (ri_tchn_t) {
-        .map = *map,
+    *prd = (ri_producer_t) {
+        .chn = *chn,
         .current = RI_BUFIDX_NONE,
         .locked = RI_BUFIDX_NONE
     };
 }
 
 
-void* ri_tchn_swap(ri_tchn_t *chn)
+void* ri_producer_swap(ri_producer_t *prd)
 {
-    unsigned old = atomic_exchange_explicit(chn->map.xchg, chn->current, memory_order_release);
+    unsigned old = atomic_exchange_explicit(prd->chn.xchg, prd->current, memory_order_release);
 
     if (old & LOCK_FLAG)
-        chn->locked = (ri_bufidx_t)(old & 0x3);
+        prd->locked = (ri_bufidx_t)(old & 0x3);
 
-    chn->current = ri_bufidx_inc(chn->current);
+    prd->current = ri_bufidx_inc(prd->current);
 
-    if (chn->current == chn->locked)
-        chn->current = ri_bufidx_inc(chn->current);
+    if (prd->current == prd->locked)
+        prd->current = ri_bufidx_inc(prd->current);
 
-    return chn->map.bufs[chn->current];
+    return prd->chn.bufs[prd->current];
 }
 
 
-size_t ri_chn_buf_size(const ri_chnmap_t *map)
+size_t ri_channel_get_buffer_size(const ri_channel_t *chn)
 {
-    return (size_t) ((uintptr_t)map->bufs[1] - (uintptr_t)map->bufs[0]);
+    return (size_t) ((uintptr_t)chn->bufs[1] - (uintptr_t)chn->bufs[0]);
 }
 
 
-size_t ri_tchn_buf_size(const ri_tchn_t *chn)
-{
-    return ri_chn_buf_size(&chn->map);
-}
-
-
-size_t ri_rchn_buf_size(const ri_rchn_t *chn)
-{
-    return ri_chn_buf_size(&chn->map);
-}
