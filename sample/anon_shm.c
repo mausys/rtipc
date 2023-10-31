@@ -1,4 +1,4 @@
-#include <rtipc/object.h>
+#include <rtipc/om.h>
 #include <rtipc/server.h>
 #include <rtipc/client.h>
 #include <rtipc/log.h>
