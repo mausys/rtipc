@@ -3,7 +3,7 @@
 #include <sys/types.h>
 
 #include <rtipc/shm.h>
-#include <rtipc/object.h>
+#include <rtipc/om.h>
 
 
 #ifdef __cplusplus
