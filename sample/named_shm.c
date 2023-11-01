@@ -254,11 +254,6 @@ static void client_process(client_t *client)
     }
 }
 
-client_t *g_client;
-server_t *g_server;
-
-
-
 
 static client_t *client_new(const char *path)
 {
@@ -272,8 +267,6 @@ static client_t *client_new(const char *path)
 
     if (!client->shm)
         goto fail_shm;
-
-    g_client = client;
 
     ri_obj_desc_t robjs[16];
     ri_obj_desc_t tobjs[16];
@@ -330,7 +323,6 @@ static server_t *server_new(const char *path)
 {
     int r;
     server_t *server = calloc(1, sizeof(server_t));
-    g_server = server;
 
     ri_obj_desc_t robjs[16];
     ri_obj_desc_t tobjs[16];
@@ -428,7 +420,6 @@ static void client_task(const char *path)
     printf("client_task arg=%u\n", client->arg);
 
     client_delete(client);
-    return;
 }
 
 
@@ -447,8 +438,8 @@ static void server_task(const char *path)
     }
 
     server_delete(server);
-    return;
 }
+
 
 int thrd_server_entry(void *ud)
 {

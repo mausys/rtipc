@@ -28,6 +28,8 @@ set(RTIPC_INCLUDE_FILES
   ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/client.h
 )
 
+set(RTIPC_COMPILER_OPTIONS -Wall -Wextra  -Wsign-compare)
+
 add_library(${PROJECT_NAME} ${RTIPC_SOURCE_FILES})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${RTIPC_PUBLIC_INCLUDE_DIR})
@@ -40,12 +42,16 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra  -Wsign-compare)
 
 add_executable(named_shm  sample/named_shm.c)
-target_compile_options(named_shm PRIVATE -Wall -Wextra  -Wsign-compare)
+target_compile_options(named_shm PRIVATE ${RTIPC_COMPILER_OPTIONS})
 target_link_libraries(named_shm PRIVATE ${PROJECT_NAME})
 
 add_executable(anon_shm  sample/anon_shm.c)
-target_compile_options(anon_shm PRIVATE -Wall -Wextra  -Wsign-compare)
+target_compile_options(anon_shm PRIVATE ${RTIPC_COMPILER_OPTIONS})
 target_link_libraries(anon_shm PRIVATE ${PROJECT_NAME})
+
+add_executable(simple  sample/simple.c)
+target_compile_options(simple PRIVATE ${RTIPC_COMPILER_OPTIONS})
+target_link_libraries(simple PRIVATE ${PROJECT_NAME})
 
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
