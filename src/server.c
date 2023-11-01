@@ -6,8 +6,10 @@ static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t
     ri_shm_t *shm = NULL;
     unsigned n_c2s = 0;
 
-    for (const ri_obj_desc_t **d = c2s_chns; *d; d++)
-        n_c2s++;
+    if (c2s_chns) {
+        for (const ri_obj_desc_t **d = c2s_chns; *d; d++)
+            n_c2s++;
+    }
 
     size_t c2s_sizes[n_c2s + 1];
 
@@ -18,8 +20,10 @@ static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t
 
     unsigned n_s2c = 0;
 
-    for (const ri_obj_desc_t **d = s2c_chns; *d; d++)
-        n_s2c++;
+    if (s2c_chns) {
+        for (const ri_obj_desc_t **d = s2c_chns; *d; d++)
+            n_s2c++;
+    }
 
     size_t s2c_sizes[n_s2c + 1];
 
