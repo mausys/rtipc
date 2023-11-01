@@ -4,16 +4,9 @@
 #include <rtipc/log.h>
 
 #include <unistd.h>
-#include <errno.h>
-#include <error.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 #include <string.h>
-#include <threads.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
 
 
 #define ARRAY_LEN 100
@@ -130,7 +123,9 @@ fail_shm:
 static void client_delete(client_t *client)
 {
     ri_tom_delete(client->tom);
+
     ri_shm_delete(client->shm);
+
     free(client);
 }
 
@@ -139,7 +134,9 @@ static void client_delete(client_t *client)
 static void server_delete(server_t *server)
 {
     ri_rom_delete(server->rom);
+
     ri_shm_delete(server->shm);
+
     free(server);
 }
 
@@ -154,7 +151,9 @@ static void client_task(int fd)
     }
 
     snprintf(client->obj, ARRAY_LEN, "Hello Server\n");
+
     ri_tom_update(client->tom);
+
     client_delete(client);
 }
 
@@ -168,6 +167,7 @@ static void server_task(server_t *server)
             printf("%s\n", server->obj);
             break;
         }
+
         usleep(10000);
     }
 
@@ -195,6 +195,7 @@ int main(void)
     } else {
         LOG_ERR("fork failed");
     }
+
     server_delete(server);
 
     return 0;
