@@ -146,7 +146,7 @@ static void client_task(int fd)
     client_t *client = client_new(fd);
 
     if (!client) {
-        printf("server creation failed\n");
+        LOG_ERR("server creation failed");
         return;
     }
 
@@ -180,7 +180,7 @@ int main(void)
     server_t *server = server_new();
 
     if (!server) {
-        printf("server creation failed\n");
+        LOG_ERR("server creation failed");
         return -1;
     }
 
