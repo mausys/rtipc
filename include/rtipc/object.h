@@ -18,16 +18,16 @@ typedef struct ri_object {
 } ri_object_t;
 
 /**
- * @typedef ri_rom_t
+ * @typedef ri_consumer_objects_t
  *
- * @brief receive object mapper
+ * @brief consumer object mapper
  */
 typedef struct ri_consumer_objects ri_consumer_objects_t;
 
 /**
- * @typedef ri_tom_t
+ * @typedef ri_producer_objects_t
  *
- * @brief transmit object mapper
+ * @brief producer object mapper
  */
 typedef struct ri_producer_objects ri_producer_objects_t;
 

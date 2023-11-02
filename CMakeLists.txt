@@ -14,7 +14,7 @@ set(RTIPC_SOURCE_FILES
   ${RTIPC_SOURCE_DIR}/sys.c
   ${RTIPC_SOURCE_DIR}/shm.c
   ${RTIPC_SOURCE_DIR}/channel.c
-  ${RTIPC_SOURCE_DIR}/om.c
+  ${RTIPC_SOURCE_DIR}/object.c
   ${RTIPC_SOURCE_DIR}/server.c
   ${RTIPC_SOURCE_DIR}/client.c)
 
@@ -23,7 +23,7 @@ set(RTIPC_INCLUDE_FILES
   ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/log.h
   ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/channel.h
   ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/shm.h
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/om.h
+  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/object.h
   ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/server.h
   ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/client.h
 )

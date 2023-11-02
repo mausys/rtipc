@@ -1,4 +1,4 @@
-#include "rtipc/om.h"
+#include "rtipc/object.h"
 
 #include <string.h>
 #include <stdlib.h>
