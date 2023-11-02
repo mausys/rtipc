@@ -70,13 +70,13 @@ int ri_server_get_producer(const ri_shm_t *shm, unsigned idx, ri_producer_t *prd
 }
 
 
-ri_shm_t* ri_server_create_anon_shm_for_channels(const size_t c2s_chns[], const size_t s2c_chns[])
+ri_shm_t* ri_create_anon_shm_for_channels(const size_t c2s_chns[], const size_t s2c_chns[])
 {
     return create_shm_for_channels(c2s_chns, s2c_chns, NULL, 0);
 }
 
 
-ri_shm_t* ri_server_create_named_shm_for_channels(const size_t c2s_chns[], const size_t s2c_chns[], const char *name, mode_t mode)
+ri_shm_t* ri_create_named_shm_for_channels(const size_t c2s_chns[], const size_t s2c_chns[], const char *name, mode_t mode)
 {
     if (!name)
         return NULL;
@@ -85,13 +85,13 @@ ri_shm_t* ri_server_create_named_shm_for_channels(const size_t c2s_chns[], const
 }
 
 
-ri_shm_t* ri_server_create_anon_shm_for_objects(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[])
+ri_shm_t* ri_create_anon_shm_for_objects(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[])
 {
     return create_shm_for_objects(c2s_objs, s2c_objs, NULL, 0);
 }
 
 
-ri_shm_t* ri_server_create_named_shm_for_objects(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
+ri_shm_t* ri_create_named_shm_for_objects(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
 {
     if (!name)
         return NULL;

@@ -393,7 +393,7 @@ static server_t *server_new(int socket)
     const ri_object_t *c2s_chns[] = {&robjs[0] , NULL};
     const ri_object_t *s2s_chns[] = {&tobjs[0] , NULL};
 
-    server->shm = ri_server_create_anon_shm_for_objects(c2s_chns, s2s_chns);
+    server->shm = ri_create_anon_shm_for_objects(c2s_chns, s2s_chns);
 
     if (!server->shm)
         goto fail_shm;

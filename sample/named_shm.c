@@ -334,8 +334,8 @@ static server_t *server_new(const char *path)
 
     const ri_object_t *c2s_chns[] = {&robjs[0] , NULL};
     const ri_object_t *s2s_chns[] = {&tobjs[0] , NULL};
-
-    server->shm = ri_server_create_named_shm_for_objects(c2s_chns, s2s_chns, path, 0777);
+    
+    server->shm = ri_create_named_shm_for_objects(c2s_chns, s2s_chns, path, 0777);
 
     if (!server->shm)
         goto fail_shm;

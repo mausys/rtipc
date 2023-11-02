@@ -68,8 +68,8 @@ static server_t *server_new(void)
         return NULL;
 
     size_t chns[] = { ri_calc_channel_size(BUFFER_SIZE), 0};
-
-    server->shm = ri_server_create_anon_shm_for_channels(chns, NULL);
+    
+    server->shm = ri_create_anon_shm_for_channels(chns, NULL);
 
     if (!server->shm)
         goto fail_shm;

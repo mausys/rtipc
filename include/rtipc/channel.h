@@ -4,6 +4,12 @@
 #include <stdatomic.h>
 #include <stddef.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #if ATOMIC_INT_LOCK_FREE == 2
 typedef atomic_uint ri_xchg_t;
 #elif ATOMIC_SHORT_LOCK_FREE == 2
@@ -67,3 +73,7 @@ static inline size_t ri_get_channel_size(const ri_channel_t *chn)
 {
     return RI_NUM_BUFFERS * ri_channel_get_buffer_size(chn);
 }
+
+#ifdef __cplusplus
+}
+#endif

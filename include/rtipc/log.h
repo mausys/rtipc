@@ -3,6 +3,10 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
                           const char *func, const char *format, va_list ap);
 
@@ -43,4 +47,8 @@ void ri_log(int priority, const char *file, const char *line,
 #define LOG_INF(format, ...)   RI_LOG(LOG_LEVEL_INF, format, ##__VA_ARGS__)
 #define LOG_DBG(format, ...)  RI_LOG(LOG_LEVEL_DBG, format, ##__VA_ARGS__)
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
