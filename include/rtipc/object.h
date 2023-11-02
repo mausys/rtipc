@@ -39,9 +39,9 @@ typedef struct ri_producer_objects ri_producer_objects_t;
 
 /**
  * @brief ri_calc_buffer_size calculates the total buffer size that is needed for containing
- * all the object in the object describtion list
+ * all the object in the object list
  *
- * @param descs object describtion list, terminated with an entry with size=0
+ * @param objs object list, terminated with an entry with size=0
  * @return calculated buffer size
  */
 size_t ri_calc_buffer_size(const ri_object_t objs[]);
