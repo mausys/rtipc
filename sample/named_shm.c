@@ -323,6 +323,9 @@ static server_t *server_new(const char *path)
     int r;
     server_t *server = calloc(1, sizeof(server_t));
 
+    if (!server)
+        return NULL;
+
     ri_object_t robjs[16];
     ri_object_t tobjs[16];
 

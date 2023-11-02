@@ -53,6 +53,10 @@ add_executable(simple  sample/simple.c)
 target_compile_options(simple PRIVATE ${RTIPC_COMPILER_OPTIONS})
 target_link_libraries(simple PRIVATE ${PROJECT_NAME})
 
+add_executable(channel  sample/channel.c)
+target_compile_options(channel PRIVATE ${RTIPC_COMPILER_OPTIONS})
+target_link_libraries(channel PRIVATE ${PROJECT_NAME})
+
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
