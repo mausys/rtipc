@@ -90,7 +90,7 @@ static server_t *server_new(void)
         NULL,
     };
 
-    server->shm = ri_server_create_anon_shm(chns, NULL);
+    server->shm = ri_server_create_anon_shm_for_objects(chns, NULL);
 
     if (!server->shm)
         goto fail_shm;

@@ -69,19 +69,12 @@ static server_t *server_new(void)
 
     size_t chns[] = { ri_calc_channel_size(BUFFER_SIZE), 0};
 
-    size_t shm_size = ri_calc_shm_size(chns, NULL);
-
-    server->shm = ri_anon_shm_new(shm_size);
+    server->shm = ri_server_create_anon_shm_for_channels(chns, NULL);
 
     if (!server->shm)
         goto fail_shm;
 
-    int r = ri_shm_map_channels(server->shm, chns, NULL);
-
-    if (r < 0)
-        goto fail_map;
-
-    r = ri_server_get_consumer(server->shm, 0, &server->cns);
+    int r = ri_server_get_consumer(server->shm, 0, &server->cns);
 
     if (r < 0) {
         LOG_ERR("server_new ri_server_get_consumer failed");
@@ -91,7 +84,6 @@ static server_t *server_new(void)
     return server;
 
 fail_channel:
- fail_map:
     ri_shm_delete(server->shm);
 fail_shm:
     free(server);
