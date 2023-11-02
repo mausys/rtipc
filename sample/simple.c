@@ -14,14 +14,14 @@
 
 typedef struct {
     ri_shm_t *shm;
-    ri_tom_t *tom;
+    ri_producer_objects_t *pos;
     char *obj;
 } client_t;
 
 
 typedef struct {
     ri_shm_t *shm;
-    ri_rom_t *rom;
+    ri_consumer_objects_t *cos;
     char *obj;
 } server_t;
 
@@ -41,7 +41,7 @@ static client_t *client_new(int fd)
     if (!client->shm)
         goto fail_shm;
 
-    ri_obj_desc_t objs[] =  {
+    ri_object_t objs[] =  {
         RI_OBJECT_ARRAY(client->obj, ARRAY_LEN),
         RI_OBJECT_END,
     };
@@ -56,15 +56,15 @@ static client_t *client_new(int fd)
         goto fail_channel;
     }
 
-    client->tom = ri_tom_new(&prd, objs, false);
-    if (!client->tom) {
-        LOG_ERR("client_new ri_tom_new failed");
-        goto fail_tom;
+    client->pos = ri_producer_objects_new(&prd, objs, false);
+    if (!client->pos) {
+        LOG_ERR("client_new ri_producer_objects_new failed");
+        goto fail_pos;
     }
 
     return client;
 
-fail_tom:
+fail_pos:
 fail_channel:
     ri_shm_delete(client->shm);
 fail_shm:
@@ -78,12 +78,12 @@ static server_t *server_new(void)
     int r;
     server_t *server = calloc(1, sizeof(server_t));
 
-    ri_obj_desc_t objs[] =  {
+    ri_object_t objs[] =  {
         RI_OBJECT_ARRAY(server->obj, ARRAY_LEN),
         RI_OBJECT_END,
     };
 
-    const ri_obj_desc_t *chns[] = {
+    const ri_object_t *chns[] = {
         objs,
         NULL,
     };
@@ -102,16 +102,16 @@ static server_t *server_new(void)
         goto fail_channel;
     }
 
-    server->rom = ri_rom_new(&cns, objs);
+    server->cos = ri_consumer_objects_new(&cns, objs);
 
-    if (!server->rom) {
-        LOG_ERR("server_new ri_rom_new failed");
-        goto fail_rom;
+    if (!server->cos) {
+        LOG_ERR("server_new ri_consumer_objects_new failed");
+        goto fail_cos;
     }
 
     return server;
 
-fail_rom:
+fail_cos:
 fail_channel:
     ri_shm_delete(server->shm);
 fail_shm:
@@ -122,7 +122,7 @@ fail_shm:
 
 static void client_delete(client_t *client)
 {
-    ri_tom_delete(client->tom);
+    ri_producer_objects_delete(client->pos);
 
     ri_shm_delete(client->shm);
 
@@ -133,7 +133,7 @@ static void client_delete(client_t *client)
 
 static void server_delete(server_t *server)
 {
-    ri_rom_delete(server->rom);
+    ri_consumer_objects_delete(server->cos);
 
     ri_shm_delete(server->shm);
 
@@ -152,7 +152,7 @@ static void client_task(int fd)
 
     snprintf(client->obj, ARRAY_LEN, "Hello Server\n");
 
-    ri_tom_update(client->tom);
+    ri_producer_objects_update(client->pos);
 
     client_delete(client);
 }
@@ -161,7 +161,7 @@ static void client_task(int fd)
 static void server_task(server_t *server)
 {
     for (;;) {
-        int r = ri_rom_update(server->rom);
+        int r = ri_consumer_objects_update(server->cos);
 
         if (r == 1) {
             printf("%s\n", server->obj);

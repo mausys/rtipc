@@ -11,30 +11,30 @@ extern "C" {
 #endif
 
 
-typedef struct ri_obj_desc {
+typedef struct ri_object {
     void *p; /**< actually this is a pointer to a pointer */
     size_t size;
     size_t align;
-} ri_obj_desc_t;
+} ri_object_t;
 
 /**
  * @typedef ri_rom_t
  *
  * @brief receive object mapper
  */
-typedef struct ri_rom ri_rom_t;
+typedef struct ri_consumer_objects ri_consumer_objects_t;
 
 /**
  * @typedef ri_tom_t
  *
  * @brief transmit object mapper
  */
-typedef struct ri_tom ri_tom_t;
+typedef struct ri_producer_objects ri_producer_objects_t;
 
-#define RI_OBJECT(x) (ri_obj_desc_t) { .p = &(x), .size = sizeof(*(x)), .align = __alignof__(*(x)) }
-#define RI_OBJECT_ARRAY(x, s) (ri_obj_desc_t) { .p = &(x), .size = sizeof(*(x)) * (s), .align = __alignof__(*(x)) }
-#define RI_OBJECT_NULL(s, a) (ri_obj_desc_t) { .p = NULL, .size = (s) , .align = a }
-#define RI_OBJECT_END (ri_obj_desc_t) { .p = NULL, .size = 0 }
+#define RI_OBJECT(x) (ri_object_t) { .p = &(x), .size = sizeof(*(x)), .align = __alignof__(*(x)) }
+#define RI_OBJECT_ARRAY(x, s) (ri_object_t) { .p = &(x), .size = sizeof(*(x)) * (s), .align = __alignof__(*(x)) }
+#define RI_OBJECT_NULL(s, a) (ri_object_t) { .p = NULL, .size = (s) , .align = a }
+#define RI_OBJECT_END (ri_object_t) { .p = NULL, .size = 0 }
 
 
 /**
@@ -44,62 +44,62 @@ typedef struct ri_tom ri_tom_t;
  * @param descs object describtion list, terminated with an entry with size=0
  * @return calculated buffer size
  */
-size_t ri_calc_buffer_size(const ri_obj_desc_t descs[]);
+size_t ri_calc_buffer_size(const ri_object_t objs[]);
 
 
 /**
- * @brief ri_rom_new creates a receive object mapper
+ * @brief ri_consumer_objects_new creates a receive object mapper
  *
  * @param chn receive channel that will be used by returned object mapper
- * @param descs object describtion list, terminated with an entry with size=0
+ * @param objs object list, terminated with an entry with size=0
  * @return pointer to the new receive object mapper; NULL on error
  */
-ri_rom_t* ri_rom_new(const ri_consumer_t *cns, const ri_obj_desc_t *descs);
+ri_consumer_objects_t* ri_consumer_objects_new(const ri_consumer_t *cns, const ri_object_t *objs);
 
 
 /**
  * @brief ri_tom_new creates a transmit object mapper
  *
  * @param chn transmit channel that will be used by returned object mapper
- * @param descs object describtion list, terminated with an entry with size=0
+ * @param objs object list, terminated with an entry with size=0
  * @param cache if true a buffer equally sized to the channel buffer is allocated
  * and the objects are statically mapped to this private buffer.
  * This cache will be copied to the channel buffer before swapping, so it is safe to read back the objects.
  * Otherwise the producer is responsible for updating all transmit objects before calling this function.
  * @return pointer to the new transmit object mapper; NULL on error
  */
-ri_tom_t* ri_tom_new(const ri_producer_t *prd, const ri_obj_desc_t *descs, bool cache);
+ri_producer_objects_t* ri_producer_objects_new(const ri_producer_t *prd, const ri_object_t *objs, bool cache);
 
-void ri_rom_delete(ri_rom_t* rom);
+void ri_consumer_objects_delete(ri_consumer_objects_t* cos);
 
-void ri_tom_delete(ri_tom_t* tom);
+void ri_producer_objects_delete(ri_producer_objects_t* pos);
 
 
 /**
- * @brief ri_rom_update swaps channel buffers and updates object pointers
+ * @brief ri_consumer_objects_update swaps channel buffers and updates object pointers
  *
- * @param rom receive object mapper
+ * @param cos receive object mapper
  * @retval -1 producer has not yet submit a buffer, object pointers are nullified
  * @retval 0 producer has not swapped buffers since last call, object pointers are staying the same
  * @retval 1 producer has swapped buffers since last call, object pointers are mapped to new buffer
  */
-int ri_rom_update(ri_rom_t *rom);
+int ri_consumer_objects_update(ri_consumer_objects_t *cos);
 
 
 /**
- * @brief ri_tom_update swaps channel buffers and updates object pointers
+ * @brief ri_producer_objects_update swaps channel buffers and updates object pointers
  *
- * @param tom transmit object mapper
+ * @param pos transmit object mapper
  */
-void ri_tom_update(ri_tom_t *tom);
+void ri_producer_objects_update(ri_producer_objects_t *pos);
 
 
 /**
- * @brief ri_tom_ackd checks if consumer is using the latest buffer
+ * @brief ri_producer_objects_ackd checks if consumer is using the latest buffer
  *
- * @param tom transmit object mapper
+ * @param pos transmit object mapper
  */
-bool ri_tom_ackd(const ri_tom_t *tom);
+bool ri_producer_objects_ackd(const ri_producer_objects_t *pos);
 
 
 #ifdef __cplusplus

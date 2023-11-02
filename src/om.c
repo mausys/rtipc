@@ -10,14 +10,13 @@
 
 typedef struct {
     size_t offset;
-    size_t size;
     void **p;
-} ri_obj_t;
+} ri_object_map_t;
 
 
-struct ri_tom {
+struct ri_producer_objects {
     ri_producer_t prd;
-    ri_obj_t *objs;
+    ri_object_map_t *objs;
     unsigned num;
     void *cache;
     void *buf;
@@ -25,16 +24,16 @@ struct ri_tom {
 };
 
 
-struct ri_rom {
+struct ri_consumer_objects {
     ri_consumer_t cns;
-    ri_obj_t *objs;
+    ri_object_map_t *objs;
     unsigned num;
     void *buf;
     size_t buf_size;
 };
 
 
-static void nullify_opjects(ri_obj_t objs[], unsigned n)
+static void nullify_opjects(ri_object_map_t objs[], unsigned n)
 {
     for (unsigned i = 0; i < n; i++) {
         if (objs[i].p)
@@ -43,7 +42,7 @@ static void nullify_opjects(ri_obj_t objs[], unsigned n)
 }
 
 
-static void map_opjects(void *p, ri_obj_t objs[], unsigned n)
+static void map_opjects(void *p, ri_object_map_t objs[], unsigned n)
 {
     for (unsigned i = 0; i < n; i++) {
         if (objs[i].p)
@@ -52,191 +51,190 @@ static void map_opjects(void *p, ri_obj_t objs[], unsigned n)
 }
 
 
-static ri_obj_t* objs_new(const ri_obj_desc_t *descs, unsigned n)
+static ri_object_map_t* objs_new(const ri_object_t *objs, unsigned n)
 {
-    ri_obj_t *objs = malloc(n * sizeof(ri_obj_t));
+    ri_object_map_t *maps = malloc(n * sizeof(ri_object_map_t));
 
-    if (!objs)
+    if (!maps)
         return NULL;
 
     size_t offset = 0;
 
     for (unsigned i = 0; i < n; i++) {
-        if (descs[i].align != 0)
-            offset = mem_align(offset, descs[i].align);
+        if (objs[i].align != 0)
+            offset = mem_align(offset, objs[i].align);
 
-        objs[i] = (ri_obj_t) {
+        maps[i] = (ri_object_map_t) {
             .offset = offset,
-            .size = descs[i].size,
-            .p = descs[i].p,
+            .p = objs[i].p,
         };
 
-        offset += descs[i].size;
+        offset += objs[i].size;
     }
 
-    return objs;
+    return maps;
 }
 
 
-static unsigned count_objs(const ri_obj_desc_t descs[])
+static unsigned count_objs(const ri_object_t objs[])
 {
     unsigned i;
-    for (i = 0; descs[i].size != 0; i++)
+    for (i = 0; objs[i].size != 0; i++)
         ;
     return i;
 }
 
 
-size_t ri_calc_buffer_size(const ri_obj_desc_t descs[])
+size_t ri_calc_buffer_size(const ri_object_t objs[])
 {
     size_t size = 0;
 
-    for (unsigned i = 0; descs[i].size != 0; i++) {
-        if (descs[i].align != 0)
-            size = mem_align(size, descs[i].align);
+    for (unsigned i = 0; objs[i].size != 0; i++) {
+        if (objs[i].align != 0)
+            size = mem_align(size, objs[i].align);
 
-        size += descs[i].size;
+        size += objs[i].size;
     }
 
     return size;
 }
 
 
-ri_rom_t* ri_rom_new(const ri_consumer_t *cns, const ri_obj_desc_t *descs)
+ri_consumer_objects_t* ri_consumer_objects_new(const ri_consumer_t *cns, const ri_object_t *objs)
 {
-    ri_rom_t *rom = malloc(sizeof(ri_rom_t));
+    ri_consumer_objects_t *cos = malloc(sizeof(ri_consumer_objects_t));
 
-    if (!rom)
+    if (!cos)
         return NULL;
 
-    *rom = (ri_rom_t) {
+    *cos = (ri_consumer_objects_t) {
         .cns = *cns,
-        .buf_size = ri_calc_buffer_size(descs),
-        .num = count_objs(descs),
+        .buf_size = ri_calc_buffer_size(objs),
+        .num = count_objs(objs),
     };
 
     size_t chn_size = ri_channel_get_buffer_size(&cns->chn);
 
-    if (rom->buf_size > chn_size) {
-        LOG_ERR("objects size exeeds channel size; objects size=%zu, channel size=%zu", rom->buf_size, chn_size);
+    if (cos->buf_size > chn_size) {
+        LOG_ERR("objects size exeeds channel size; objects size=%zu, channel size=%zu", cos->buf_size, chn_size);
         goto fail;
     }
 
-    rom->objs = objs_new(descs, rom->num);
+    cos->objs = objs_new(objs, cos->num);
 
-    if (!rom->objs)
+    if (!cos->objs)
         goto fail;
 
-    return rom;
+    return cos;
 
 fail:
-    free(rom);
+    free(cos);
     return NULL;
 }
 
 
-void ri_rom_delete(ri_rom_t* rom)
+void ri_consumer_objects_delete(ri_consumer_objects_t* cos)
 {
-    nullify_opjects(rom->objs, rom->num);
-    free(rom->objs);
-    free(rom);
+    nullify_opjects(cos->objs, cos->num);
+    free(cos->objs);
+    free(cos);
 }
 
 
-ri_tom_t* ri_tom_new(const ri_producer_t *prd, const ri_obj_desc_t *descs, bool cache)
+ri_producer_objects_t* ri_producer_objects_new(const ri_producer_t *prd, const ri_object_t *objs, bool cache)
 {
-    ri_tom_t *tom = malloc(sizeof(ri_tom_t));
+    ri_producer_objects_t *pos = malloc(sizeof(ri_producer_objects_t));
 
-    if (!tom)
+    if (!pos)
         return NULL;
 
-    *tom = (ri_tom_t) {
+    *pos = (ri_producer_objects_t) {
         .prd = *prd,
-        .num = count_objs(descs),
-        .buf_size = ri_calc_buffer_size(descs),
+        .num = count_objs(objs),
+        .buf_size = ri_calc_buffer_size(objs),
         .buf = prd->chn.bufs[prd->current],
     };
 
     size_t chn_size = ri_channel_get_buffer_size(&prd->chn);
 
-    if (tom->buf_size > chn_size) {
-        LOG_ERR("objects size exeeds channel size; objects size=%zu, channel size=%zu", tom->buf_size, chn_size);
+    if (pos->buf_size > chn_size) {
+        LOG_ERR("objects size exeeds channel size; objects size=%zu, channel size=%zu", pos->buf_size, chn_size);
         goto fail;
     }
 
-    tom->objs = objs_new(descs, tom->num);
+    pos->objs = objs_new(objs, pos->num);
 
-    tom->buf = ri_producer_swap(&tom->prd);
+    pos->buf = ri_producer_swap(&pos->prd);
 
     if (cache) {
-        tom->cache = calloc(1, tom->buf_size);
+        pos->cache = calloc(1, pos->buf_size);
 
-        if (!tom->cache)
+        if (!pos->cache)
             goto fail;
 
-        map_opjects(tom->cache, tom->objs, tom->num);
+        map_opjects(pos->cache, pos->objs, pos->num);
     } else {
-        map_opjects(tom->buf, tom->objs, tom->num);
+        map_opjects(pos->buf, pos->objs, pos->num);
     }
 
-    if (!tom->objs)
+    if (!pos->objs)
         goto fail;
 
-    return tom;
+    return pos;
 
 fail:
-    if (tom->cache)
-        free(tom->cache);
-    free(tom);
+    if (pos->cache)
+        free(pos->cache);
+    free(pos);
     return NULL;
 }
 
 
-void ri_tom_delete(ri_tom_t* tom)
+void ri_producer_objects_delete(ri_producer_objects_t* pos)
 {
-    nullify_opjects(tom->objs, tom->num);
+    nullify_opjects(pos->objs, pos->num);
 
-    if (tom->cache)
-        free(tom->cache);
+    if (pos->cache)
+        free(pos->cache);
 
-    free(tom->objs);
-    free(tom);
+    free(pos->objs);
+    free(pos);
 }
 
 
-void ri_tom_update(ri_tom_t *tom)
+void ri_producer_objects_update(ri_producer_objects_t *pos)
 {
-    if (tom->cache) {
-        memcpy(tom->buf, tom->cache, tom->buf_size);
-        tom->buf = ri_producer_swap(&tom->prd);
+    if (pos->cache) {
+        memcpy(pos->buf, pos->cache, pos->buf_size);
+        pos->buf = ri_producer_swap(&pos->prd);
     } else {
-        tom->buf = ri_producer_swap(&tom->prd);
-        map_opjects(tom->buf, tom->objs, tom->num);
+        pos->buf = ri_producer_swap(&pos->prd);
+        map_opjects(pos->buf, pos->objs, pos->num);
     }
 }
 
 
-bool ri_tom_ackd(const ri_tom_t *tom)
+bool ri_producer_objects_ackd(const ri_producer_objects_t *pos)
 {
-    return ri_producer_ackd(&tom->prd);
+    return ri_producer_ackd(&pos->prd);
 }
 
 
-int ri_rom_update(ri_rom_t *rom)
+int ri_consumer_objects_update(ri_consumer_objects_t *cos)
 {
-    void *old = rom->buf;
+    void *old = cos->buf;
 
-    rom->buf = ri_consumer_fetch(&rom->cns);
+    cos->buf = ri_consumer_fetch(&cos->cns);
 
-    if (!rom->buf) {
-        nullify_opjects(rom->objs, rom->num);
+    if (!cos->buf) {
+        nullify_opjects(cos->objs, cos->num);
         return -1;
     }
 
-    if (old == rom->buf)
+    if (old == cos->buf)
         return 0;
 
-    map_opjects(rom->buf, rom->objs, rom->num);
+    map_opjects(cos->buf, cos->objs, cos->num);
 
     return 1;
 }

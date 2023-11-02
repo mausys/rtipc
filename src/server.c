@@ -1,13 +1,13 @@
 #include "rtipc/server.h"
 
 
-static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t *s2c_chns[], const char *name, mode_t mode)
+static ri_shm_t* create_shm(const ri_object_t *c2s_chns[], const ri_object_t *s2c_chns[], const char *name, mode_t mode)
 {
     ri_shm_t *shm = NULL;
     unsigned n_c2s = 0;
 
     if (c2s_chns) {
-        for (const ri_obj_desc_t **d = c2s_chns; *d; d++)
+        for (const ri_object_t **d = c2s_chns; *d; d++)
             n_c2s++;
     }
 
@@ -21,7 +21,7 @@ static ri_shm_t* create_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t
     unsigned n_s2c = 0;
 
     if (s2c_chns) {
-        for (const ri_obj_desc_t **d = s2c_chns; *d; d++)
+        for (const ri_object_t **d = s2c_chns; *d; d++)
             n_s2c++;
     }
 
@@ -63,13 +63,13 @@ int ri_server_get_producer(const ri_shm_t *shm, unsigned idx, ri_producer_t *prd
 }
 
 
-ri_shm_t* ri_server_create_anon_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t *s2c_chns[])
+ri_shm_t* ri_server_create_anon_shm(const ri_object_t *c2s_chns[], const ri_object_t *s2c_chns[])
 {
     return create_shm(c2s_chns, s2c_chns, NULL, 0);
 }
 
 
-ri_shm_t* ri_server_create_named_shm(const ri_obj_desc_t *c2s_chns[], const ri_obj_desc_t *s2c_chns[], const char *name, mode_t mode)
+ri_shm_t* ri_server_create_named_shm(const ri_object_t *c2s_chns[], const ri_object_t *s2c_chns[], const char *name, mode_t mode)
 {
     if (!name)
         return NULL;

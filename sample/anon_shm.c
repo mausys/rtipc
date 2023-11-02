@@ -68,8 +68,8 @@ typedef struct {
 
 typedef struct {
     ri_shm_t *shm;
-    ri_rom_t *rom;
-    ri_tom_t *tom;
+    ri_consumer_objects_t *cos;
+    ri_producer_objects_t *pos;
     uint32_t arg;
     uint8_t idx;
     s2c_t rx;
@@ -79,8 +79,8 @@ typedef struct {
 
 typedef struct {
     ri_shm_t *shm;
-    ri_rom_t *rom;
-    ri_tom_t *tom;
+    ri_consumer_objects_t *cos;
+    ri_producer_objects_t *pos;
     c2s_t rx;
     s2c_t tx;
 } server_t;
@@ -144,9 +144,9 @@ static int recvfd(int socket)  // receive fd from socket
 }
 
 
-static void map_s2c(s2c_t *s2c, ri_obj_desc_t  descs[])
+static void map_s2c(s2c_t *s2c, ri_object_t  objs[])
 {
-    ri_obj_desc_t tmp[] =  {
+    ri_object_t tmp[] =  {
         RI_OBJECT(s2c->header),
         RI_OBJECT(s2c->rsp),
         RI_OBJECT(s2c->u8),
@@ -157,13 +157,13 @@ static void map_s2c(s2c_t *s2c, ri_obj_desc_t  descs[])
         RI_OBJECT_END,
     };
 
-    memcpy(descs, tmp, sizeof(tmp));
+    memcpy(objs, tmp, sizeof(tmp));
 }
 
 
-static void map_c2s(c2s_t *c2s, ri_obj_desc_t  descs[])
+static void map_c2s(c2s_t *c2s, ri_object_t  objs[])
 {
-    ri_obj_desc_t tmp[] = {
+    ri_object_t tmp[] = {
         RI_OBJECT(c2s->header),
         RI_OBJECT(c2s->cmd),
         RI_OBJECT(c2s->arg1),
@@ -171,7 +171,7 @@ static void map_c2s(c2s_t *c2s, ri_obj_desc_t  descs[])
         RI_OBJECT_END,
     };
 
-    memcpy(descs, tmp, sizeof(tmp));
+    memcpy(objs, tmp, sizeof(tmp));
 }
 
 
@@ -191,7 +191,7 @@ static void server_set_rsp(server_t *server)
 
 static void server_process(server_t *server)
 {
-    int r = ri_rom_update(server->rom);
+    int r = ri_consumer_objects_update(server->cos);
 
     if (r != 1)
         return;
@@ -218,7 +218,7 @@ static void server_process(server_t *server)
     }
 
     server_set_rsp(server);
-    ri_tom_update(server->tom);
+    ri_producer_objects_update(server->pos);
 }
 
 
@@ -247,7 +247,7 @@ static void client_set_cmd(client_t *client)
             break;
     }
 
-    ri_tom_update(client->tom);
+        ri_producer_objects_update(client->pos);
 }
 
 
@@ -283,7 +283,7 @@ static void client_check_data(client_t *client)
 
 static void client_process(client_t *client)
 {
-    int r = ri_rom_update(client->rom);
+    int r = ri_consumer_objects_update(client->cos);
 
     if (r != 1)
         return;
@@ -326,8 +326,8 @@ static client_t *client_new(int socket)
     if (!client->shm)
         goto fail_shm;
 
-    ri_obj_desc_t robjs[16];
-    ri_obj_desc_t tobjs[16];
+    ri_object_t robjs[16];
+    ri_object_t tobjs[16];
 
     map_c2s(&client->tx, tobjs);
     map_s2c(&client->rx, robjs);
@@ -350,23 +350,25 @@ static client_t *client_new(int socket)
         goto fail_channel;
     }
 
-    client->rom = ri_rom_new(&cns, robjs);
-    if (!client->rom) {
-        LOG_ERR("client_new ri_rom_new failed");
-        goto fail_rom;
+    client->cos = ri_consumer_objects_new(&cns, robjs);
+
+    if (!client->cos) {
+        LOG_ERR("client_new ri_consumer_objects_new failed");
+        goto fail_cos;
     }
 
-    client->tom = ri_tom_new(&prd, tobjs, true);
-    if (!client->tom) {
-        LOG_ERR("client_new ri_tom_new failed");
-        goto fail_tom;
+    client->pos = ri_producer_objects_new(&prd, tobjs, true);
+
+    if (!client->pos) {
+        LOG_ERR("client_new ri_producer_objects_new failed");
+        goto fail_pos;
     }
 
     return client;
 
-fail_tom:
-    ri_rom_delete(client->rom);
-fail_rom:
+fail_pos:
+    ri_consumer_objects_delete(client->cos);
+fail_cos:
 fail_channel:
     ri_shm_delete(client->shm);
 fail_shm:
@@ -380,14 +382,14 @@ static server_t *server_new(int socket)
     int r;
     server_t *server = calloc(1, sizeof(server_t));
 
-    ri_obj_desc_t robjs[16];
-    ri_obj_desc_t tobjs[16];
+    ri_object_t robjs[16];
+    ri_object_t tobjs[16];
 
     map_c2s(&server->rx, robjs);
     map_s2c(&server->tx, tobjs);
 
-    const ri_obj_desc_t *c2s_chns[] = {&robjs[0] , NULL};
-    const ri_obj_desc_t *s2s_chns[] = {&tobjs[0] , NULL};
+    const ri_object_t *c2s_chns[] = {&robjs[0] , NULL};
+    const ri_object_t *s2s_chns[] = {&tobjs[0] , NULL};
 
     server->shm = ri_server_create_anon_shm(c2s_chns, s2s_chns);
 
@@ -411,18 +413,18 @@ static server_t *server_new(int socket)
         goto fail_channel;
     }
 
-    server->rom = ri_rom_new(&cns, robjs);
+    server->cos = ri_consumer_objects_new(&cns, robjs);
 
-    if (!server->rom) {
-        LOG_ERR("server_new ri_rom_new failed");
-        goto fail_rom;
+    if (!server->cos) {
+        LOG_ERR("server_new ri_consumer_objects_new failed");
+        goto fail_cos;
     }
 
-    server->tom = ri_tom_new(&prd, tobjs, true);
+    server->pos = ri_producer_objects_new(&prd, tobjs, true);
 
-    if (!server->tom) {
-        LOG_ERR("server_new ri_tom_new failed");
-        goto fail_tom;
+    if (!server->pos) {
+        LOG_ERR("server_new ri_producer_objects_new failed");
+        goto fail_pos;
     }
 
     int fd = ri_shm_get_fd(server->shm);
@@ -437,10 +439,10 @@ static server_t *server_new(int socket)
     return server;
 
 fail_send:
-    ri_tom_delete(server->tom);
-fail_tom:
-    ri_rom_delete(server->rom);
-fail_rom:
+    ri_producer_objects_delete(server->pos);
+fail_pos:
+    ri_consumer_objects_delete(server->cos);
+fail_cos:
 fail_channel:
     ri_shm_delete(server->shm);
 fail_shm:
@@ -451,8 +453,8 @@ fail_shm:
 
 static void client_delete(client_t *client)
 {
-    ri_rom_delete(client->rom);
-    ri_tom_delete(client->tom);
+    ri_consumer_objects_delete(client->cos);
+    ri_producer_objects_delete(client->pos);
     ri_shm_delete(client->shm);
     free(client);
 }
@@ -461,8 +463,8 @@ static void client_delete(client_t *client)
 
 static void server_delete(server_t *server)
 {
-    ri_rom_delete(server->rom);
-    ri_tom_delete(server->tom);
+    ri_consumer_objects_delete(server->cos);
+    ri_producer_objects_delete(server->pos);
     ri_shm_delete(server->shm);
     free(server);
 }
@@ -510,6 +512,7 @@ static void server_task(int socket)
 
     server_delete(server);
 }
+
 
 int thrd_server_entry(void *ud)
 {
