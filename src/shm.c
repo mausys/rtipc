@@ -59,6 +59,9 @@ static bool check_hdr(const shm_hdr_t *hdr)
 
 static unsigned count_channels(const size_t chns[])
 {
+    if (!chns)
+        return 0;
+
     unsigned i;
 
     for (i = 0; chns[i] != 0; i++)
