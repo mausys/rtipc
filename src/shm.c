@@ -232,9 +232,6 @@ static int init_channels(ri_shm_t *shm)
         goto fail;
     }
 
-    shm->consumers.num = 0;
-    shm->producers.num = 0;
-
     if (shm->owner) {
         shm->consumers.num = hdr->n_c2s_chns;
         shm->producers.num = hdr->n_s2c_chns;
@@ -264,6 +261,7 @@ static int init_channels(ri_shm_t *shm)
 
     tbl_entry_t *tbl = mem_offset(shm->p, tbl_offset);
     size_t offset = tbl[0].offset;
+
     for (unsigned i = 0; i < shm->consumers.num + shm->producers.num; i++) {
         tbl_entry_t *entry = &tbl[i];
 
@@ -305,6 +303,7 @@ static ri_shm_t* shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const
         shm = ri_sys_named_shm_new(shm_size, name, mode);
     else
         shm = ri_sys_anon_shm_new(shm_size);
+
     if (!shm)
         return NULL;
 
@@ -409,21 +408,21 @@ void ri_shm_delete(ri_shm_t *shm)
 }
 
 
-ri_consumer_t* ri_shm_get_consumer(const ri_shm_t *shm, unsigned idx)
+ri_consumer_t* ri_shm_get_consumer(const ri_shm_t *shm, unsigned cns_id)
 {
-    if (idx >= shm->consumers.num)
+    if (cns_id >= shm->consumers.num)
         return NULL;
 
-    return &shm->consumers.list[idx];
+    return &shm->consumers.list[cns_id];
 }
 
 
-ri_producer_t* ri_shm_get_producer(const ri_shm_t *shm, unsigned idx)
+ri_producer_t* ri_shm_get_producer(const ri_shm_t *shm, unsigned prd_id)
 {
-    if (idx >= shm->producers.num)
+    if (prd_id >= shm->producers.num)
         return NULL;
 
-    return &shm->producers.list[idx];
+    return &shm->producers.list[prd_id];
 }
 
 

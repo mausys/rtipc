@@ -31,6 +31,15 @@ struct ri_consumer_objects {
 };
 
 
+static unsigned count_objs(const ri_object_t objs[])
+{
+    unsigned i;
+    for (i = 0; objs[i].size != 0; i++)
+        ;
+    return i;
+}
+
+
 static void nullify_opjects(ri_object_map_t objs[], unsigned n)
 {
     for (unsigned i = 0; i < n; i++) {
@@ -74,12 +83,52 @@ static ri_object_map_t* objs_new(const ri_object_t *objs, unsigned n)
 }
 
 
-static unsigned count_objs(const ri_object_t objs[])
+static ri_shm_t* objects_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
 {
-    unsigned i;
-    for (i = 0; objs[i].size != 0; i++)
-        ;
-    return i;
+    unsigned n_c2s = 0;
+
+    if (c2s_objs) {
+        for (const ri_object_t **d = c2s_objs; *d; d++)
+            n_c2s++;
+    }
+
+    size_t c2s_sizes[n_c2s + 1];
+
+    for (unsigned i = 0; i < n_c2s; i++)
+        c2s_sizes[i] = ri_calc_buffer_size(c2s_objs[i]);
+
+    c2s_sizes[n_c2s] = 0;
+
+    unsigned n_s2c = 0;
+
+    if (s2c_objs) {
+        for (const ri_object_t **d = s2c_objs; *d; d++)
+            n_s2c++;
+    }
+
+    size_t s2c_sizes[n_s2c + 1];
+
+    for (unsigned i = 0; i < n_s2c; i++)
+        s2c_sizes[i] = ri_calc_buffer_size(s2c_objs[i]);
+
+    s2c_sizes[n_s2c] = 0;
+
+    return name ? ri_named_shm_new(c2s_sizes, s2c_sizes, name, mode) : ri_anon_shm_new(c2s_sizes, s2c_sizes);
+}
+
+
+ri_shm_t* ri_objects_anon_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[])
+{
+    return objects_shm_new(c2s_objs, s2c_objs, NULL, 0);
+}
+
+
+ri_shm_t* ri_objects_named_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
+{
+    if (!name)
+        return NULL;
+
+    return objects_shm_new(c2s_objs, s2c_objs, name, mode);
 }
 
 
@@ -244,58 +293,5 @@ int ri_consumer_objects_update(ri_consumer_objects_t *cos)
     map_opjects(cos->buf, cos->objs, cos->num);
 
     return 1;
-}
-
-
-
-static ri_shm_t* objects_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
-{
-    unsigned n_c2s = 0;
-
-    if (c2s_objs) {
-        for (const ri_object_t **d = c2s_objs; *d; d++)
-            n_c2s++;
-    }
-
-    size_t c2s_sizes[n_c2s + 1];
-
-    for (unsigned i = 0; i < n_c2s; i++)
-        c2s_sizes[i] = ri_calc_buffer_size(c2s_objs[i]);
-
-    c2s_sizes[n_c2s] = 0;
-
-    unsigned n_s2c = 0;
-
-    if (s2c_objs) {
-        for (const ri_object_t **d = s2c_objs; *d; d++)
-            n_s2c++;
-    }
-
-    size_t s2c_sizes[n_s2c + 1];
-
-    for (unsigned i = 0; i < n_s2c; i++)
-        s2c_sizes[i] = ri_calc_buffer_size(s2c_objs[i]);
-
-    s2c_sizes[n_s2c] = 0;
-
-    return name ? ri_named_shm_new(c2s_sizes, s2c_sizes, name, mode) : ri_anon_shm_new(c2s_sizes, s2c_sizes);
-}
-
-
-
-
-
-ri_shm_t* ri_objects_anon_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[])
-{
-    return objects_shm_new(c2s_objs, s2c_objs, NULL, 0);
-}
-
-
-ri_shm_t* ri_objects_named_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
-{
-    if (!name)
-        return NULL;
-
-    return objects_shm_new(c2s_objs, s2c_objs, name, mode);
 }
 

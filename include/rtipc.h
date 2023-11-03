@@ -41,11 +41,11 @@ typedef struct ri_object {
 typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
                           const char *func, const char *format, va_list ap);
 
+
 #define RI_OBJECT(x) (ri_object_t) { .p = &(x), .size = sizeof(*(x)), .align = __alignof__(*(x)) }
 #define RI_OBJECT_ARRAY(x, s) (ri_object_t) { .p = &(x), .size = sizeof(*(x)) * (s), .align = __alignof__(*(x)) }
 #define RI_OBJECT_NULL(s, a) (ri_object_t) { .p = NULL, .size = (s) , .align = a }
 #define RI_OBJECT_END (ri_object_t) { .p = NULL, .size = 0, .align = 0 }
-
 
 
 void ri_set_log_handler(ri_log_fn log_handler);
@@ -62,16 +62,15 @@ void ri_shm_delete(ri_shm_t *shm);
 
 int ri_shm_get_fd(const ri_shm_t *shm);
 
-ri_consumer_t* ri_shm_get_consumer(const ri_shm_t *shm, unsigned idx);
+ri_consumer_t* ri_shm_get_consumer(const ri_shm_t *shm, unsigned cns_id);
 
-ri_producer_t* ri_shm_get_producer(const ri_shm_t *shm, unsigned idx);
+ri_producer_t* ri_shm_get_producer(const ri_shm_t *shm, unsigned prd_id);
 
 void* ri_consumer_fetch(ri_consumer_t *cns);
 
 void* ri_producer_swap(ri_producer_t *prd);
 
 bool ri_producer_ackd(const ri_producer_t *prd);
-
 
 size_t ri_consumer_get_buffer_size(const ri_consumer_t *cns);
 
@@ -93,27 +92,29 @@ size_t ri_calc_buffer_size(const ri_object_t objs[]);
 
 
 /**
- * @brief ri_consumer_objects_new creates a receive object mapper
+ * @brief ri_consumer_objects_new creates a consumer object mapper
  *
- * @param chn receive channel that will be used by returned object mapper
+ * @param shm shared memory
+ * @param cns_id consumer id
  * @param objs object list, terminated with an entry with size=0
- * @return pointer to the new receive object mapper; NULL on error
+ * @return pointer to the new consumer object mapper; NULL on error
  */
-ri_consumer_objects_t* ri_consumer_objects_new(ri_shm_t *shm, unsigned chn_id, const ri_object_t *objs);
+ri_consumer_objects_t* ri_consumer_objects_new(ri_shm_t *shm, unsigned cns_id, const ri_object_t *objs);
 
 
 /**
- * @brief ri_tom_new creates a transmit object mapper
+ * @brief ri_producer_objects_new creates a producer object mapper
  *
- * @param chn transmit channel that will be used by returned object mapper
+ * @param shm shared memory
+ * @param prd_id producer id
  * @param objs object list, terminated with an entry with size=0
  * @param cache if true a buffer equally sized to the channel buffer is allocated
  * and the objects are statically mapped to this private buffer.
  * This cache will be copied to the channel buffer before swapping, so it is safe to read back the objects.
- * Otherwise the producer is responsible for updating all transmit objects before calling this function.
- * @return pointer to the new transmit object mapper; NULL on error
+ * Otherwise the producer is responsible for updating all producer objects before calling this function.
+ * @return pointer to the new producer object mapper; NULL on error
  */
-ri_producer_objects_t* ri_producer_objects_new(ri_shm_t *shm, unsigned chn_id, const ri_object_t *objs, bool cache);
+ri_producer_objects_t* ri_producer_objects_new(ri_shm_t *shm, unsigned prd_id, const ri_object_t *objs, bool cache);
 
 void ri_consumer_objects_delete(ri_consumer_objects_t* cos);
 
@@ -123,7 +124,7 @@ void ri_producer_objects_delete(ri_producer_objects_t* pos);
 /**
  * @brief ri_consumer_objects_update swaps channel buffers and updates object pointers
  *
- * @param cos receive object mapper
+ * @param cos consumer object mapper
  * @retval -1 producer has not yet submit a buffer, object pointers are nullified
  * @retval 0 producer has not swapped buffers since last call, object pointers are staying the same
  * @retval 1 producer has swapped buffers since last call, object pointers are mapped to new buffer
@@ -134,7 +135,7 @@ int ri_consumer_objects_update(ri_consumer_objects_t *cos);
 /**
  * @brief ri_producer_objects_update swaps channel buffers and updates object pointers
  *
- * @param pos transmit object mapper
+ * @param pos producer object mapper
  */
 void ri_producer_objects_update(ri_producer_objects_t *pos);
 
@@ -142,7 +143,7 @@ void ri_producer_objects_update(ri_producer_objects_t *pos);
 /**
  * @brief ri_producer_objects_ackd checks if consumer is using the latest buffer
  *
- * @param pos transmit object mapper
+ * @param pos producer object mapper
  */
 bool ri_producer_objects_ackd(const ri_producer_objects_t *pos);
 
