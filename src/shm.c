@@ -1,5 +1,4 @@
 #include "rtipc.h"
-#include "shm.h"
 
 #include <stdatomic.h>
 #include <stdint.h>
@@ -36,11 +35,48 @@ typedef struct {
 } shm_hdr_t;
 
 
+static unsigned count_channels(const size_t chns[])
+{
+    if (!chns)
+        return 0;
+
+    unsigned i;
+
+    for (i = 0; chns[i] != 0; i++)
+        ;
+
+    return i;
+}
+
+
 static size_t calc_channel_size(size_t buf_size)
 {
     return RI_NUM_BUFFERS * buf_size;
 }
 
+
+static size_t calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
+{
+    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
+    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
+
+    size_t offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
+
+    size_t tbl_size = (n_c2s_chns + n_s2c_chns) * sizeof(tbl_entry_t);
+    offset = mem_align(offset + tbl_size, mem_alignment());
+
+    for (unsigned i = 0; i < n_c2s_chns; i++) {
+        size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
+        offset += calc_channel_size(buf_size);
+    }
+
+    for (unsigned i = 0; i < n_s2c_chns; i++) {
+        size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
+        offset += calc_channel_size(buf_size);
+    }
+
+    return offset;
+}
 
 static bool check_hdr(const shm_hdr_t *hdr)
 {
@@ -60,20 +96,6 @@ static bool check_hdr(const shm_hdr_t *hdr)
     }
 
     return true;
-}
-
-
-static unsigned count_channels(const size_t chns[])
-{
-    if (!chns)
-        return 0;
-
-    unsigned i;
-
-    for (i = 0; chns[i] != 0; i++)
-        ;
-
-    return i;
 }
 
 
@@ -297,7 +319,7 @@ static ri_shm_t* shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const
 {
     ri_shm_t *shm = NULL;
 
-    size_t shm_size = ri_calc_shm_size(c2s_chns, s2c_chns);
+    size_t shm_size = calc_shm_size(c2s_chns, s2c_chns);
 
     if (name)
         shm = ri_sys_named_shm_new(shm_size, name, mode);
@@ -323,31 +345,6 @@ fail_init:
     ri_shm_delete(shm);
     return NULL;
 }
-
-
-size_t ri_calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
-{
-    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
-    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
-
-    size_t offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
-
-    size_t tbl_size = (n_c2s_chns + n_s2c_chns) * sizeof(tbl_entry_t);
-    offset = mem_align(offset + tbl_size, mem_alignment());
-
-    for (unsigned i = 0; i < n_c2s_chns; i++) {
-        size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
-        offset += calc_channel_size(buf_size);
-    }
-
-    for (unsigned i = 0; i < n_s2c_chns; i++) {
-        size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
-        offset += calc_channel_size(buf_size);
-    }
-
-    return offset;
-}
-
 
 
 ri_shm_t* ri_anon_shm_new(const size_t c2s_chns[], const size_t s2c_chns[])
