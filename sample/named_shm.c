@@ -1,6 +1,4 @@
-#include <rtipc/server.h>
-#include <rtipc/client.h>
-#include <rtipc/log.h>
+#include <rtipc.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -163,7 +161,7 @@ static void server_process(server_t *server)
             server->tx.array[server->rx.arg2->u32] = server->rx.arg1->u32;
             break;
         default:
-            LOG_ERR("unknown cmd received %u", *server->rx.cmd);
+            printf("unknown cmd received %u\n", *server->rx.cmd);
             break;
     }
 
@@ -256,13 +254,12 @@ static void client_process(client_t *client)
 
 static client_t *client_new(const char *path)
 {
-    int r;
     client_t *client = calloc(1, sizeof(client_t));
 
     if (!client)
         return NULL;
 
-    client->shm = ri_client_map_named_shm(path);
+    client->shm = ri_named_shm_map(path);
 
     if (!client->shm)
         goto fail_shm;
@@ -273,35 +270,17 @@ static client_t *client_new(const char *path)
     map_c2s(&client->tx, tobjs);
     map_s2c(&client->rx, robjs);
 
-
-    ri_consumer_t cns;
-    ri_producer_t prd;
-
-    r = ri_client_get_consumer(client->shm, 0, &cns);
-
-    if (r < 0) {
-        LOG_ERR("client_new ri_client_get_consumer failed");
-        goto fail_channel;
-    }
-
-    r = ri_client_get_producer(client->shm, 0, &prd);
-
-    if (r < 0) {
-        LOG_ERR("client_new ri_client_get_consumer failed");
-        goto fail_channel;
-    }
-
-    client->cos = ri_consumer_objects_new(&cns, robjs);
+    client->cos = ri_consumer_objects_new(client->shm, 0, robjs);
 
     if (!client->cos) {
-        LOG_ERR("client_new ri_consumer_objects_new failed");
+        printf("client_new ri_consumer_objects_new failed\n");
         goto fail_cos;
     }
 
-    client->pos = ri_producer_objects_new(&prd, tobjs, true);
+    client->pos = ri_producer_objects_new(client->shm, 0, tobjs, true);
 
     if (!client->pos) {
-        LOG_ERR("client_new ri_producer_objects_new failed");
+        printf("client_new ri_producer_objects_new failed\n");
         goto fail_pos;
     }
 
@@ -310,7 +289,6 @@ static client_t *client_new(const char *path)
 fail_pos:
     ri_consumer_objects_delete(client->cos);
 fail_cos:
-fail_channel:
     ri_shm_delete(client->shm);
 fail_shm:
     free(client);
@@ -320,7 +298,6 @@ fail_shm:
 
 static server_t *server_new(const char *path)
 {
-    int r;
     server_t *server = calloc(1, sizeof(server_t));
 
     if (!server)
@@ -334,40 +311,23 @@ static server_t *server_new(const char *path)
 
     const ri_object_t *c2s_chns[] = {&robjs[0] , NULL};
     const ri_object_t *s2s_chns[] = {&tobjs[0] , NULL};
-    
-    server->shm = ri_create_named_shm_for_objects(c2s_chns, s2s_chns, path, 0777);
+
+    server->shm = ri_objects_named_shm_new(c2s_chns, s2s_chns, path, 0777);
 
     if (!server->shm)
         goto fail_shm;
 
-    ri_consumer_t cns;
-    ri_producer_t prd;
-
-    r = ri_server_get_consumer(server->shm, 0, &cns);
-
-    if (r < 0) {
-        LOG_ERR("server_new ri_server_get_consumer failed");
-        goto fail_channel;
-    }
-
-    r = ri_server_get_producer(server->shm, 0, &prd);
-
-    if (r < 0) {
-        LOG_ERR("server_new ri_server_get_producer failed");
-        goto fail_channel;
-    }
-
-    server->cos = ri_consumer_objects_new(&cns, robjs);
+    server->cos = ri_consumer_objects_new(server->shm, 0, robjs);
 
     if (!server->cos) {
-        LOG_ERR("server_new ri_consumer_objects_new failed");
+        printf("server_new ri_consumer_objects_new failed\n");
         goto fail_cos;
     }
 
-    server->pos = ri_producer_objects_new(&prd, tobjs, true);
+    server->pos = ri_producer_objects_new(server->shm, 0, tobjs, true);
 
     if (!server->pos) {
-        LOG_ERR("server_new ri_producer_objects_new failed");
+        printf("server_new ri_producer_objects_new failed\n");
         goto fail_pos;
     }
 
@@ -376,7 +336,6 @@ static server_t *server_new(const char *path)
 fail_pos:
     ri_consumer_objects_delete(server->cos);
 fail_cos:
-fail_channel:
     ri_shm_delete(server->shm);
 fail_shm:
     free(server);
@@ -408,7 +367,7 @@ static void client_task(const char *path)
     client_t *client = client_new(path);
 
     if (!client) {
-        LOG_ERR("create client failed");
+        printf("create client failed\n");
         return;
     }
 
@@ -430,7 +389,7 @@ static void server_task(const char *path)
     server_t *server = server_new(path);
 
     if (!server) {
-        LOG_ERR("create server failed");
+        printf("create server failed\n");
         return;
     }
 
@@ -479,7 +438,7 @@ static void processes(const char *path)
         usleep(10000); // wait for server to create shm
         client_task(path);
     } else {
-        LOG_ERR("fork failed");
+        printf("fork failed\n");
     }
 }
 

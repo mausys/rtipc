@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(rtipc LANGUAGES C)
-
+project(rtipc LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
 include(GNUInstallDirs)
 
 set(RTIPC_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
@@ -14,18 +14,11 @@ set(RTIPC_SOURCE_FILES
   ${RTIPC_SOURCE_DIR}/sys.c
   ${RTIPC_SOURCE_DIR}/shm.c
   ${RTIPC_SOURCE_DIR}/channel.c
-  ${RTIPC_SOURCE_DIR}/object.c
-  ${RTIPC_SOURCE_DIR}/server.c
-  ${RTIPC_SOURCE_DIR}/client.c)
+  ${RTIPC_SOURCE_DIR}/object.c)
 
 
 set(RTIPC_INCLUDE_FILES
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/log.h
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/channel.h
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/shm.h
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/object.h
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/server.h
-  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc/client.h
+  ${RTIPC_PUBLIC_INCLUDE_DIR}/rtipc.h
 )
 
 set(RTIPC_COMPILER_OPTIONS -Wall -Wextra  -Wsign-compare)
@@ -60,4 +53,4 @@ target_link_libraries(channel PRIVATE ${PROJECT_NAME})
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rtipc)
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

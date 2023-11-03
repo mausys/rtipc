@@ -1,16 +1,6 @@
 #pragma once
 
-#include <stdarg.h>
 #include <stdbool.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
-                          const char *func, const char *format, va_list ap);
-
-void ri_set_log_handler(ri_log_fn log_handler);
 
 #if RTIPC_LOG_DISABLE == 1
 

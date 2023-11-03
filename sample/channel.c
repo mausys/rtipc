@@ -1,6 +1,4 @@
-#include <rtipc/server.h>
-#include <rtipc/client.h>
-#include <rtipc/log.h>
+#include <rtipc.h>
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -13,14 +11,14 @@
 
 typedef struct {
     ri_shm_t *shm;
-    ri_producer_t prd;
+    ri_producer_t *prd;
     char *obj;
 } client_t;
 
 
 typedef struct {
     ri_shm_t *shm;
-    ri_consumer_t cns;
+    ri_consumer_t *cns;
     char *obj;
 } server_t;
 
@@ -28,27 +26,25 @@ typedef struct {
 
 static client_t *client_new(int fd)
 {
-    int r;
-
     client_t *client = calloc(1, sizeof(client_t));
 
     if (!client)
         return NULL;
 
-    client->shm = ri_client_map_shm(fd);
+    client->shm = ri_shm_map(fd);
 
     if (!client->shm)
         goto fail_shm;
 
 
-    r = ri_client_get_producer(client->shm, 0, &client->prd);
+    client->prd = ri_shm_get_producer(client->shm, 0);
 
-    if (r < 0) {
-        LOG_ERR("client_new ri_client_get_consumer failed");
+    if (!client->prd) {
+        printf("client_new ri_client_get_consumer failed\n");
         goto fail_channel;
     }
 
-    client->obj = ri_producer_swap(&client->prd);
+    client->obj = ri_producer_swap(client->prd);
 
     return client;
 
@@ -67,17 +63,17 @@ static server_t *server_new(void)
     if (!server)
         return NULL;
 
-    size_t chns[] = { ri_calc_channel_size(BUFFER_SIZE), 0};
-    
-    server->shm = ri_create_anon_shm_for_channels(chns, NULL);
+    size_t chns[] = { BUFFER_SIZE, 0};
+
+    server->shm = ri_anon_shm_new(chns, NULL);
 
     if (!server->shm)
         goto fail_shm;
 
-    int r = ri_server_get_consumer(server->shm, 0, &server->cns);
+    server->cns = ri_shm_get_consumer(server->shm, 0);
 
-    if (r < 0) {
-        LOG_ERR("server_new ri_server_get_consumer failed");
+    if (!server->cns) {
+        printf("server_new ri_server_get_consumer failed\n");
         goto fail_channel;
     }
 
@@ -112,13 +108,13 @@ static void client_task(int fd)
     client_t *client = client_new(fd);
 
     if (!client) {
-        LOG_ERR("server creation failed");
+        printf("server creation failed\n");
         return;
     }
 
     snprintf(client->obj, BUFFER_SIZE, "Hello Server\n");
 
-    client->obj = ri_producer_swap(&client->prd);
+    client->obj = ri_producer_swap(client->prd);
 
     client_delete(client);
 }
@@ -127,7 +123,7 @@ static void client_task(int fd)
 static void server_task(server_t *server)
 {
     for (;;) {
-        server->obj = ri_consumer_fetch(&server->cns);
+        server->obj = ri_consumer_fetch(server->cns);
 
         if (server->obj) {
             printf("%s\n", server->obj);
@@ -144,7 +140,7 @@ int main(void)
     server_t *server = server_new();
 
     if (!server) {
-        LOG_ERR("server creation failed");
+        printf("server creation failed\n");
         return -1;
     }
 
@@ -157,7 +153,7 @@ int main(void)
     } else if (pid >= 0) {
         server_task(server);
     } else {
-        LOG_ERR("fork failed");
+        printf("fork failed\n");
     }
 
     server_delete(server);

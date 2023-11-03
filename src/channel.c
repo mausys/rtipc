@@ -1,8 +1,6 @@
-#include "rtipc/channel.h"
+#include "types.h"
 
 #include <stdint.h>
-
-#include "mem_utils.h"
 
 #define LOCK_FLAG 0x80
 
@@ -18,6 +16,7 @@ static ri_bufidx_t ri_bufidx_inc(ri_bufidx_t i)
 
     return lut[i];
 }
+
 
 bool ri_producer_ackd(const ri_producer_t *prd)
 {
@@ -40,41 +39,6 @@ void* ri_consumer_fetch(ri_consumer_t *cns)
 }
 
 
-ri_channel_t ri_channel_create(ri_xchg_t *xchg, void *p, size_t buf_size)
-{
-    size_t offset = 0;
-
-    ri_channel_t chn;
-
-    chn.xchg = xchg;
-
-    for (int i = 0; i < RI_NUM_BUFFERS; i++) {
-        chn.bufs[i] = mem_offset(p, offset);
-        offset += buf_size;
-    }
-
-    return chn;
-}
-
-
-void ri_consumer_init(ri_consumer_t *cns, const ri_channel_t *chn)
-{
-    *cns = (ri_consumer_t) {
-        .chn = *chn,
-    };
-}
-
-
-void ri_producer_init(ri_producer_t *prd, const ri_channel_t *chn)
-{
-    *prd = (ri_producer_t) {
-        .chn = *chn,
-        .current = RI_BUFIDX_NONE,
-        .locked = RI_BUFIDX_NONE
-    };
-}
-
-
 void* ri_producer_swap(ri_producer_t *prd)
 {
     unsigned old = atomic_exchange_explicit(prd->chn.xchg, prd->current, memory_order_release);
@@ -91,9 +55,16 @@ void* ri_producer_swap(ri_producer_t *prd)
 }
 
 
-size_t ri_channel_get_buffer_size(const ri_channel_t *chn)
+size_t ri_consumer_get_buffer_size(const ri_consumer_t *cns)
 {
+    const ri_channel_t *chn = &cns->chn;
     return (size_t) ((uintptr_t)chn->bufs[1] - (uintptr_t)chn->bufs[0]);
 }
 
+
+size_t ri_producer_get_buffer_size(const ri_producer_t *prd)
+{
+    const ri_channel_t *chn = &prd->chn;
+    return (size_t) ((uintptr_t)chn->bufs[1] - (uintptr_t)chn->bufs[0]);
+}
 

@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <stdatomic.h>
 
-#include "rtipc/log.h"
+#include "log.h"
 
 #define MAX_SANE_CACHE_LINE_SIZE 0x1000
 

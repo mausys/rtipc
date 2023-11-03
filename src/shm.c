@@ -1,4 +1,5 @@
-#include "rtipc/shm.h"
+#include "rtipc.h"
+#include "shm.h"
 
 #include <stdatomic.h>
 #include <stdint.h>
@@ -6,10 +7,9 @@
 #include <stdalign.h>
 #include <errno.h>
 
-#include "rtipc/log.h"
-
+#include "log.h"
 #include "mem_utils.h"
-
+#include "sys.h"
 
 #define MAGIC 0x1f0ca3be // lock-free zero-copy atomic triple buffer exchange :)
 
@@ -34,6 +34,12 @@ typedef struct {
     uint8_t xchg_size;
     uint32_t magic;
 } shm_hdr_t;
+
+
+static size_t calc_channel_size(size_t buf_size)
+{
+    return RI_NUM_BUFFERS * buf_size;
+}
 
 
 static bool check_hdr(const shm_hdr_t *hdr)
@@ -74,7 +80,7 @@ static unsigned count_channels(const size_t chns[])
 static size_t map_channel(tbl_entry_t *chn, size_t offset, size_t buf_size, size_t shm_size)
 {
     buf_size = mem_align(buf_size, mem_alignment());
-    size_t chn_size = ri_calc_channel_size(buf_size);
+    size_t chn_size = calc_channel_size(buf_size);
 
     if (offset + chn_size > shm_size) {
         LOG_ERR("channel(size=%zu) doesn't fit in shm(size=%zu)", chn_size, shm_size);
@@ -89,107 +95,51 @@ static size_t map_channel(tbl_entry_t *chn, size_t offset, size_t buf_size, size
 }
 
 
-static int get_channel(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_channel_t *chn)
+static void delete_channels(ri_shm_t *shm)
 {
-    if (sizeof(shm_hdr_t) > shm->size) {
-        LOG_ERR("header (size=%zu) doesn't fit in shm (%zu)", sizeof(shm_hdr_t), shm->size);
-        return -ENOMEM;
+    if (shm->producers.list) {
+        free(shm->producers.list);
+        shm->producers.list = NULL;
+    }
+    if (shm->consumers.list) {
+        free(shm->consumers.list);
+        shm->consumers.list = NULL;
     }
 
-    shm_hdr_t *hdr = shm->p;
-
-    if (!check_hdr(hdr))
-        return -EPROTO;
-
-    unsigned num_chns = hdr->n_c2s_chns + hdr->n_s2c_chns;
-
-    if (dir == RI_CHN_S2C)
-        idx += hdr->n_c2s_chns;
-
-    if (idx >= num_chns) {
-        LOG_ERR("index=%u exeeds channel number (%u)", idx, num_chns);
-        return -ENOENT;
-    }
-
-    size_t tbl_offset = hdr->tbl_offset;
-
-    if (tbl_offset >= shm->size) {
-        LOG_ERR("table size(%zu) doesn't fit in shm (%zu)", tbl_offset, shm->size);
-        return -ENOMEM;
-    }
-
-    tbl_entry_t *tbl = mem_offset(shm->p, tbl_offset);
-
-    size_t offset = tbl[idx].offset;
-    size_t buf_size = tbl[idx].buf_size;
-
-    if (offset + ri_calc_channel_size(buf_size) > shm->size) {
-        LOG_ERR("channel end (%zu) exeeds shm size(%zu)", offset + ri_calc_channel_size(buf_size), shm->size);
-        return -ENOMEM;
-    }
-
-    *chn = ri_channel_create(&tbl[idx].xchg, mem_offset(shm->p, offset), buf_size);
-
-    return 0;
+    shm->consumers.num = 0;
+    shm->producers.num = 0;
 }
 
 
-int ri_shm_get_consumer(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_consumer_t *cns)
+static ri_channel_t *get_channel(ri_shm_t *shm, unsigned idx)
 {
-    ri_channel_t chn;
+    ri_channel_t *chn = NULL;
+    if (shm->owner)
+    {
+        if (idx < shm->consumers.num) {
+            chn = &shm->consumers.list[idx].chn;
+        } else {
+            idx -= shm->consumers.num;
 
-    int r = get_channel(shm, idx, dir, &chn);
+            if (idx < shm->producers.num)
+                chn = &shm->producers.list[idx].chn;
+        }
+    } else {
+        if (idx < shm->producers.num) {
+            chn = &shm->producers.list[idx].chn;
+        } else {
+            idx -= shm->producers.num;
 
-    if (r < 0)
-        return r;
-
-    ri_consumer_init(cns, &chn);
-
-    return 0;
-}
-
-
-int ri_shm_get_producer(const ri_shm_t *shm, unsigned idx, ri_chn_dir_t dir, ri_producer_t *prd)
-{
-    ri_channel_t chn;
-
-    int r = get_channel(shm, idx, dir, &chn);
-
-    if (r < 0)
-        return r;
-
-    ri_producer_init(prd, &chn);
-
-    return 0;
-}
-
-
-size_t ri_calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
-{
-    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
-    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
-
-    size_t offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
-
-    size_t tbl_size = (n_c2s_chns + n_s2c_chns) * sizeof(tbl_entry_t);
-    offset = mem_align(offset + tbl_size, mem_alignment());
-
-    for (unsigned i = 0; i < n_c2s_chns; i++) {
-        size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
-        offset += ri_calc_channel_size(buf_size);
+            if (idx < shm->consumers.num)
+                chn = &shm->consumers.list[idx].chn;
+        }
     }
 
-    for (unsigned i = 0; i < n_s2c_chns; i++) {
-        size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
-        offset += ri_calc_channel_size(buf_size);
-    }
-
-    return offset;
+    return chn;
 }
 
 
-
-int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
+int init_shm(ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
 {
     unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
     unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
@@ -243,3 +193,241 @@ int ri_shm_map_channels(const ri_shm_t *shm, const size_t c2s_chn_sizes[], const
 }
 
 
+static size_t init_channel(ri_channel_t *chn, ri_xchg_t *xchg, void *p, size_t offset, size_t buf_size)
+{
+    chn->xchg = xchg;
+
+    for (int i = 0; i < RI_NUM_BUFFERS; i++) {
+        chn->bufs[i] = mem_offset(p, offset);
+        offset += buf_size;
+    }
+
+    return offset;
+}
+
+
+static int init_channels(ri_shm_t *shm)
+{
+    delete_channels(shm);
+    int r = -1;
+
+    if (sizeof(shm_hdr_t) > shm->size) {
+        LOG_ERR("header (size=%zu) doesn't fit in shm (%zu)", sizeof(shm_hdr_t), shm->size);
+        r = -ENOMEM;
+        goto fail;
+    }
+
+    shm_hdr_t *hdr = shm->p;
+
+    if (!check_hdr(hdr)) {
+        r = -EPROTO;
+        goto fail;
+    }
+
+    size_t tbl_offset = hdr->tbl_offset;
+
+    if (tbl_offset >= shm->size) {
+        LOG_ERR("table size(%zu) doesn't fit in shm (%zu)", tbl_offset, shm->size);
+        r = -ENOMEM;
+        goto fail;
+    }
+
+    shm->consumers.num = 0;
+    shm->producers.num = 0;
+
+    if (shm->owner) {
+        shm->consumers.num = hdr->n_c2s_chns;
+        shm->producers.num = hdr->n_s2c_chns;
+    } else {
+        shm->consumers.num = hdr->n_s2c_chns;
+        shm->producers.num = hdr->n_c2s_chns;
+    }
+
+    shm->consumers.list = malloc(shm->consumers.num * sizeof(ri_consumer_t));
+
+    if (!shm->consumers.list) {
+        r = -ENOMEM;
+        goto fail;
+    }
+
+    shm->producers.list = malloc(shm->producers.num * sizeof(ri_producer_t));
+
+    if (!shm->producers.list) {
+        r = -ENOMEM;
+        goto fail;
+    }
+
+    for (unsigned i = 0; i < shm->producers.num; i++) {
+        shm->producers.list[i].current = RI_BUFIDX_NONE;
+        shm->producers.list[i].locked = RI_BUFIDX_NONE;
+    }
+
+    tbl_entry_t *tbl = mem_offset(shm->p, tbl_offset);
+    size_t offset = tbl[0].offset;
+    for (unsigned i = 0; i < shm->consumers.num + shm->producers.num; i++) {
+        tbl_entry_t *entry = &tbl[i];
+
+        if (entry->offset != offset) {
+            LOG_ERR("corrupt channel table at entry %u offset=%zu table=%zu", i, offset, entry->offset);
+            goto fail;
+        }
+
+        ri_channel_t *chn = get_channel(shm, i);
+
+        if (!chn) {
+            LOG_ERR("no channel table entry %u", i);
+            goto fail;
+        }
+
+        offset = init_channel(chn, &entry->xchg, shm->p, offset, entry->buf_size);
+
+        if (offset > shm->size) {
+            LOG_ERR("channel %u exceeds shm size(%zu) offset=%zu", i, shm->size, offset);
+            goto fail;
+        }
+    }
+
+    return 0;
+
+fail:
+    delete_channels(shm);
+    return r;
+}
+
+
+static ri_shm_t* shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const char *name, mode_t mode)
+{
+    ri_shm_t *shm = NULL;
+
+    size_t shm_size = ri_calc_shm_size(c2s_chns, s2c_chns);
+
+    if (name)
+        shm = ri_sys_named_shm_new(shm_size, name, mode);
+    else
+        shm = ri_sys_anon_shm_new(shm_size);
+    if (!shm)
+        return NULL;
+
+    int r = init_shm(shm, c2s_chns, s2c_chns);
+
+    if (r < 0)
+        goto fail_init;
+
+    r = init_channels(shm);
+
+    if (r < 0)
+        goto fail_init;
+
+    return shm;
+
+fail_init:
+    ri_shm_delete(shm);
+    return NULL;
+}
+
+
+size_t ri_calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
+{
+    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
+    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
+
+    size_t offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
+
+    size_t tbl_size = (n_c2s_chns + n_s2c_chns) * sizeof(tbl_entry_t);
+    offset = mem_align(offset + tbl_size, mem_alignment());
+
+    for (unsigned i = 0; i < n_c2s_chns; i++) {
+        size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
+        offset += calc_channel_size(buf_size);
+    }
+
+    for (unsigned i = 0; i < n_s2c_chns; i++) {
+        size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
+        offset += calc_channel_size(buf_size);
+    }
+
+    return offset;
+}
+
+
+
+ri_shm_t* ri_anon_shm_new(const size_t c2s_chns[], const size_t s2c_chns[])
+{
+    return shm_new(c2s_chns, s2c_chns, NULL, 0);
+}
+
+
+ri_shm_t* ri_named_shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const char *name, mode_t mode)
+{
+    if (!name)
+        return NULL;
+
+    return shm_new(c2s_chns, s2c_chns, name, mode);
+}
+
+
+ri_shm_t* ri_shm_map(int fd)
+{
+    ri_shm_t *shm = ri_sys_map_shm(fd);
+
+    if (!shm)
+        return NULL;
+
+    int r = init_channels(shm);
+
+    if (r < 0) {
+        ri_sys_shm_delete(shm);
+        return NULL;
+    }
+
+    return shm;
+}
+
+
+ri_shm_t* ri_named_shm_map(const char *name)
+{
+    ri_shm_t *shm = ri_sys_map_named_shm(name);
+
+    if (!shm)
+        return NULL;
+
+    int r = init_channels(shm);
+
+    if (r < 0) {
+        ri_sys_shm_delete(shm);
+        return NULL;
+    }
+
+    return shm;
+}
+
+
+void ri_shm_delete(ri_shm_t *shm)
+{
+    delete_channels(shm);
+    ri_sys_shm_delete(shm);
+}
+
+
+ri_consumer_t* ri_shm_get_consumer(const ri_shm_t *shm, unsigned idx)
+{
+    if (idx >= shm->consumers.num)
+        return NULL;
+
+    return &shm->consumers.list[idx];
+}
+
+
+ri_producer_t* ri_shm_get_producer(const ri_shm_t *shm, unsigned idx)
+{
+    if (idx >= shm->producers.num)
+        return NULL;
+
+    return &shm->producers.list[idx];
+}
+
+
+int ri_shm_get_fd(const ri_shm_t* shm)
+{
+    return shm->fd;
+}
