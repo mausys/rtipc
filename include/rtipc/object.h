@@ -34,7 +34,7 @@ typedef struct ri_producer_objects ri_producer_objects_t;
 #define RI_OBJECT(x) (ri_object_t) { .p = &(x), .size = sizeof(*(x)), .align = __alignof__(*(x)) }
 #define RI_OBJECT_ARRAY(x, s) (ri_object_t) { .p = &(x), .size = sizeof(*(x)) * (s), .align = __alignof__(*(x)) }
 #define RI_OBJECT_NULL(s, a) (ri_object_t) { .p = NULL, .size = (s) , .align = a }
-#define RI_OBJECT_END (ri_object_t) { .p = NULL, .size = 0 }
+#define RI_OBJECT_END (ri_object_t) { .p = NULL, .size = 0, .align = 0 }
 
 
 /**

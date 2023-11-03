@@ -7,6 +7,9 @@
 #include <string.h>
 #include <fcntl.h>
 
+
+#define ARG_UNUSED(x) (void)(x)
+
 static void log_std(int priority, const char *file, const char *line,
                        const char *func, const char *format, va_list ap);
 
@@ -18,7 +21,13 @@ static ri_log_fn ri_log_handler = log_std;
 static void log_dummy(int priority, const char *file, const char *line,
                     const char *func, const char *format, va_list ap)
 {
-
+    ARG_UNUSED(priority);
+    ARG_UNUSED(file);
+    ARG_UNUSED(line);
+    ARG_UNUSED(func);
+    ARG_UNUSED(func);
+    ARG_UNUSED(format);
+    ARG_UNUSED(ap);
 }
 
 static void log_std(int priority, const char *file, const char *line,

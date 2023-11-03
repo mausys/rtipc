@@ -1,14 +1,30 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdatomic.h>
+
 #include <stddef.h>
 
 
 #ifdef __cplusplus
+
+#include <atomic>
+
 extern "C" {
+
+#if ATOMIC_INT_LOCK_FREE == 2
+typedef std::atomic_uint ri_xchg_t;
+#elif ATOMIC_SHORT_LOCK_FREE == 2
+typedef std::atomic_ushort ri_xchg_t;
+#elif ATOMIC_CHAR_LOCK_FREE == 2
+typedef std::atomic_uchar ri_xchg_t;
+#else
+#warning "no suitable always lockfree datatype found"
+typedef std::atomic_uint ri_xchg_t;
 #endif
 
+#else
+
+#include <stdatomic.h>
 
 #if ATOMIC_INT_LOCK_FREE == 2
 typedef atomic_uint ri_xchg_t;
@@ -19,6 +35,8 @@ typedef atomic_uchar ri_xchg_t;
 #else
 #warning "no suitable always lockfree datatype found"
 typedef atomic_uint ri_xchg_t;
+#endif
+
 #endif
 
 #define RI_NUM_BUFFERS 3
