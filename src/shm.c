@@ -25,8 +25,8 @@ typedef struct {
 
 
 typedef struct {
-    uint32_t n_c2s_chns;
-    uint32_t n_s2c_chns;
+    uint32_t n_cns; /**< number of consumers from server perspective */
+    uint32_t n_prd; /**< number of producers from server perspective */
     size_t tbl_offset;
     size_t tbl_size;
     uint16_t align;
@@ -55,23 +55,23 @@ static size_t calc_channel_size(size_t buf_size)
 }
 
 
-static size_t calc_shm_size(const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
+static size_t calc_shm_size(const size_t cns_sizes[], const size_t prd_sizes[])
 {
-    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
-    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
+    unsigned n_cns = count_channels(cns_sizes);
+    unsigned n_prd = count_channels(prd_sizes);
 
     size_t offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
 
-    size_t tbl_size = (n_c2s_chns + n_s2c_chns) * sizeof(tbl_entry_t);
+    size_t tbl_size = (n_cns + n_prd) * sizeof(tbl_entry_t);
     offset = mem_align(offset + tbl_size, mem_alignment());
 
-    for (unsigned i = 0; i < n_c2s_chns; i++) {
-        size_t buf_size = mem_align(c2s_chn_sizes[i], mem_alignment());
+    for (unsigned i = 0; i < n_cns; i++) {
+        size_t buf_size = mem_align(cns_sizes[i], mem_alignment());
         offset += calc_channel_size(buf_size);
     }
 
-    for (unsigned i = 0; i < n_s2c_chns; i++) {
-        size_t buf_size = mem_align(s2c_chn_sizes[i], mem_alignment());
+    for (unsigned i = 0; i < n_prd; i++) {
+        size_t buf_size = mem_align(prd_sizes[i], mem_alignment());
         offset += calc_channel_size(buf_size);
     }
 
@@ -161,10 +161,10 @@ static ri_channel_t *get_channel(ri_shm_t *shm, unsigned idx)
 }
 
 
-int init_shm(ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_sizes[])
+int init_shm(ri_shm_t *shm, const size_t cns_sizes[], const size_t prd_sizes[])
 {
-    unsigned n_c2s_chns = count_channels(c2s_chn_sizes);
-    unsigned n_s2c_chns = count_channels(s2c_chn_sizes);
+    unsigned n_cns = count_channels(cns_sizes);
+    unsigned n_prd = count_channels(prd_sizes);
 
     size_t tbl_offset = mem_align(sizeof(shm_hdr_t), alignof(tbl_entry_t));
 
@@ -172,7 +172,7 @@ int init_shm(ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_s
         LOG_ERR("header size(%zu) exeeds shm size(%zu)", tbl_offset, shm->size);
     }
 
-    size_t tbl_size = (n_c2s_chns + n_s2c_chns) * sizeof(tbl_entry_t);
+    size_t tbl_size = (n_cns + n_prd) * sizeof(tbl_entry_t);
     size_t offset = mem_align(tbl_offset + tbl_size, mem_alignment());
 
     if (offset >= shm->size) {
@@ -181,16 +181,16 @@ int init_shm(ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_s
 
     tbl_entry_t *tbl = mem_offset(shm->p, tbl_offset);
 
-    for (unsigned i = 0; i < n_c2s_chns; i++) {
-        offset = map_channel(&tbl[i], offset, c2s_chn_sizes[i], shm->size);
+    for (unsigned i = 0; i < n_cns; i++) {
+        offset = map_channel(&tbl[i], offset, cns_sizes[i], shm->size);
         if (offset == 0) {
             LOG_ERR("rx channel[%u] doesn't fit in shm", i);
             return -ENOMEM;
         }
     }
 
-    for (unsigned i = 0; i < n_s2c_chns; i++) {
-        offset = map_channel(&tbl[n_c2s_chns + i], offset, s2c_chn_sizes[i], shm->size);
+    for (unsigned i = 0; i < n_prd; i++) {
+        offset = map_channel(&tbl[n_cns + i], offset, prd_sizes[i], shm->size);
         if (offset == 0) {
             LOG_ERR("tx channel[%u] doesn't fit in shm", i);
             return -ENOMEM;
@@ -201,15 +201,15 @@ int init_shm(ri_shm_t *shm, const size_t c2s_chn_sizes[], const size_t s2c_chn_s
 
     *hdr = (shm_hdr_t) {
         .align = mem_alignment(),
-        .n_c2s_chns = n_c2s_chns,
-        .n_s2c_chns = n_s2c_chns,
+        .n_cns = n_cns,
+        .n_prd = n_prd,
         .xchg_size = sizeof(ri_xchg_t),
         .tbl_offset = tbl_offset,
         .tbl_size = tbl_size,
         .magic = MAGIC,
     };
 
-    LOG_INF("mapped %u server-to-client channels and %u client-to-server channels; size used=%zu", n_c2s_chns, n_s2c_chns, offset);
+    LOG_INF("mapped %u server-to-client channels and %u client-to-server channels; size used=%zu", n_cns, n_prd, offset);
 
     return 0;
 }
@@ -255,11 +255,11 @@ static int init_channels(ri_shm_t *shm)
     }
 
     if (shm->owner) {
-        shm->consumers.num = hdr->n_c2s_chns;
-        shm->producers.num = hdr->n_s2c_chns;
+        shm->consumers.num = hdr->n_cns;
+        shm->producers.num = hdr->n_prd;
     } else {
-        shm->consumers.num = hdr->n_s2c_chns;
-        shm->producers.num = hdr->n_c2s_chns;
+        shm->consumers.num = hdr->n_prd;
+        shm->producers.num = hdr->n_cns;
     }
 
     shm->consumers.list = malloc(shm->consumers.num * sizeof(ri_consumer_t));
@@ -315,11 +315,11 @@ fail:
 }
 
 
-static ri_shm_t* shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const char *name, mode_t mode)
+static ri_shm_t* shm_new(const size_t cns_sizes[], const size_t prd_sizes[], const char *name, mode_t mode)
 {
     ri_shm_t *shm = NULL;
 
-    size_t shm_size = calc_shm_size(c2s_chns, s2c_chns);
+    size_t shm_size = calc_shm_size(cns_sizes, prd_sizes);
 
     if (name)
         shm = ri_sys_named_shm_new(shm_size, name, mode);
@@ -329,7 +329,7 @@ static ri_shm_t* shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const
     if (!shm)
         return NULL;
 
-    int r = init_shm(shm, c2s_chns, s2c_chns);
+    int r = init_shm(shm, cns_sizes, prd_sizes);
 
     if (r < 0)
         goto fail_init;
@@ -347,18 +347,18 @@ fail_init:
 }
 
 
-ri_shm_t* ri_anon_shm_new(const size_t c2s_chns[], const size_t s2c_chns[])
+ri_shm_t* ri_anon_shm_new(const size_t cns_sizes[], const size_t prd_sizes[])
 {
-    return shm_new(c2s_chns, s2c_chns, NULL, 0);
+    return shm_new(cns_sizes, prd_sizes, NULL, 0);
 }
 
 
-ri_shm_t* ri_named_shm_new(const size_t c2s_chns[], const size_t s2c_chns[], const char *name, mode_t mode)
+ri_shm_t* ri_named_shm_new(const size_t cns_sizes[], const size_t prd_sizes[], const char *name, mode_t mode)
 {
     if (!name)
         return NULL;
 
-    return shm_new(c2s_chns, s2c_chns, name, mode);
+    return shm_new(cns_sizes, prd_sizes, name, mode);
 }
 
 

@@ -83,12 +83,12 @@ static ri_object_map_t* objs_new(const ri_object_t *objs, unsigned n)
 }
 
 
-static ri_shm_t* objects_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
+static ri_shm_t* objects_shm_new(ri_object_t *c2s_objs[], ri_object_t *s2c_objs[], const char *name, mode_t mode)
 {
     unsigned n_c2s = 0;
 
     if (c2s_objs) {
-        for (const ri_object_t **d = c2s_objs; *d; d++)
+        for (ri_object_t **d = c2s_objs; *d; d++)
             n_c2s++;
     }
 
@@ -102,7 +102,7 @@ static ri_shm_t* objects_shm_new(const ri_object_t *c2s_objs[], const ri_object_
     unsigned n_s2c = 0;
 
     if (s2c_objs) {
-        for (const ri_object_t **d = s2c_objs; *d; d++)
+        for (ri_object_t **d = s2c_objs; *d; d++)
             n_s2c++;
     }
 
@@ -117,13 +117,13 @@ static ri_shm_t* objects_shm_new(const ri_object_t *c2s_objs[], const ri_object_
 }
 
 
-ri_shm_t* ri_objects_anon_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[])
+ri_shm_t* ri_objects_anon_shm_new(ri_object_t *c2s_objs[], ri_object_t *s2c_objs[])
 {
     return objects_shm_new(c2s_objs, s2c_objs, NULL, 0);
 }
 
 
-ri_shm_t* ri_objects_named_shm_new(const ri_object_t *c2s_objs[], const ri_object_t *s2c_objs[], const char *name, mode_t mode)
+ri_shm_t* ri_objects_named_shm_new(ri_object_t *c2s_objs[], ri_object_t *s2c_objs[], const char *name, mode_t mode)
 {
     if (!name)
         return NULL;
