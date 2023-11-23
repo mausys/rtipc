@@ -71,6 +71,27 @@ typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
 
 
 /**
+ * @brief ri_object_valid check if object description is valid
+ *
+ * @return true if valid
+ */
+static inline bool ri_object_valid(const ri_object_t *object)
+{
+    if (!object)
+        return false;
+
+    if (object->size == 0)
+        return false;
+
+    // single bit check
+    if ((object->align == 0) || (object->align & (object->align - 1)))
+        return false;
+
+    return true;
+}
+
+
+/**
  * @brief ri_set_log_handler redirects rtipc library logs to custom handler
  *
  * @param log_handler function pointer to log handler
