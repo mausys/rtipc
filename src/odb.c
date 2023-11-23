@@ -34,7 +34,7 @@ typedef struct {
 
 
 struct ri_odb_group {
-    unsigned n;							\
+    unsigned n;						\
     ri_odb_list_t *channels;
     ri_odb_list_t unassigned;
 };
@@ -52,8 +52,15 @@ typedef struct {
 
 struct ri_odb {
     ri_odb_pool_t pool;
-    ri_odb_group_t consumers;
-    ri_odb_group_t producers;
+    struct {
+        ri_odb_group_t group;
+        ri_consumer_objects_t *channels;
+    } consumers;
+
+    struct {
+        ri_odb_group_t group;
+        ri_producer_objects_t *channels;
+    } producers;
 };
 
 
@@ -93,20 +100,6 @@ static ri_odb_entry_t* ri_odb_list_get(ri_odb_list_t *list, uint64_t id)
     }
     return NULL;
 }
-
-
-const ri_object_t* ri_odb_iter_get(const ri_odb_iter_t *iter, uint64_t *id)
-{
-    if (!iter->entry)
-        return NULL;
-
-    if (id)
-        *id = iter->entry->id;
-
-    return &iter->entry->object;
-}
-
-
 
 
 static ri_odb_entry_t* odb_entry_new(ri_odb_t *odb, uint64_t id, const ri_object_t *object)
@@ -191,6 +184,24 @@ static int group_alloc(ri_odb_group_t *group, unsigned n)
 }
 
 
+
+static ri_odb_iter_t odb_iter_begin(ri_odb_group_t *group)
+{
+    if (group->n == 0)
+        return (ri_odb_iter_t) {
+            .chn_idx = 0,
+            .group = group,
+            .entry = NULL,
+        };
+
+    return (ri_odb_iter_t) {
+        .chn_idx = 0,
+        .group = group,
+        .entry = group->channels[0].first,
+    };
+}
+
+
 ri_odb_t *ri_odb_new(unsigned max_consumer_channels, unsigned max_producer_channels)
 {
     ri_odb_t *odb = calloc(1, sizeof(ri_odb_t));
@@ -253,7 +264,8 @@ int ri_odb_add_consumer_object(ri_odb_t *odb, uint64_t id, const ri_object_t *ob
     entry->unmap_cb = unmap_cb;
     entry->user_data = user_data;
 
-    odb_list_append(&odb->consumers.unassigned, entry);
+    ri_odb_group_t *group = &odb->consumers.group;
+    odb_list_append(&group->unassigned, entry);
 
     return 0;
 }
@@ -274,7 +286,8 @@ int ri_odb_add_producer_object(ri_odb_t *odb, uint64_t id, const ri_object_t *ob
     entry->unmap_cb = unmap_cb;
     entry->user_data = user_data;
 
-    odb_list_append(&odb->producers.unassigned, entry);
+    ri_odb_group_t *group = &odb->producers.group;
+    odb_list_append(&group->unassigned, entry);
 
     return 0;
 }
@@ -285,7 +298,9 @@ int ri_odb_consumer_channel_add_object(ri_odb_t *odb, unsigned chn_id, uint64_t 
     if (!ri_object_valid(object))
         return -EINVAL;
 
-    if ((chn_id >= odb->consumers.n))
+    ri_odb_group_t *group = &odb->consumers.group;
+
+    if ((chn_id >= group->n))
         return -EINVAL;
 
     ri_odb_entry_t *entry = odb_entry_new(odb, obj_id, object);
@@ -297,7 +312,7 @@ int ri_odb_consumer_channel_add_object(ri_odb_t *odb, unsigned chn_id, uint64_t 
     entry->unmap_cb = unmap_cb;
     entry->user_data = user_data;
 
-    odb_list_append(&odb->consumers.channels[chn_id], entry);
+    odb_list_append(&group->channels[chn_id], entry);
 
     return 0;
 }
@@ -309,7 +324,9 @@ int ri_odb_producer_channel_add_object(ri_odb_t *odb, unsigned chn_id, uint64_t 
     if (!ri_object_valid(object))
         return -EINVAL;
 
-    if ((chn_id >= odb->producers.n))
+    ri_odb_group_t *group = &odb->producers.group;
+
+    if ((chn_id >= group->n))
         return -EINVAL;
 
     ri_odb_entry_t *entry = odb_entry_new(odb, obj_id, object);
@@ -321,7 +338,7 @@ int ri_odb_producer_channel_add_object(ri_odb_t *odb, unsigned chn_id, uint64_t 
     entry->unmap_cb = unmap_cb;
     entry->user_data = user_data;
 
-    odb_list_append(&odb->producers.channels[chn_id], entry);
+    odb_list_append(&group->channels[chn_id], entry);
 
     return 0;
 }
@@ -330,46 +347,24 @@ int ri_odb_producer_channel_add_object(ri_odb_t *odb, unsigned chn_id, uint64_t 
 
 int ri_odb_assign_producer_object(ri_odb_t *odb, uint64_t obj_id, unsigned chn_id)
 {
-    return assign_object(&odb->producers, obj_id, chn_id);
+    return assign_object(&odb->producers.group, obj_id, chn_id);
 }
 
 
 int ri_odb_assign_consumer_object(ri_odb_t *odb, uint64_t obj_id, unsigned chn_id)
 {
-    return assign_object(&odb->consumers, obj_id, chn_id);
+    return assign_object(&odb->consumers.group, obj_id, chn_id);
 }
 
 
 ri_odb_iter_t ri_odb_consumer_iter_begin(ri_odb_t *odb)
 {
-    if (odb->consumers.n == 0)
-        return (ri_odb_iter_t) {
-            .chn_idx = 0,
-            .group = &odb->consumers,
-            .entry = NULL,
-        };
-
-    return (ri_odb_iter_t) {
-        .chn_idx = 0,
-        .group = &odb->consumers,
-        .entry = odb->consumers.channels[0].first,
-    };
+    return odb_iter_begin(&odb->consumers.group);
 }
 
 ri_odb_iter_t ri_odb_producer_iter_begin(ri_odb_t *odb)
 {
-    if (odb->producers.n == 0)
-        return (ri_odb_iter_t) {
-            .chn_idx = 0,
-            .group = &odb->producers,
-            .entry = NULL,
-        };
-
-    return (ri_odb_iter_t) {
-        .chn_idx = 0,
-        .group = &odb->producers,
-        .entry = odb->producers.channels[0].first,
-    };
+    return odb_iter_begin(&odb->producers.group);
 }
 
 
@@ -403,10 +398,21 @@ bool ri_odb_iter_end(const ri_odb_iter_t *iter)
     if (iter->entry)
         return false;
 
-    for (unsigned chn_idx = iter->chn_idx; chn_idx < iter->group->n; chn_idx++) {
-        if (!iter->group->channels[chn_idx].first)
+    for (unsigned chn_idx = iter->chn_idx + 1; chn_idx < iter->group->n; chn_idx++) {
+        if (iter->group->channels[chn_idx].first)
             return false;
     }
 
     return true;
+}
+
+const ri_object_t* ri_odb_iter_get(const ri_odb_iter_t *iter, uint64_t *id)
+{
+    if (!iter->entry)
+        return NULL;
+
+    if (id)
+        *id = iter->entry->id;
+
+    return &iter->entry->object;
 }
