@@ -36,6 +36,10 @@ typedef struct {
 struct ri_odb_group {
     unsigned n;						\
     ri_odb_list_t *channels;
+    union {
+        ri_producer_mapper_t *producer;
+        ri_consumer_mapper_t *consumers;
+    } mappers;
     ri_odb_list_t unassigned;
 };
 
@@ -44,9 +48,8 @@ typedef struct {
     unsigned n;
     unsigned cap;
     ri_odb_entry_t *entries;
+    ri_odb_list_t trash;
 } ri_odb_pool_t;
-
-
 
 
 
@@ -54,12 +57,12 @@ struct ri_odb {
     ri_odb_pool_t pool;
     struct {
         ri_odb_group_t group;
-        ri_consumer_objects_t *channels;
+    ri_consumer_mapper_t *channels;
     } consumers;
 
     struct {
         ri_odb_group_t group;
-        ri_producer_objects_t *channels;
+    ri_producer_mapper_t *channels;
     } producers;
 };
 
@@ -85,14 +88,14 @@ static void odb_list_append(ri_odb_list_t *list, ri_odb_entry_t *entry)
 }
 
 
-static void ri_odb_list_move(ri_odb_entry_t *entry, ri_odb_list_t *target, ri_odb_list_t *source)
+static void odb_list_move(ri_odb_entry_t *entry, ri_odb_list_t *target, ri_odb_list_t *source)
 {
     odb_list_remove(source, entry);
     odb_list_append(target, entry);
 }
 
 
-static ri_odb_entry_t* ri_odb_list_get(ri_odb_list_t *list, uint64_t id)
+static ri_odb_entry_t* odb_list_get(const ri_odb_list_t *list, uint64_t id)
 {
     for (ri_odb_entry_t* it = list->first; it; it = it->le.next) {
         if (it->id == id)
@@ -102,24 +105,67 @@ static ri_odb_entry_t* ri_odb_list_get(ri_odb_list_t *list, uint64_t id)
 }
 
 
+static unsigned odb_list_count(const ri_odb_list_t *list)
+{
+    unsigned n = 0;
+    for (ri_odb_entry_t* it = list->first; it; it = it->le.next) {
+        n++;
+    }
+    return n;
+}
+
+
+static int odb_list_get_array(const ri_odb_list_t *list, ri_object_t **p_array)
+{
+    unsigned n = odb_list_count(list);
+
+    if (n == 0) {
+        *p_array = NULL;
+        return 0;
+    }
+
+    ri_object_t *array = malloc((n + 1) * sizeof(ri_object_t));
+
+    if (!array)
+        return -ENOMEM;
+
+    unsigned i = 0;
+    for (ri_odb_entry_t* it = list->first; it; it = it->le.next)
+        array[i++] = it->object;
+
+    array[i] = (ri_object_t) { .size = 0 };
+
+    *p_array = array;
+
+    return n;
+}
+
+
 static ri_odb_entry_t* odb_entry_new(ri_odb_t *odb, uint64_t id, const ri_object_t *object)
 {
     ri_odb_pool_t *pool = &odb->pool;
 
-    if (pool->n >= pool->cap) {
-        unsigned cap = 2 * pool->cap;
-        void *tmp;
+    ri_odb_entry_t *entry = NULL;
 
-        tmp = realloc(pool->entries, cap * sizeof(pool->entries[0]));
+    if (pool->trash.first) {
+        entry = pool->trash.first;
+        odb_list_remove(&pool->trash, entry);
+    } else {
+        if (pool->n >= pool->cap) {
+            unsigned cap = 2 * pool->cap;
+            void *tmp;
 
-        if (!tmp)
-            return NULL;
+            tmp = realloc(pool->entries, cap * sizeof(pool->entries[0]));
 
-        pool->entries = tmp;
-        pool->cap = cap;
+            if (!tmp)
+                return NULL;
+
+            pool->entries = tmp;
+            pool->cap = cap;
+        }
+
+        entry = &pool->entries[pool->n++];
     }
-
-    ri_odb_entry_t *entry = &pool->entries[pool->n++];
 
     *entry = (ri_odb_entry_t) {
         .id = id,
@@ -130,18 +176,17 @@ static ri_odb_entry_t* odb_entry_new(ri_odb_t *odb, uint64_t id, const ri_object
 }
 
 
-
 static int assign_object(ri_odb_group_t *group, uint64_t obj_id, unsigned chn_id)
 {
     if (chn_id >= group->n)
         return -EINVAL;
 
-    ri_odb_entry_t *entry = ri_odb_list_get(&group->unassigned, obj_id);
+    ri_odb_entry_t *entry = odb_list_get(&group->unassigned, obj_id);
 
     if (!entry)
         return -ENOENT;
 
-    ri_odb_list_move(entry, &group->channels[chn_id], &group->unassigned);
+    odb_list_move(entry, &group->channels[chn_id], &group->unassigned);
 
     return 0;
 }
@@ -155,6 +200,9 @@ static int pool_alloc(ri_odb_pool_t *pool)
 
     if (!pool->entries)
         return -ENOMEM;
+
+    pool->trash.first = NULL;
+    pool->trash.last = &pool->trash.first;
 
     return 0;
 }
@@ -214,12 +262,12 @@ ri_odb_t *ri_odb_new(unsigned max_consumer_channels, unsigned max_producer_chann
     if (r < 0)
         goto fail_pool_alloc;
 
-    r = group_alloc(&odb->consumers, max_consumer_channels);
+    r = group_alloc(&odb->consumers.group, max_consumer_channels);
 
     if (r < 0)
         goto fail_pool_consumers;
 
-    r = group_alloc(&odb->producers, max_producer_channels);
+    r = group_alloc(&odb->producers.group, max_producer_channels);
 
     if (r < 0)
         goto fail_pool_producers;
@@ -406,13 +454,16 @@ bool ri_odb_iter_end(const ri_odb_iter_t *iter)
     return true;
 }
 
-const ri_object_t* ri_odb_iter_get(const ri_odb_iter_t *iter, uint64_t *id)
+const ri_object_t* ri_odb_iter_get(const ri_odb_iter_t *iter, uint64_t *id, unsigned *chn_idx)
 {
     if (!iter->entry)
         return NULL;
 
     if (id)
         *id = iter->entry->id;
+
+    if (chn_idx)
+        *chn_idx = iter->chn_idx;
 
     return &iter->entry->object;
 }

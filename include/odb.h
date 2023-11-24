@@ -13,8 +13,8 @@ typedef struct ri_odb_iter {
 } ri_odb_iter_t;
 
 
-typedef void* (*ri_odb_map_producer_fn) (ri_producer_t *producer, uint64_t id, const ri_object_t *object, void *user_data);
-typedef void* (*ri_odb_map_consumer_fn) (ri_consumer_t *consumer, uint64_t id, const ri_object_t *object, void *user_data);
+typedef void* (*ri_odb_map_producer_fn) (ri_producer_mapper_t *producer, uint64_t id, const ri_object_t *object, void *user_data);
+typedef void* (*ri_odb_map_consumer_fn) (ri_consumer_mapper_t *consumer, uint64_t id, const ri_object_t *object, void *user_data);
 typedef void* (*ri_odb_unmap_fn) (uint64_t id, const ri_object_t *object, void *user_data);
 
 
@@ -41,3 +41,5 @@ ri_odb_iter_t ri_odb_producer_iter_begin(ri_odb_t *odb);
 int ri_odb_iter_next(ri_odb_iter_t *iter);
 
 bool ri_odb_iter_end(const ri_odb_iter_t *iter);
+
+const ri_object_t* ri_odb_iter_get(const ri_odb_iter_t *iter, uint64_t *id, unsigned *chn_idx);

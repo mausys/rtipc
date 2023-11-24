@@ -12,7 +12,7 @@ typedef struct {
 } ri_object_map_t;
 
 
-struct ri_producer_objects {
+struct ri_producer_mapper {
     ri_producer_t *prd;
     ri_object_map_t *objs;
     unsigned num;
@@ -22,7 +22,7 @@ struct ri_producer_objects {
 };
 
 
-struct ri_consumer_objects {
+struct ri_consumer_mapper {
     ri_consumer_t *cns;
     ri_object_map_t *objs;
     unsigned num;
@@ -147,9 +147,9 @@ size_t ri_calc_buffer_size(const ri_object_t objs[])
 }
 
 
-ri_consumer_objects_t* ri_consumer_objects_new(ri_shm_t *shm, unsigned chn_id, const ri_object_t *objs)
+ri_consumer_mapper_t* ri_consumer_mapper_new(ri_shm_t *shm, unsigned chn_id, const ri_object_t *objs)
 {
-    ri_consumer_objects_t *cos = malloc(sizeof(ri_consumer_objects_t));
+    ri_consumer_mapper_t *cos = malloc(sizeof(ri_consumer_mapper_t));
 
     if (!cos)
         return NULL;
@@ -159,7 +159,7 @@ ri_consumer_objects_t* ri_consumer_objects_new(ri_shm_t *shm, unsigned chn_id, c
     if (!cns)
         return NULL;
 
-    *cos = (ri_consumer_objects_t) {
+    *cos = (ri_consumer_mapper_t) {
         .cns = cns,
         .buf_size = ri_calc_buffer_size(objs),
         .num = count_objs(objs),
@@ -185,7 +185,7 @@ fail:
 }
 
 
-void ri_consumer_objects_delete(ri_consumer_objects_t* cos)
+void ri_consumer_mapper_delete(ri_consumer_mapper_t* cos)
 {
     nullify_opjects(cos->objs, cos->num);
     free(cos->objs);
@@ -193,9 +193,9 @@ void ri_consumer_objects_delete(ri_consumer_objects_t* cos)
 }
 
 
-ri_producer_objects_t* ri_producer_objects_new(ri_shm_t *shm, unsigned chn_id, const ri_object_t *objs, bool cache)
+ri_producer_mapper_t* ri_producer_mapper_new(ri_shm_t *shm, unsigned chn_id, const ri_object_t *objs, bool cache)
 {
-    ri_producer_objects_t *pos = malloc(sizeof(ri_producer_objects_t));
+    ri_producer_mapper_t *pos = malloc(sizeof(ri_producer_mapper_t));
 
     if (!pos)
         return NULL;
@@ -205,7 +205,7 @@ ri_producer_objects_t* ri_producer_objects_new(ri_shm_t *shm, unsigned chn_id, c
     if (!prd)
         return NULL;
 
-    *pos = (ri_producer_objects_t) {
+    *pos = (ri_producer_mapper_t) {
         .prd = prd,
         .num = count_objs(objs),
         .buf_size = ri_calc_buffer_size(objs),
@@ -246,7 +246,7 @@ fail:
 }
 
 
-void ri_producer_objects_delete(ri_producer_objects_t* pos)
+void ri_producer_mapper_delete(ri_producer_mapper_t* pos)
 {
     nullify_opjects(pos->objs, pos->num);
 
@@ -258,7 +258,7 @@ void ri_producer_objects_delete(ri_producer_objects_t* pos)
 }
 
 
-void ri_producer_objects_update(ri_producer_objects_t *pos)
+void ri_producer_mapper_update(ri_producer_mapper_t *pos)
 {
     if (pos->cache) {
         memcpy(pos->buf, pos->cache, pos->buf_size);
@@ -270,13 +270,13 @@ void ri_producer_objects_update(ri_producer_objects_t *pos)
 }
 
 
-bool ri_producer_objects_ackd(const ri_producer_objects_t *pos)
+bool ri_producer_mapper_ackd(const ri_producer_mapper_t *pos)
 {
     return ri_producer_ackd(pos->prd);
 }
 
 
-int ri_consumer_objects_update(ri_consumer_objects_t *cos)
+int ri_consumer_mapper_update(ri_consumer_mapper_t *cos)
 {
     void *old = cos->buf;
 

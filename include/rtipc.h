@@ -35,18 +35,18 @@ typedef struct ri_producer ri_producer_t;
 typedef struct ri_consumer ri_consumer_t;
 
 /**
- * @typedef ri_consumer_objects_t
+ * @typedef ri_consumer_mapper_t
  *
  * @brief consumer object mapper
  */
-typedef struct ri_consumer_objects ri_consumer_objects_t;
+typedef struct ri_consumer_mapper ri_consumer_mapper_t;
 
 /**
- * @typedef ri_producer_objects_t
+ * @typedef ri_producer_mapper_t
  *
  * @brief producer object mapper
  */
-typedef struct ri_producer_objects ri_producer_objects_t;
+typedef struct ri_producer_mapper ri_producer_mapper_t;
 
 
 /**
@@ -227,18 +227,18 @@ size_t ri_calc_buffer_size(const ri_object_t objs[]);
 
 
 /**
- * @brief ri_consumer_objects_new creates a consumer object mapper
+ * @brief ri_consumer_mapper_new creates a consumer object mapper
  *
  * @param shm shared memory
  * @param cns_id consumer id
  * @param objs object list, terminated with an entry with size=0
  * @return pointer to the new consumer object mapper; NULL on error
  */
-ri_consumer_objects_t* ri_consumer_objects_new(ri_shm_t *shm, unsigned cns_id, const ri_object_t *objs);
+ri_consumer_mapper_t* ri_consumer_mapper_new(ri_shm_t *shm, unsigned cns_id, const ri_object_t *objs);
 
 
 /**
- * @brief ri_producer_objects_new creates a producer object mapper
+ * @brief ri_producer_mapper_new creates a producer object mapper
  *
  * @param shm shared memory
  * @param prd_id producer id
@@ -249,30 +249,30 @@ ri_consumer_objects_t* ri_consumer_objects_new(ri_shm_t *shm, unsigned cns_id, c
  * Otherwise the producer is responsible for updating all producer objects before calling this function.
  * @return pointer to the new producer object mapper; NULL on error
  */
-ri_producer_objects_t* ri_producer_objects_new(ri_shm_t *shm, unsigned prd_id, const ri_object_t *objs, bool cache);
+ri_producer_mapper_t* ri_producer_mapper_new(ri_shm_t *shm, unsigned prd_id, const ri_object_t *objs, bool cache);
 
-void ri_consumer_objects_delete(ri_consumer_objects_t* cos);
+void ri_consumer_mapper_delete(ri_consumer_mapper_t* cos);
 
-void ri_producer_objects_delete(ri_producer_objects_t* pos);
+void ri_producer_mapper_delete(ri_producer_mapper_t* pos);
 
 
 /**
- * @brief ri_consumer_objects_update swaps channel buffers and updates object pointers
+ * @brief ri_consumer_mapper_update swaps channel buffers and updates object pointers
  *
  * @param cos consumer object mapper
  * @retval -1 producer has not yet submit a buffer, object pointers are nullified
  * @retval 0 producer has not swapped buffers since last call, object pointers are staying the same
  * @retval 1 producer has swapped buffers since last call, object pointers are mapped to new buffer
  */
-int ri_consumer_objects_update(ri_consumer_objects_t *cos);
+int ri_consumer_mapper_update(ri_consumer_mapper_t *cos);
 
 
 /**
- * @brief ri_producer_objects_update swaps channel buffers and updates object pointers
+ * @brief ri_producer_mapper_update swaps channel buffers and updates object pointers
  *
  * @param pos producer object mapper
  */
-void ri_producer_objects_update(ri_producer_objects_t *pos);
+void ri_producer_mapper_update(ri_producer_mapper_t *pos);
 
 
 /**
@@ -280,7 +280,7 @@ void ri_producer_objects_update(ri_producer_objects_t *pos);
  *
  * @param pos producer object mapper
  */
-bool ri_producer_objects_ackd(const ri_producer_objects_t *pos);
+bool ri_producer_mapper_ackd(const ri_producer_mapper_t *pos);
 
 
 #ifdef __cplusplus
