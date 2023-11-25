@@ -18,18 +18,17 @@
 #include "log.h"
 
 
-
-static int sys_init(ri_shm_t *shm, bool sealing)
+static int sys_init(ri_sys_t *sys, bool sealing)
 {
-    int r = ftruncate(shm->fd, shm->size);
+    int r = ftruncate(sys->fd, sys->size);
 
     if (r < 0) {
-        LOG_ERR("ftruncate to size=%zu failed: %s", shm->size, strerror(errno));
+        LOG_ERR("ftruncate to size=%zu failed: %s", sys->size, strerror(errno));
         return r;
     }
 
     if (sealing) {
-        r = fcntl(shm->fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
+        r = fcntl(sys->fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
 
         if (r < 0) {
             LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
@@ -37,25 +36,25 @@ static int sys_init(ri_shm_t *shm, bool sealing)
         }
     }
 
-    shm->p = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
+    sys->ptr = mmap(NULL, sys->size, PROT_READ | PROT_WRITE, MAP_SHARED, sys->fd, 0);
 
-    if (shm->p == MAP_FAILED) {
-        LOG_ERR("mmap for %d with size=%zu failed: %s", shm->fd, shm->size, strerror(errno));
+    if (sys->ptr == MAP_FAILED) {
+        LOG_ERR("mmap for %d with size=%zu failed: %s", sys->fd, sys->size, strerror(errno));
         return r;
     }
 
-    LOG_INF("mmaped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->p);
+    LOG_INF("mmaped shared memory size=%zu, fd=%d on %p", sys->size, sys->fd, sys->ptr);
 
     return 0;
 }
 
 
-ri_shm_t* ri_sys_anon_shm_new(size_t size)
+ri_sys_t* ri_sys_anon_new(size_t size)
 {
     static atomic_uint anr = 0;
-    ri_shm_t *shm = malloc(sizeof(ri_shm_t));
+    ri_sys_t *sys = malloc(sizeof(ri_sys_t));
 
-    if (!shm)
+    if (!sys)
         return NULL;
 
     unsigned nr = atomic_fetch_add_explicit(&anr, 1, memory_order_relaxed);
@@ -70,175 +69,175 @@ ri_shm_t* ri_sys_anon_shm_new(size_t size)
         goto fail_create;
     }
 
-    *shm = (ri_shm_t) {
+    *sys = (ri_sys_t) {
         .size = size,
         .fd = r,
-        .owner = true,
+        .server = true,
     };
 
-    r = sys_init(shm, true);
+    r = sys_init(sys, true);
 
     if (r < 0)
         goto fail_init;
 
-    LOG_INF("mmaped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->p);
+    LOG_INF("mmaped shared memory size=%zu, fd=%d on %p", sys->size, sys->fd, sys->ptr);
 
-    return shm;
+    return sys;
 
 fail_init:
-    close(shm->fd);
+    close(sys->fd);
 fail_create:
-    free(shm);
+    free(sys);
     return NULL;
 }
 
 
-ri_shm_t* ri_sys_named_shm_new(size_t size, const char* name, mode_t mode)
+ri_sys_t* ri_sys_named_new(size_t size, const char* name, mode_t mode)
 {
-    ri_shm_t *shm = malloc(sizeof(ri_shm_t));
+    ri_sys_t *sys = malloc(sizeof(ri_sys_t));
 
-    if (!shm)
+    if (!sys)
         return NULL;
 
-    *shm = (ri_shm_t) {
+    *sys = (ri_sys_t) {
         .size = size,
-        .owner = true,
+        .server = true,
     };
 
-    shm->path = strdup(name);
+    sys->path = strdup(name);
 
-    if (!shm->path)
+    if (!sys->path)
         goto fail_path;
 
-    int r = shm_open(shm->path, O_CREAT | O_EXCL | O_RDWR, mode);
+    int r = shm_open(sys->path, O_CREAT | O_EXCL | O_RDWR, mode);
 
     if (r < 0) {
-        LOG_ERR("shm_open failed for %s: %s", name, strerror(errno));
+        LOG_ERR("sys_open failed for %s: %s", name, strerror(errno));
         goto fail_create;
     }
 
-    shm->fd = r;
+    sys->fd = r;
 
-    r = sys_init(shm, false);
+    r = sys_init(sys, false);
 
     if (r < 0)
         goto fail_init;
 
-    LOG_INF("create shared memory name=%s size=%zu, fd=%d on %p", name, shm->size, shm->fd, shm->p);
+    LOG_INF("create shared memory name=%s size=%zu, fd=%d on %p", name, sys->size, sys->fd, sys->ptr);
 
-    return shm;
+    return sys;
 
 fail_init:
-    close(shm->fd);
-    shm_unlink(shm->path);
+    close(sys->fd);
+    shm_unlink(sys->path);
 fail_create:
-    free(shm->path);
+    free(sys->path);
 fail_path:
-    free(shm);
+    free(sys);
     return NULL;
 }
 
 
-ri_shm_t* ri_sys_map_shm(int fd)
+ri_sys_t* ri_sys_map(int fd)
 {
     struct stat stat;
-    ri_shm_t *shm = malloc(sizeof(ri_shm_t));
+    ri_sys_t *sys = malloc(sizeof(ri_sys_t));
 
-    if (!shm)
+    if (!sys)
         return NULL;
 
-    *shm = (ri_shm_t) {
+    *sys = (ri_sys_t) {
        .fd = fd,
     };
 
-    int r = fstat(shm->fd, &stat);
+    int r = fstat(sys->fd, &stat);
 
     if (r < 0) {
-        LOG_ERR("fstat for %s failed: %s", shm->path, strerror(errno));
+        LOG_ERR("fstat for %s failed: %s", sys->path, strerror(errno));
         goto fail_stat;
     }
 
-    shm->size = stat.st_size;
+    sys->size = stat.st_size;
 
-    shm->p = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
+    sys->ptr = mmap(NULL, sys->size, PROT_READ | PROT_WRITE, MAP_SHARED, sys->fd, 0);
 
-    if (shm->p == MAP_FAILED) {
-        LOG_ERR("mmap for %s with size=%zu failed: %s", shm->path, shm->size, strerror(errno));
+    if (sys->ptr == MAP_FAILED) {
+        LOG_ERR("mmap for %s with size=%zu failed: %s", sys->path, sys->size, strerror(errno));
         goto fail_map;
     }
 
-    LOG_INF("maped shared memory name=%s size=%zu, on %p", shm->path, shm->size, shm->p);
+    LOG_INF("maped shared memory name=%s size=%zu, on %p", sys->path, sys->size, sys->ptr);
 
-    return shm;
+    return sys;
 
 fail_map:
 fail_stat:
-    free(shm);
+    free(sys);
     return NULL;
 }
 
 
-ri_shm_t* ri_sys_map_named_shm(const char *name)
+ri_sys_t* ri_sys_map_named(const char *name)
 {
     struct stat stat;
-    ri_shm_t *shm = calloc(1, sizeof(ri_shm_t));
+    ri_sys_t *sys = calloc(1, sizeof(ri_sys_t));
 
-    if (!shm)
+    if (!sys)
         return NULL;
 
-    shm->path = strdup(name);
+    sys->path = strdup(name);
 
-    if (!shm->path)
+    if (!sys->path)
         goto fail_path;
 
-    int r = shm_open(shm->path, O_EXCL | O_RDWR, 0);
+    int r = shm_open(sys->path, O_EXCL | O_RDWR, 0);
 
     if (r < 0) {
-        LOG_ERR("shm_open for %s failed: %s", shm->path, strerror(errno));
+        LOG_ERR("sys_open for %s failed: %s", sys->path, strerror(errno));
         goto fail_open;
     }
 
-    shm->fd = r;
+    sys->fd = r;
 
-    r = fstat(shm->fd, &stat);
+    r = fstat(sys->fd, &stat);
 
     if (r < 0) {
-        LOG_ERR("fstat for %s failed: %s", shm->path, strerror(errno));
+        LOG_ERR("fstat for %s failed: %s", sys->path, strerror(errno));
         goto fail_stat;
     }
 
-    shm->size = stat.st_size;
+    sys->size = stat.st_size;
 
-    shm->p = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
+    sys->ptr = mmap(NULL, sys->size, PROT_READ | PROT_WRITE, MAP_SHARED, sys->fd, 0);
 
-    if (shm->p == MAP_FAILED) {
-        LOG_ERR("mmap for %s with size=%zu failed: %s", shm->path, shm->size, strerror(errno));
+    if (sys->ptr == MAP_FAILED) {
+        LOG_ERR("mmap for %s with size=%zu failed: %s", sys->path, sys->size, strerror(errno));
         goto fail_map;
     }
 
-    LOG_INF("maped shared memory name=%s size=%zu, on %p", shm->path, shm->size, shm->p);
+    LOG_INF("maped shared memory name=%s size=%zu, on %p", sys->path, sys->size, sys->ptr);
 
-    return shm;
+    return sys;
 
 fail_map:
 fail_stat:
-    close(shm->fd);
+    close(sys->fd);
 fail_open:
-    free(shm->path);
+    free(sys->path);
 fail_path:
-    free(shm);
+    free(sys);
     return NULL;
 }
 
 
-void ri_sys_shm_delete(ri_shm_t *shm)
+void ri_sys_delete(ri_sys_t *sys)
 {
-    munmap(shm->p, shm->size);
-    close(shm->fd);
-    if (shm->path) {
-        if (shm->owner)
-            shm_unlink(shm->path);
-        free(shm->path);
+    munmap(sys->ptr, sys->size);
+    close(sys->fd);
+    if (sys->path) {
+        if (sys->server)
+            shm_unlink(sys->path);
+        free(sys->path);
     }
-    free(shm);
+    free(sys);
 }

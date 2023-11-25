@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include "channels.h"
 
 #define ARRAY_LEN 100
 
@@ -23,63 +24,36 @@ typedef enum {
     CMD_SET_ARRAY,
 } cmd_id_t;
 
-typedef struct {
-    uint32_t seqno;
-    uint32_t timestamp;
-} header_t;
-
-
-typedef union {
-    uint8_t u8;
-    int8_t s8;
-    uint16_t u16;
-    int16_t s16;
-    uint32_t u32;
-    int32_t s32;
-    uint64_t u64;
-    int64_t s64;
-    float f32;
-    double f64;
-} generic_t;
-
-
-typedef struct
-{
-    header_t *header;
-    int32_t *rsp;
-    uint8_t *u8;
-    uint16_t *u16;
-    uint32_t *u32;
-    uint32_t *array;
-    double *f64;
-} s2c_t;
-
 
 typedef struct {
-    header_t *header;
-    uint32_t *cmd;
-    generic_t *arg1;
-    generic_t *arg2;
-} c2s_t;
-
+    channel_cmd_t cmd;
+    channel_rsp_t rsp;
+    channel_rpdo1_t rpdo1;
+    channel_rpdo2_t rpdo2;
+    channel_tpdo1_t tpdo;
+} channels_t;
 
 typedef struct {
-    ri_shm_t *shm;
-    ri_consumer_objects_t *cos;
-    ri_producer_objects_t *pos;
+    ri_shm_mapper_t *shm;
+    ri_producer_mapper_t *cmd;
+    ri_consumer_mapper_t *rsp;
+    ri_producer_mapper_t *rpdo1;
+    ri_producer_mapper_t *rpdo2;
+    ri_consumer_mapper_t *tpdo;
     uint32_t arg;
     uint8_t idx;
-    s2c_t rx;
-    c2s_t tx;
+    channels_t channels;
 } client_t;
 
 
 typedef struct {
-    ri_shm_t *shm;
-    ri_consumer_objects_t *cos;
-    ri_producer_objects_t *pos;
-    c2s_t rx;
-    s2c_t tx;
+    ri_shm_mapper_t *shm;
+    ri_consumer_mapper_t *cmd;
+    ri_producer_mapper_t *rsp;
+    ri_consumer_mapper_t *rpdo1;
+    ri_consumer_mapper_t *rpdo2;
+    ri_producer_mapper_t *tpdo;
+    channels_t channels;
 } server_t;
 
 
@@ -141,36 +115,6 @@ static int recvfd(int socket)  // receive fd from socket
 }
 
 
-static void map_s2c(s2c_t *s2c, ri_object_t  objs[])
-{
-    ri_object_t tmp[] =  {
-        RI_OBJECT(s2c->header),
-        RI_OBJECT(s2c->rsp),
-        RI_OBJECT(s2c->u8),
-        RI_OBJECT(s2c->u16),
-        RI_OBJECT(s2c->u32),
-        RI_OBJECT_ARRAY(s2c->array, ARRAY_LEN),
-        RI_OBJECT(s2c->f64),
-        RI_OBJECT_END,
-    };
-
-    memcpy(objs, tmp, sizeof(tmp));
-}
-
-
-static void map_c2s(c2s_t *c2s, ri_object_t  objs[])
-{
-    ri_object_t tmp[] = {
-        RI_OBJECT(c2s->header),
-        RI_OBJECT(c2s->cmd),
-        RI_OBJECT(c2s->arg1),
-        RI_OBJECT(c2s->arg2),
-        RI_OBJECT_END,
-    };
-
-    memcpy(objs, tmp, sizeof(tmp));
-}
-
 
 static void set_header(header_t *header)
 {
@@ -180,97 +124,49 @@ static void set_header(header_t *header)
 
 static void server_set_rsp(server_t *server)
 {
-    server->tx.header->seqno = server->rx.header->seqno;
-    server->tx.header->timestamp = now();
-    *server->tx.rsp = 0;
+    server->channels.rsp.header->seqno = server->channels.rsp.header->seqno;
+    server->channels.rsp.header->timestamp = now();
+    *server->channels.rsp.cmd = 0;
 }
 
 
 static void server_process(server_t *server)
 {
-    int r = ri_consumer_objects_update(server->cos);
+    int r = ri_consumer_mapper_update(server->cmd);
 
     if (r != 1)
         return;
 
-    switch (*server->rx.cmd) {
-        case CMD_SET_U8:
-            *server->tx.u8 = server->rx.arg1->u8;
-            break;
-        case CMD_SET_U16:
-            *server->tx.u16 = server->rx.arg1->u16;
-            break;
-        case CMD_SET_U32:
-            *server->tx.u32 = server->rx.arg1->u32;
-            break;
-        case CMD_SET_F64:
-            *server->tx.f64 = server->rx.arg1->f64;
-            break;
-        case CMD_SET_ARRAY:
-            server->tx.array[server->rx.arg2->u32] = server->rx.arg1->u32;
-            break;
+    switch (*server->channels.cmd.cmd) {
         default:
-            printf("unknown cmd received %u\n", *server->rx.cmd);
+            printf("unknown cmd received %u\n", *server->channels.cmd.cmd);
             break;
     }
 
     server_set_rsp(server);
-    ri_producer_objects_update(server->pos);
+    ri_producer_mapper_update(server->rsp);
 }
 
 
 static void client_set_cmd(client_t *client)
 {
-    set_header(client->tx.header);
+    set_header(client->channels.cmd.header);
 
-    switch (*client->tx.cmd) {
-        case CMD_SET_U16:
-            client->tx.arg1->u16 = client->arg;
-            break;
-        case CMD_SET_U32:
-            client->tx.arg1->u32 =  client->arg;
-            break;
-        case CMD_SET_F64:
-            client->tx.arg1->f64 = client->arg;
-            break;
-        case CMD_SET_ARRAY:
-            client->tx.arg1->u32 = client->arg;
-            client->tx.arg2->u32 = client->idx;
-            break;
+    switch (*client->channels.cmd.cmd) {
+
         default:
         case CMD_SET_U8:
-            *client->tx.cmd = CMD_SET_U8;
-            client->tx.arg1->u32 = client->arg;
+
             break;
     }
 
-        ri_producer_objects_update(client->pos);
+        ri_producer_mapper_update(client->cmd);
 }
 
 
 static void client_check_data(client_t *client)
 {
-    switch (*client->tx.cmd) {
-        case CMD_SET_U8:
-            if (*client->rx.u8 != (uint8_t)client->arg)
-                printf("client_check_data [CMD_SET_U8] got wrong data: %u expected: %u\n", *client->rx.u8, (uint8_t)client->arg);
-            break;
-        case CMD_SET_U16:
-            if (*client->rx.u16 != (uint16_t)client->arg)
-                printf("client_check_data [CMD_SET_U16] got wrong data: %u expected: %u\n", *client->rx.u16, (uint16_t)client->arg);
-            break;
-        case CMD_SET_U32:
-            if (*client->rx.u32 != (uint32_t)client->arg)
-                printf("client_check_data [CMD_SET_U32] got wrong data: %u expected: %u\n", *client->rx.u32, (uint32_t)client->arg);
-            break;
-        case CMD_SET_F64:
-            if (*client->rx.f64 != (double)client->arg)
-                printf("client_check_data [CMD_SET_F64] got wrong data: %f expected: %f\n", *client->rx.f64, (double)client->arg);
-            break;
-        case CMD_SET_ARRAY:
-            if (client->rx.array[client->idx] != (uint32_t)client->arg)
-                printf("client_check_data [CMD_SET_ARRAY] got wrong data: %u expected: %u\n", client->rx.array[client->idx], (uint32_t)client->arg);
-            break;
+    switch (*client->channels.cmd.cmd) {
         default:
             printf("client_check_data unknown cmd_id\n");
             break;
@@ -280,23 +176,23 @@ static void client_check_data(client_t *client)
 
 static void client_process(client_t *client)
 {
-    int r = ri_consumer_objects_update(client->cos);
+    int r = ri_consumer_mapper_update(client->rsp);
 
     if (r != 1)
         return;
 
     //printf("client_task rx=%u\n", client->rx.rsp->header.seqno);
 
-    if (client->tx.header->seqno == client->rx.header->seqno + 1)
+    if (client->channels.cmd.header->seqno == client->channels.rsp.header->seqno + 1)
         return;
-    else if (client->tx.header->seqno == client->rx.header->seqno) {
+    else if (client->channels.rsp.header->seqno == client->channels.cmd.header->seqno) {
         client_check_data(client);
         client->arg++;
-        (*client->tx.cmd)++;
+        (*client->channels.cmd.cmd)++;
         client->idx = (client->idx + 1) % ARRAY_LEN;
         client_set_cmd(client);
     } else {
-        printf("client_task %u %u\n", client->tx.header->seqno, client->rx.header->seqno);
+        printf("client_task %u %u\n", client->channels.cmd.header->seqno, client->channels.rsp.header->seqno);
     }
 }
 
@@ -317,37 +213,42 @@ static client_t *client_new(int socket)
     if (!client)
         return NULL;
 
-    client->shm = ri_shm_map(fd);
+
+    ri_object_t cmd_objects[16];
+    ri_object_t rsp_objects[16];
+    ri_object_t rpdo1_objects[16];
+    ri_object_t rpdo2_objects[16];
+    ri_object_t tpdo1_objects[16];
+
+    channels_t *channels = &client->channels;
+
+    channel_cmd_to_objects(&channels->cmd, cmd_objects);
+    channel_rsp_to_objects(&channels->rsp, rsp_objects);
+    channel_rpdo1_to_objects(&channels->rpdo1, rpdo1_objects);
+    channel_rpdo2_to_objects(&channels->rpdo2, rpdo2_objects);
+    channel_tpdo1_to_objects(&channels->tpdo, tpdo1_objects);
+
+
+    ri_object_t *consumer_objects[] = {rsp_objects, tpdo1_objects, NULL};
+    ri_object_t *producer_objects[] = {cmd_objects, rpdo1_objects, rpdo2_objects, NULL};
+
+    client->shm = ri_client_shm_mapper_new(fd, consumer_objects, producer_objects);
 
     if (!client->shm)
         goto fail_shm;
 
-    ri_object_t robjs[16];
-    ri_object_t tobjs[16];
+    client->cmd = ri_shm_mapper_get_producer(client->shm, 0);
+    client->rpdo1 = ri_shm_mapper_get_producer(client->shm, 1);
+    client->rpdo2 = ri_shm_mapper_get_producer(client->shm, 2);
 
-    map_c2s(&client->tx, tobjs);
-    map_s2c(&client->rx, robjs);
-
-    client->cos = ri_consumer_objects_new(client->shm, 0, robjs);
-
-    if (!client->cos) {
-        printf("client_new ri_consumer_objects_new failed\n");
-        goto fail_cos;
-    }
-
-    client->pos = ri_producer_objects_new(client->shm, 0, tobjs, true);
-
-    if (!client->pos) {
-        printf("client_new ri_producer_objects_new failed\n");
-        goto fail_pos;
-    }
+    client->rsp = ri_shm_mapper_get_consumer(client->shm, 0);
+    client->tpdo = ri_shm_mapper_get_consumer(client->shm, 1);
 
     return client;
 
-fail_pos:
-    ri_consumer_objects_delete(client->cos);
+
 fail_cos:
-    ri_shm_delete(client->shm);
+    ri_shm_mapper_delete(client->shm);
 fail_shm:
     free(client);
     return NULL;
@@ -362,52 +263,46 @@ static server_t *server_new(int socket)
     if (!server)
         return NULL;
 
-    ri_object_t robjs[16];
-    ri_object_t tobjs[16];
+    ri_object_t cmd_objects[16];
+    ri_object_t rsp_objects[16];
+    ri_object_t rpdo1_objects[16];
+    ri_object_t rpdo2_objects[16];
+    ri_object_t tpdo1_objects[16];
 
-    map_c2s(&server->rx, robjs);
-    map_s2c(&server->tx, tobjs);
+    channels_t *channels = &server->channels;
 
-    const ri_object_t *c2s_chns[] = {&robjs[0] , NULL};
-    const ri_object_t *s2s_chns[] = {&tobjs[0] , NULL};
+    channel_cmd_to_objects(&channels->cmd, cmd_objects);
+    channel_rsp_to_objects(&channels->rsp, rsp_objects);
+    channel_rpdo1_to_objects(&channels->rpdo1, rpdo1_objects);
+    channel_rpdo2_to_objects(&channels->rpdo2, rpdo2_objects);
+    channel_tpdo1_to_objects(&channels->tpdo, tpdo1_objects);
 
-    server->shm = ri_objects_anon_shm_new(c2s_chns, s2s_chns);
+    ri_object_t *producer_objects[] = {rsp_objects, tpdo1_objects, NULL};
+    ri_object_t *consumer_objects[] = {cmd_objects, rpdo1_objects, rpdo2_objects, NULL};
 
-    if (!server->shm)
-        goto fail_shm;
 
-    server->cos = ri_consumer_objects_new(server->shm, 0, robjs);
+    server->shm = ri_server_anon_shm_mapper_new(consumer_objects, producer_objects);
 
-    if (!server->cos) {
-        printf("server_new ri_consumer_objects_new failed\n");
-        goto fail_cos;
-    }
+    server->cmd = ri_shm_mapper_get_consumer(server->shm, 0);
+    server->rpdo1 = ri_shm_mapper_get_consumer(server->shm, 1);
+    server->rpdo2 = ri_shm_mapper_get_consumer(server->shm, 2);
 
-    server->pos = ri_producer_objects_new(server->shm, 0, tobjs, true);
+    server->rsp = ri_shm_mapper_get_producer(server->shm, 0);
+    server->tpdo = ri_shm_mapper_get_producer(server->shm, 1);
 
-    if (!server->pos) {
-        printf("server_new ri_producer_objects_new failed\n");
-        goto fail_pos;
-    }
-
-    int fd = ri_shm_get_fd(server->shm);
+    //ri_producer_mapper_dump(server->pos);
+    //ri_consumer_mapper_dump(server->cos);
+    int fd = ri_shm_get_fd(ri_shm_mapper_get_shm(server->shm));
 
     r = sendfd(socket, fd);
 
     if (r < 0) {
         printf("sendfd failed\n");
-        goto fail_send;
+        goto fail;
     }
 
     return server;
-
-fail_send:
-    ri_producer_objects_delete(server->pos);
-fail_pos:
-    ri_consumer_objects_delete(server->cos);
-fail_cos:
-    ri_shm_delete(server->shm);
-fail_shm:
+fail:
     free(server);
     return NULL;
 }
@@ -415,9 +310,8 @@ fail_shm:
 
 static void client_delete(client_t *client)
 {
-    ri_consumer_objects_delete(client->cos);
-    ri_producer_objects_delete(client->pos);
-    ri_shm_delete(client->shm);
+
+    ri_shm_mapper_delete(client->shm);
     free(client);
 }
 
@@ -425,9 +319,8 @@ static void client_delete(client_t *client)
 
 static void server_delete(server_t *server)
 {
-    ri_consumer_objects_delete(server->cos);
-    ri_producer_objects_delete(server->pos);
-    ri_shm_delete(server->shm);
+
+    ri_shm_mapper_delete(server->shm);
     free(server);
 }
 

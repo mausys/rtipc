@@ -6,19 +6,19 @@
 #include <string.h>
 
 
-#define ARRAY_LEN 100
+#define BUFFER_SIZE 100
 
 
 typedef struct {
     ri_shm_t *shm;
-    ri_producer_objects_t *pos;
+    ri_producer_t *prd;
     char *obj;
 } client_t;
 
 
 typedef struct {
     ri_shm_t *shm;
-    ri_consumer_objects_t *cos;
+    ri_consumer_t *cns;
     char *obj;
 } server_t;
 
@@ -36,20 +36,19 @@ static client_t *client_new(int fd)
     if (!client->shm)
         goto fail_shm;
 
-    ri_object_t objs[] =  {
-        RI_OBJECT_ARRAY(client->obj, ARRAY_LEN),
-        RI_OBJECT_END,
-    };
 
-    client->pos = ri_producer_objects_new(client->shm, 0, objs, false);
-    if (!client->pos) {
-        printf("client_new ri_producer_objects_new failed\n");
-        goto fail_pos;
+    client->prd = ri_shm_get_producer(client->shm, 0);
+
+    if (!client->prd) {
+        printf("client_new ri_client_get_consumer failed\n");
+        goto fail_channel;
     }
+
+    client->obj = ri_producer_swap(client->prd);
 
     return client;
 
-fail_pos:
+fail_channel:
     ri_shm_delete(client->shm);
 fail_shm:
     free(client);
@@ -64,31 +63,23 @@ static server_t *server_new(void)
     if (!server)
         return NULL;
 
-    ri_object_t objs[] =  {
-        RI_OBJECT_ARRAY(server->obj, ARRAY_LEN),
-        RI_OBJECT_END,
-    };
+    ri_channel_description_t chns[] = { { .buffer_size = BUFFER_SIZE}, { 0} };
 
-    const ri_object_t *chns[] = {
-        objs,
-        NULL,
-    };
-
-    server->shm = ri_objects_anon_shm_new(chns, NULL);
+    server->shm = ri_anon_shm_new(chns, NULL);
 
     if (!server->shm)
         goto fail_shm;
 
-    server->cos = ri_consumer_objects_new(server->shm, 0, objs);
+    server->cns = ri_shm_get_consumer(server->shm, 0);
 
-    if (!server->cos) {
-        printf("server_new ri_consumer_objects_new failed\n");
-        goto fail_cos;
+    if (!server->cns) {
+        printf("server_new ri_server_get_consumer failed\n");
+        goto fail_channel;
     }
 
     return server;
 
-fail_cos:
+fail_channel:
     ri_shm_delete(server->shm);
 fail_shm:
     free(server);
@@ -98,19 +89,14 @@ fail_shm:
 
 static void client_delete(client_t *client)
 {
-    ri_producer_objects_delete(client->pos);
-
     ri_shm_delete(client->shm);
 
     free(client);
 }
 
 
-
 static void server_delete(server_t *server)
 {
-    ri_consumer_objects_delete(server->cos);
-
     ri_shm_delete(server->shm);
 
     free(server);
@@ -126,9 +112,9 @@ static void client_task(int fd)
         return;
     }
 
-    snprintf(client->obj, ARRAY_LEN, "Hello Server\n");
+    snprintf(client->obj, BUFFER_SIZE, "Hello Server\n");
 
-    ri_producer_objects_update(client->pos);
+    client->obj = ri_producer_swap(client->prd);
 
     client_delete(client);
 }
@@ -137,18 +123,16 @@ static void client_task(int fd)
 static void server_task(server_t *server)
 {
     for (;;) {
-        int r = ri_consumer_objects_update(server->cos);
+        server->obj = ri_consumer_fetch(server->cns);
 
-        if (r == 1) {
+        if (server->obj) {
             printf("%s\n", server->obj);
             break;
         }
 
         usleep(10000);
     }
-
 }
-
 
 
 int main(void)

@@ -15,4 +15,4 @@ static inline void* mem_offset(void *p, size_t offset)
 }
 
 
-size_t mem_alignment(void);
+size_t cache_line_size(void);

@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdatomic.h>
 
+#include "rtipc.h"
+
 #if ATOMIC_INT_LOCK_FREE == 2
 typedef atomic_uint ri_xchg_t;
 #elif ATOMIC_SHORT_LOCK_FREE == 2
@@ -17,6 +19,7 @@ typedef atomic_uint ri_xchg_t;
 
 #define RI_NUM_BUFFERS 3
 
+
 typedef enum {
     RI_BUFIDX_0 = 0,
     RI_BUFIDX_1,
@@ -28,33 +31,29 @@ typedef enum {
 typedef struct ri_channel {
     ri_xchg_t *xchg;
     void *bufs[RI_NUM_BUFFERS];
+    ri_span_t meta;
 } ri_channel_t;
 
 
 typedef struct ri_producer {
-    ri_channel_t chn;
+    ri_channel_t channel;
     ri_bufidx_t current;
     ri_bufidx_t locked;
 } ri_producer_t;
 
 
 typedef struct ri_consumer {
-    ri_channel_t chn;
+    ri_channel_t channel;
 } ri_consumer_t;
 
 
-typedef struct ri_shm {
-    void *p;
+
+typedef struct ri_sys ri_sys_t;
+
+typedef struct ri_sys {
+    void *ptr;
     size_t size;
     int fd;
     char *path;
-    bool owner;
-    struct {
-        ri_consumer_t *list;
-        unsigned num;
-    } consumers;
-    struct {
-        ri_producer_t *list;
-        unsigned num;
-    } producers;
-} ri_shm_t;
+    bool server;
+} ri_sys_t;
