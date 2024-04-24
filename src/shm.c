@@ -1,4 +1,4 @@
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 #include <stdatomic.h>
 #include <stdint.h>
@@ -73,7 +73,7 @@ typedef struct {
 } shm_header_t;
 
 
-static unsigned count_description_entries(const ri_channel_description_t entries[])
+static unsigned count_description_entries(const ri_channel_req_t entries[])
 {
     if (!entries)
         return 0;
@@ -329,7 +329,7 @@ static size_t server_set_segment_offset(shm_segment_t *segment, size_t offset)
 }
 
 
-static void server_set_group_sizes(shm_group_t *group, const ri_channel_description_t descs[])
+static void server_set_group_sizes(shm_group_t *group, const ri_channel_req_t descs[])
 {
     group->num = count_description_entries(descs);
 
@@ -362,7 +362,7 @@ static size_t server_set_segment_offsets(shm_layout_t *layout, size_t offset)
 }
 
 
-static size_t server_init_layout(shm_layout_t *layout, const ri_channel_description_t consumers[], const ri_channel_description_t producers[])
+static size_t server_init_layout(shm_layout_t *layout, const ri_channel_req_t consumers[], const ri_channel_req_t producers[])
 {
     size_t offset = mem_align(sizeof(shm_header_t), cache_line_size());
 
@@ -398,7 +398,7 @@ static void server_write_header(void *ptr, const shm_layout_t *layout)
 }
 
 
-static void server_write_group(void *ptr, const shm_group_t *group, const ri_channel_description_t channels[])
+static void server_write_group(void *ptr, const shm_group_t *group, const ri_channel_req_t channels[])
 {
     void *table_ptr = mem_offset(ptr, group->table.offset);
     void *meta_ptr = mem_offset(ptr, group->meta.offset);
@@ -427,7 +427,7 @@ static void server_write_group(void *ptr, const shm_group_t *group, const ri_cha
 }
 
 
-static ri_shm_t* create_shm(const ri_channel_description_t consumers[], const ri_channel_description_t producers[], const char *name, mode_t mode)
+static ri_shm_t* create_shm(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const char *name, mode_t mode)
 {
     ri_shm_t *shm = calloc(1, sizeof(ri_shm_t));
 
@@ -464,13 +464,13 @@ fail_alloc:
 }
 
 
-ri_shm_t* ri_anon_shm_new(const ri_channel_description_t consumers[], const ri_channel_description_t producers[])
+ri_shm_t* ri_anon_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[])
 {
     return create_shm(consumers, producers, NULL, 0);
 }
 
 
-ri_shm_t* ri_named_shm_new(const ri_channel_description_t consumers[], const ri_channel_description_t producers[], const char *name, mode_t mode)
+ri_shm_t* ri_named_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const char *name, mode_t mode)
 {
     if (!name)
         return NULL;

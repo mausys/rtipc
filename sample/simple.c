@@ -1,4 +1,4 @@
-#include <rtipc.h>
+#include <rtipc/rtipc.h>
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -63,7 +63,7 @@ static server_t *server_new(void)
     if (!server)
         return NULL;
 
-    ri_channel_description_t chns[] = { { .buffer_size = BUFFER_SIZE}, { 0} };
+    ri_channel_req_t chns[] = { { .buffer_size = BUFFER_SIZE}, { 0} };
 
     server->shm = ri_anon_shm_new(chns, NULL);
 

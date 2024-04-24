@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdatomic.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 #if ATOMIC_INT_LOCK_FREE == 2
 typedef atomic_uint ri_xchg_t;

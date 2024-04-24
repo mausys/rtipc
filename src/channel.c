@@ -18,7 +18,7 @@ static ri_bufidx_t ri_bufidx_inc(ri_bufidx_t i)
 }
 
 
-bool ri_producer_ackd(const ri_producer_t *producer)
+bool ri_producer_consumed(const ri_producer_t *producer)
 {
     unsigned xchg = atomic_load_explicit(producer->channel.xchg, memory_order_relaxed);
 
@@ -68,10 +68,12 @@ size_t ri_producer_get_buffer_size(const ri_producer_t *producer)
     return (size_t) ((uintptr_t)channel->bufs[1] - (uintptr_t)channel->bufs[0]);
 }
 
+
 ri_span_t ri_consumer_get_meta(const ri_consumer_t *consumer)
 {
     return consumer->channel.meta;
 }
+
 
 ri_span_t ri_producer_get_meta(const ri_producer_t *producer)
 {

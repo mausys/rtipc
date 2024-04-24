@@ -14,7 +14,9 @@ set(RTIPC_SOURCE_FILES
   ${RTIPC_SOURCE_DIR}/sys.c
   ${RTIPC_SOURCE_DIR}/shm.c
   ${RTIPC_SOURCE_DIR}/channel.c
-  ${RTIPC_SOURCE_DIR}/mapper.c)
+  ${RTIPC_SOURCE_DIR}/mapper.c
+  ${RTIPC_SOURCE_DIR}/object.c
+  ${RTIPC_SOURCE_DIR}/odb.c)
 
 
 set(RTIPC_INCLUDE_FILES
