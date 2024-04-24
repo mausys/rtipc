@@ -79,15 +79,17 @@ const ri_object_meta_t* ri_producer_object_get_meta(const ri_producer_object_t *
 
 const ri_object_meta_t* ri_consumer_object_get_meta(const ri_consumer_object_t *object);
 
-int ri_conumer_object_set(const ri_consumer_object_t *object, const void *value);
+int ri_consumer_object_get(const ri_consumer_object_t *object, void *value);
 
-int ri_producer_object_get(const ri_producer_object_t *object, void *value);
+int ri_producer_object_set(const ri_producer_object_t *object, const void *value);
 
 void* ri_producer_object_get_pointer(const ri_producer_object_t *object);
 
 const void* ri_consumer_object_get_pointer(const ri_consumer_object_t *object);
 
+ri_consumer_mapper_t* ri_consumer_object_get_mapper(ri_consumer_object_t *object);
 
+ri_producer_mapper_t* ri_producer_object_get_mapper(ri_producer_object_t *object);
 
 
 #ifdef __cplusplus

@@ -199,6 +199,7 @@ static int init_producer_mapper(ri_producer_mapper_t *mapper, ri_producer_t *pro
         }
     }
 
+    mapper->buffer = ri_producer_swap(mapper->producer);
     return num;
 
 fail:
@@ -377,7 +378,7 @@ ri_consumer_mapper_t* ri_shm_mapper_get_consumer(ri_shm_mapper_t *shm_mapper, un
 }
 
 
-ri_producer_mapper_t* ri_om_get_producer(ri_shm_mapper_t *shm_mapper, unsigned index)
+ri_producer_mapper_t* ri_shm_mapper_get_producer(ri_shm_mapper_t *shm_mapper, unsigned index)
 {
     if (index >= shm_mapper->num_producers)
         return NULL;
@@ -484,7 +485,7 @@ int ri_producer_object_set(const ri_producer_object_t *object, const void *conte
 }
 
 
-int ri_conumer_object_get(const ri_consumer_object_t *object, void *content)
+int ri_consumer_object_get(const ri_consumer_object_t *object, void *content)
 {
     if (!object->mapper->buffer)
         return -EAGAIN;
@@ -496,6 +497,32 @@ int ri_conumer_object_get(const ri_consumer_object_t *object, void *content)
 }
 
 
+
+void* ri_producer_object_get_pointer(const ri_producer_object_t *object)
+{
+    void *ptr = object->mapper->cache;
+
+    if (!ptr)
+        ptr = object->mapper->buffer;
+
+    if (!ptr)
+        return NULL;
+
+    return mem_offset(ptr, object->offset);
+}
+
+
+const void* ri_consumer_object_get_pointer(const ri_consumer_object_t *object)
+{
+    void *ptr = object->mapper->buffer;
+
+    if (!ptr)
+        return NULL;
+
+    return mem_offset(ptr, object->offset);
+}
+
+
 const ri_object_meta_t* ri_producer_object_get_meta(const ri_producer_object_t *object)
 {
     return &object->meta;
@@ -504,4 +531,16 @@ const ri_object_meta_t* ri_producer_object_get_meta(const ri_producer_object_t *
 const ri_object_meta_t* ri_consumer_object_get_meta(const ri_consumer_object_t *object)
 {
     return &object->meta;
+}
+
+
+ri_consumer_mapper_t* ri_consumer_object_get_mapper(ri_consumer_object_t *object)
+{
+    return object->mapper;
+}
+
+
+ri_producer_mapper_t* ri_producer_object_get_mapper(ri_producer_object_t *object)
+{
+    return object->mapper;
 }
