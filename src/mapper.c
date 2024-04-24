@@ -305,7 +305,7 @@ void ri_consumer_mapper_dump(const ri_consumer_mapper_t *mapper)
 
     for (unsigned i = 0; i < mapper->num; i++) {
         const ri_consumer_object_t *object = &mapper->objects[i];
-        LOG_INF("\t\tobject[%u] id=%lu size=%u align=%u offset=%zu", i,
+        LOG_INF("\t\tobject[%u] id=0x%lx size=%u align=%u offset=%zu", i,
                 object->meta.id, object->meta.size, object->meta.align, object->offset);
     }
 }
@@ -319,7 +319,7 @@ void ri_producer_mapper_dump(const ri_producer_mapper_t *mapper)
 
     for (unsigned i = 0; i < mapper->num; i++) {
         const ri_producer_object_t *object = &mapper->objects[i];
-        LOG_INF("\t\tobject[%u] id=%lu size=%u align=%u offset=%zu", i,
+        LOG_INF("\t\tobject[%u] id=0x%lx size=%u align=%u offset=%zu", i,
                 object->meta.id, object->meta.size, object->meta.align, object->offset);
 
     }
@@ -455,7 +455,19 @@ ri_producer_object_t* ri_producer_mapper_find_object(ri_producer_mapper_t *mappe
 }
 
 
-int ri_producer_mapper_set(const ri_producer_object_t *object, const void *content)
+unsigned ri_consumer_mapper_get_index(const ri_consumer_mapper_t *mapper)
+{
+    return mapper - mapper->shm_mapper->consumers;
+}
+
+
+unsigned ri_producer_mapper_get_index(const ri_producer_mapper_t *mapper)
+{
+    return mapper - mapper->shm_mapper->producers;
+}
+
+
+int ri_producer_object_set(const ri_producer_object_t *object, const void *content)
 {
     void *ptr = object->mapper->cache;
 
@@ -472,7 +484,7 @@ int ri_producer_mapper_set(const ri_producer_object_t *object, const void *conte
 }
 
 
-int ri_conumer_mapper_get(const ri_consumer_object_t *object, void *content)
+int ri_conumer_object_get(const ri_consumer_object_t *object, void *content)
 {
     if (!object->mapper->buffer)
         return -EAGAIN;

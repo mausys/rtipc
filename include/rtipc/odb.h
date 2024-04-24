@@ -35,7 +35,9 @@ int ri_producer_vector_add(ri_producer_vector_t *producer, const ri_object_meta_
 int ri_odb_add_consumer_object(ri_odb_t *odb, unsigned channel_index, const ri_object_meta_t *meta);
 int ri_odb_add_producer_object(ri_odb_t *odb, unsigned channel_index, const ri_object_meta_t *meta);
 
+unsigned ri_consumer_vector_get_index(ri_consumer_vector_t *vec);
 
+unsigned ri_producer_vector_get_index(ri_producer_vector_t *vec);
 
 #ifdef __cplusplus
 }

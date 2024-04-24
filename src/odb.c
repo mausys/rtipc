@@ -18,11 +18,13 @@ typedef struct objcet_vector {
 
 struct ri_consumer_vector {
     object_vector_t vec;
+    ri_odb_t *odb;
 };
 
 
 struct ri_producer_vector {
     object_vector_t vec;
+    ri_odb_t *odb;
 };
 
 
@@ -129,7 +131,10 @@ ri_odb_t* ri_odb_new(unsigned num_consumers, unsigned num_producers)
 
         if (!odb->consumers)
             goto fail_alloc_consumers;
+
         for (unsigned i = 0; i < num_consumers; i++) {
+            odb->consumers[i].odb = odb;
+
             int r = objcet_vector_init(&odb->consumers[i].vec, DEFAUT_CAP);
 
             if (r < 0)
@@ -144,6 +149,8 @@ ri_odb_t* ri_odb_new(unsigned num_consumers, unsigned num_producers)
             goto fail_alloc_producers;
 
         for (unsigned i = 0; i < num_producers; i++) {
+            odb->producers[i].odb = odb;
+
             int r = objcet_vector_init(&odb->producers[i].vec, DEFAUT_CAP);
 
             if (r < 0)
@@ -346,6 +353,18 @@ int ri_consumer_vector_add(ri_consumer_vector_t *consumer, const ri_object_meta_
 int ri_producer_vector_add(ri_producer_vector_t *producer, const ri_object_meta_t *meta)
 {
     return objcet_vector_add(&producer->vec, meta);
+}
+
+
+unsigned ri_consumer_vector_get_index(ri_consumer_vector_t *vec)
+{
+    return vec - vec->odb->consumers;
+}
+
+
+unsigned ri_producer_vector_get_index(ri_producer_vector_t *vec)
+{
+    return vec - vec->odb->producers;
 }
 
 
