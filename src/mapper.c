@@ -13,6 +13,12 @@ struct ri_consumer_object {
     ri_object_meta_t meta;
     size_t offset;
     ri_consumer_mapper_t *mapper;
+    struct {
+        ri_consumer_object_t *next;
+        ri_consumer_object_t **prev;
+        ri_conusmer_object_fn func;
+        void *user_data;
+    } callback;
 };
 
 
@@ -20,6 +26,12 @@ struct ri_producer_object {
     ri_object_meta_t meta;
     size_t offset;
     ri_producer_mapper_t *mapper;
+    struct {
+        ri_producer_object_t *next;
+        ri_producer_object_t **prev;
+        ri_producer_object_fn func;
+        void *user_data;
+    } callback;
 };
 
 
@@ -31,6 +43,10 @@ struct ri_producer_mapper {
     void *buffer;
     void *cache;
     size_t buffer_size;
+    struct {
+        bool lock;
+        ri_producer_object_t *head;
+    } callback;
 };
 
 
@@ -41,6 +57,10 @@ struct ri_consumer_mapper {
     unsigned num;
     void *buffer;
     size_t buffer_size;
+    struct {
+        bool lock;
+        ri_consumer_object_t *head;
+    } callback;
 };
 
 
@@ -209,6 +229,61 @@ fail:
     return -1;
 }
 
+static void consumer_object_add_callback(ri_consumer_object_t *object, ri_conusmer_object_fn callback, void *user_data)
+{
+    ri_consumer_mapper_t *mapper = object->mapper;
+
+    object->callback.func = callback;
+    object->callback.user_data = user_data;
+
+    object->callback.next = mapper->callback.head;
+    object->callback.prev = &mapper->callback.head;
+
+    if (mapper->callback.head)
+        mapper->callback.head->callback.prev = &object->callback.next;
+
+    mapper->callback.head = object;
+}
+
+
+static void consumer_object_remove_callback(ri_consumer_object_t *object)
+{
+    object->callback.func = NULL;
+
+    if (object->callback.next)
+        object->callback.next->callback.prev = object->callback.prev;
+
+    *object->callback.prev = object->callback.next;
+}
+
+
+static void producer_object_add_callback(ri_producer_object_t *object, ri_producer_object_fn callback, void *user_data)
+{
+    ri_producer_mapper_t *mapper = object->mapper;
+
+    object->callback.func = callback;
+    object->callback.user_data = user_data;
+
+    object->callback.next = mapper->callback.head;
+    object->callback.prev = &mapper->callback.head;
+
+    if (mapper->callback.head)
+        mapper->callback.head->callback.prev = &object->callback.next;
+
+    mapper->callback.head = object;
+}
+
+
+static void producer_object_remove_callback(ri_producer_object_t *object)
+{
+    object->callback.func = NULL;
+
+    if (object->callback.next)
+        object->callback.next->callback.prev = object->callback.prev;
+
+    *object->callback.prev = object->callback.next;
+}
+
 
 ri_shm_mapper_t* ri_shm_mapper_new(ri_shm_t *shm)
 {
@@ -277,6 +352,14 @@ fail_alloc_consumers:
     free(shm_mapper);
 fail_alloc:
     return NULL;
+}
+
+
+void ri_shm_mapper_delete(ri_shm_mapper_t *shm_mapper)
+{
+    delete_producer_mappers(shm_mapper);
+    delete_consumer_mappers(shm_mapper);
+    free(shm_mapper);
 }
 
 
@@ -355,6 +438,9 @@ int ri_producer_mapper_enable_cache(ri_producer_mapper_t *mapper)
     if (!mapper->cache)
         return -ENOMEM;
 
+    if (mapper->buffer)
+        memcpy(mapper->cache, mapper->cache, mapper->buffer_size);
+
     return 0;
 }
 
@@ -362,6 +448,9 @@ int ri_producer_mapper_enable_cache(ri_producer_mapper_t *mapper)
 void ri_producer_mapper_disable_cache(ri_producer_mapper_t *mapper)
 {
     if (mapper->cache) {
+        if (mapper->buffer)
+            memcpy(mapper->cache, mapper->buffer, mapper->buffer_size);
+
         free(mapper->cache);
         mapper->cache = NULL;
     }
@@ -389,6 +478,9 @@ ri_producer_mapper_t* ri_shm_mapper_get_producer(ri_shm_mapper_t *shm_mapper, un
 
 int ri_consumer_mapper_update(ri_consumer_mapper_t *mapper)
 {
+    if (mapper->callback.lock)
+        return -EINVAL;
+
     void *old = mapper->buffer;
 
     mapper->buffer = ri_consumer_fetch(mapper->consumer);
@@ -399,12 +491,43 @@ int ri_consumer_mapper_update(ri_consumer_mapper_t *mapper)
     if (old == mapper->buffer)
         return 0;
 
+    mapper->callback.lock = true;
+
+    for (ri_consumer_object_t *object = mapper->callback.head; object; object = object->callback.next) {
+        if (object->callback.func) {
+            const void *pointer = ri_consumer_object_get_pointer(object);
+            object->callback.func(object, pointer, object->callback.user_data);
+        } else {
+            // should never happen
+            LOG_ERR("ri_consumer_mapper_update null callback");
+        }
+    }
+
+    mapper->callback.lock = false;
+
     return 1;
 }
 
 
 void ri_producer_mapper_update(ri_producer_mapper_t *mapper)
 {
+    if (mapper->callback.lock)
+        return;
+
+    mapper->callback.lock = true;
+
+    for (ri_producer_object_t *object = mapper->callback.head; object; object = object->callback.next) {
+        if (object->callback.func) {
+            void *pointer = ri_producer_object_get_pointer(object);
+            object->callback.func(object, pointer, object->callback.user_data);
+        } else {
+            // should never happen
+            LOG_ERR("ri_producer_mapper_update null callback");
+        }
+    }
+
+    mapper->callback.lock = false;
+
     if (mapper->cache)
         memcpy(mapper->buffer, mapper->cache, mapper->buffer_size);
 
@@ -537,6 +660,32 @@ const ri_object_meta_t* ri_consumer_object_get_meta(const ri_consumer_object_t *
 ri_consumer_mapper_t* ri_consumer_object_get_mapper(ri_consumer_object_t *object)
 {
     return object->mapper;
+}
+
+
+void ri_consumer_object_set_callback(ri_consumer_object_t *object, ri_conusmer_object_fn callback, void *user_data)
+{
+    if (!object->callback.func && callback) {
+        consumer_object_add_callback(object, callback, user_data);
+    } else if (object->callback.func && !callback) {
+        consumer_object_remove_callback(object);
+    } else {
+        object->callback.func = callback;
+        object->callback.user_data = user_data;
+    }
+}
+
+
+void ri_producer_object_set_callback(ri_producer_object_t *object, ri_producer_object_fn callback, void *user_data)
+{
+    if (!object->callback.func && callback) {
+        producer_object_add_callback(object, callback, user_data);
+    } else if (object->callback.func && !callback) {
+        producer_object_remove_callback(object);
+    } else {
+        object->callback.func = callback;
+        object->callback.user_data = user_data;
+    }
 }
 
 

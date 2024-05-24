@@ -18,6 +18,8 @@ typedef struct ri_producer_object ri_producer_object_t;
 
 typedef struct ri_consumer_object ri_consumer_object_t;
 
+typedef void (*ri_conusmer_object_fn)(ri_consumer_object_t *object, const void *pointer, void *user_data);
+typedef void (*ri_producer_object_fn)(ri_producer_object_t *object, void *pointer, void *user_data);
 
 /**
  * @typedef ri_consumer_mapper_t
