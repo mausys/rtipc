@@ -93,6 +93,9 @@ ri_consumer_mapper_t* ri_consumer_object_get_mapper(ri_consumer_object_t *object
 
 ri_producer_mapper_t* ri_producer_object_get_mapper(ri_producer_object_t *object);
 
+void ri_consumer_object_set_callback(ri_consumer_object_t *object, ri_conusmer_object_fn callback, void *user_data);
+
+void ri_producer_object_set_callback(ri_producer_object_t *object, ri_producer_object_fn callback, void *user_data);
 
 #ifdef __cplusplus
 }
