@@ -43,7 +43,7 @@ void ri_shm_mapper_delete(ri_shm_mapper_t *shm_mapper);
 void ri_shm_mapper_dump(const ri_shm_mapper_t *shm_mapper);
 
 
-ri_shm_t* ri_shm_mapper_get_shm(const ri_shm_mapper_t* mapper);
+ri_shm_t* ri_shm_mapper_get_shm(const ri_shm_mapper_t *mapper);
 
 ri_consumer_mapper_t* ri_shm_mapper_get_consumer(ri_shm_mapper_t *mapper, unsigned index);
 
@@ -81,9 +81,9 @@ const ri_object_meta_t* ri_producer_object_get_meta(const ri_producer_object_t *
 
 const ri_object_meta_t* ri_consumer_object_get_meta(const ri_consumer_object_t *object);
 
-int ri_consumer_object_get(const ri_consumer_object_t *object, void *value);
+int ri_consumer_object_copy(const ri_consumer_object_t *object, void *value);
 
-int ri_producer_object_set(const ri_producer_object_t *object, const void *value);
+int ri_producer_object_copy(const ri_producer_object_t *object, const void *value);
 
 void* ri_producer_object_get_pointer(const ri_producer_object_t *object);
 

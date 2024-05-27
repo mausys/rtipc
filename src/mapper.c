@@ -73,7 +73,7 @@ struct ri_shm_mapper {
 };
 
 
-static void delete_consumer_mapper(ri_consumer_mapper_t* consumer)
+static void delete_consumer_mapper(ri_consumer_mapper_t *consumer)
 {
     if (consumer->objects) {
         free(consumer->objects);
@@ -83,7 +83,7 @@ static void delete_consumer_mapper(ri_consumer_mapper_t* consumer)
 }
 
 
-static void delete_producer_mapper(ri_producer_mapper_t* producer)
+static void delete_producer_mapper(ri_producer_mapper_t *producer)
 {
     if (producer->objects) {
         free(producer->objects);
@@ -422,7 +422,7 @@ void ri_shm_mapper_dump(const ri_shm_mapper_t *mapper)
 }
 
 
-ri_shm_t* ri_shm_mapper_get_shm(const ri_shm_mapper_t* shm_mapper)
+ri_shm_t* ri_shm_mapper_get_shm(const ri_shm_mapper_t *shm_mapper)
 {
     return shm_mapper->shm;
 }
@@ -591,7 +591,7 @@ unsigned ri_producer_mapper_get_index(const ri_producer_mapper_t *mapper)
 }
 
 
-int ri_producer_object_set(const ri_producer_object_t *object, const void *content)
+int ri_producer_object_copy(const ri_producer_object_t *object, const void *content)
 {
     void *ptr = object->mapper->cache;
 
@@ -608,7 +608,7 @@ int ri_producer_object_set(const ri_producer_object_t *object, const void *conte
 }
 
 
-int ri_consumer_object_get(const ri_consumer_object_t *object, void *content)
+int ri_consumer_object_copy(const ri_consumer_object_t *object, void *content)
 {
     if (!object->mapper->buffer)
         return -EAGAIN;

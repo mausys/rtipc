@@ -409,6 +409,7 @@ static void server_write_group(void *ptr, const shm_group_t *group, const ri_cha
 
     for (unsigned i = 0; i < group->num; i++) {
         table_entry_t entry = {
+            .xchg = RI_BUFIDX_NONE,
             .data_offset = data_offset,
             .meta_offset = meta_offset,
             .meta_size = channels[i].meta.size,
@@ -572,7 +573,7 @@ unsigned ri_shm_get_num_producers(const ri_shm_t *shm)
 }
 
 
-int ri_shm_get_fd(const ri_shm_t* shm)
+int ri_shm_get_fd(const ri_shm_t *shm)
 {
     if (!shm->sys)
         return -1;

@@ -92,7 +92,7 @@ fail_create:
 }
 
 
-ri_sys_t* ri_sys_named_new(size_t size, const char* name, mode_t mode)
+ri_sys_t* ri_sys_named_new(size_t size, const char *name, mode_t mode)
 {
     ri_sys_t *sys = malloc(sizeof(ri_sys_t));
 
