@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(rtipc LANGUAGES C CXX)
-set(CMAKE_CXX_STANDARD 17)
+
+project(rtipc LANGUAGES C)
+
+set(CMAKE_C_STANDARD 11)
+
 include(GNUInstallDirs)
 
 set(RTIPC_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
@@ -31,7 +34,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${RTIPC_PUBLIC_INCLUDE_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${RTIPC_PRIVATE_INCLUDE_DIR})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-  C_STANDARD 11
   PUBLIC_HEADER "${RTIPC_INCLUDE_FILES}")
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra  -Wsign-compare)
@@ -41,6 +43,7 @@ install(TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_subdirectory(sample)
+add_subdirectory(test)
+#add_subdirectory(sample)
 
 

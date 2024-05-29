@@ -2,4 +2,4 @@
 
 #include <stdint.h>
 
-uint64_t time_now(void);
+uint64_t timestamp_now(void);

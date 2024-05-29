@@ -1,91 +1,117 @@
 #include "server.h"
 
+#include <unistd.h>
+#include <errno.h>
+
+
 #include <rtipc/rtipc.h>
 #include <rtipc/odb.h>
 #include "ipc.h"
+#include "timestamp.h"
 
 #include "common.h"
+#include "myobjects.h"
 
 #include <stdlib.h>
 
 typedef struct {
     ri_shm_mapper_t *shm_mapper;
-    struct {
-        ri_consumer_mapper_t *command;
-        ri_producer_mapper_t *response;
-        ri_consumer_mapper_t *rpdo1;
-        ri_consumer_mapper_t *rpdo2;
-        ri_producer_mapper_t *tpdo1;
-        ri_producer_mapper_t *tpdo2;
-        ri_producer_mapper_t *tpdo3;
-    } channels;
+    ri_producer_mapper_t *response_mapper;
 } server_t;
 
+typedef struct {
+    object_type_t type;
+    uint8_t len;
+} object_def_t;
 
-static const ri_object_meta_t rpdo1[] = {
-    RI_OBJECT_ID(0, uint8_t),
-    RI_OBJECT_ID(0, uint64_t),
-    RI_OBJECT_ID(0, int16_t),
-    RI_OBJECT_ID(0, double),
+static const object_def_t rpdo1[] = {
+    { OBJECT_TYPE_U8, 1 },
+    { OBJECT_TYPE_U64, 1 },
+    { OBJECT_TYPE_I16, 1 },
+    { OBJECT_TYPE_F64, 1 },
+    { OBJECT_TYPE_U16, 1 },
+    { OBJECT_TYPE_U8, 1 },
+    { OBJECT_TYPE_U64, 1 },
+    { OBJECT_TYPE_I16, 1 },
+    { OBJECT_TYPE_F64, 1 },
+    { OBJECT_TYPE_U16, 1 },
+    { OBJECT_TYPE_U8, 1 },
+    { OBJECT_TYPE_U64, 1 },
+    { OBJECT_TYPE_I16, 1 },
+    { OBJECT_TYPE_F64, 1 },
+    { OBJECT_TYPE_U16, 1 },
+    {0, 0}
 };
 
 
-static const ri_object_meta_t rpdo2[] = {
-    RI_OBJECT_ID(0, uint8_t),
-    RI_OBJECT_ID(0, uint64_t),
-    RI_OBJECT_ID(0, int16_t),
-    RI_OBJECT_ID(0, double),
-    RI_OBJECT_ID(0, int16_t),
-    RI_OBJECT_ID(0, int16_t),
-    RI_OBJECT_END
+static const object_def_t rpdo2[] = {
+    { OBJECT_TYPE_U8, 1 },
+    { OBJECT_TYPE_U64, 1 },
+    { OBJECT_TYPE_I16, 1 },
+    { OBJECT_TYPE_F64, 1 },
+    { OBJECT_TYPE_U16, 1 },
+    {0, 0}
 };
 
 
-static const ri_object_meta_t tpdo1[] = {
-    RI_OBJECT_ID(0, double),
-    RI_OBJECT_ID(0, uint8_t),
-    RI_OBJECT_ID(0, int64_t),
-    RI_OBJECT_ID(0, uint32_t),
-    RI_OBJECT_END
+static const object_def_t tpdo1[] = {
+    { OBJECT_TYPE_F64, 1 },
+    { OBJECT_TYPE_U8, 1 },
+    { OBJECT_TYPE_I64, 1 },
+    { OBJECT_TYPE_U32, 1 },
+    {0, 0}
 };
 
 
-static const ri_object_meta_t tpdo2[] = {
-    RI_OBJECT_ID(0, uint32_t),
-    RI_OBJECT_ID(0, uint8_t),
-    RI_OBJECT_ARRAY_ID(0, double, 256),
-    RI_OBJECT_ID(0, uint16_t),
-    RI_OBJECT_END
+static const object_def_t tpdo2[] = {
+    { OBJECT_TYPE_U32, 1 },
+    { OBJECT_TYPE_U8, 1 },
+    { OBJECT_TYPE_F64, 255 },
+    { OBJECT_TYPE_U16, 1 },
+    {0, 0}
 };
 
 
-static const ri_object_meta_t tpdo3[] = {
-    RI_OBJECT_ID(0, uint32_t),
-    RI_OBJECT_ID(0, uint64_t),
-    RI_OBJECT_ID(0, uint64_t),
-    RI_OBJECT_END
+static const object_def_t tpdo3[] = {
+    { OBJECT_TYPE_U32 , 1},
+    { OBJECT_TYPE_U64 , 1},
+    { OBJECT_TYPE_U64 , 1},
+    {0, 0}
 };
 
 
-static int init_consumer_vector(ri_consumer_vector_t* vec, const ri_object_meta_t *object)
+static int init_consumer_vector(ri_consumer_vector_t* vec, const object_def_t *object, unsigned start_index)
 {
-    for (const ri_object_meta_t *it = object; it->size != 0; it++) {
-        int r = ri_consumer_vector_add(vec, it);
+    unsigned channel_index = ri_consumer_vector_get_index(vec);
+
+    for (const object_def_t *it = object; it->len != 0; it++) {
+        ri_object_meta_t meta = create_object_meta(it->type, channel_index, start_index, it->len);
+
+        int r = ri_consumer_vector_add(vec, &meta);
         if (r < 0)
             return r;
+
+        start_index++;
     }
-    return 0;
+
+    return start_index;
 }
 
 
-static int init_producer_vector(ri_producer_vector_t* vec, const ri_object_meta_t *object)
+static int init_producer_vector(ri_producer_vector_t* vec, const object_def_t *object, unsigned start_index)
 {
-    for (const ri_object_meta_t *it = object; it->size != 0; it++) {
-        int r = ri_producer_vector_add(vec, it);
+    unsigned channel_index = ri_producer_vector_get_index(vec);
+
+    for (const object_def_t *it = object; it->len != 0; it++) {
+        ri_object_meta_t meta = create_object_meta(it->type, channel_index, start_index, it->len);
+
+        int r = ri_producer_vector_add(vec, &meta);
         if (r < 0)
             return r;
+
+        start_index++;
     }
-    return 0;
+    return start_index;
 }
 
 
@@ -108,15 +134,64 @@ static ri_odb_t *create_odb(void)
     ri_consumer_vector_add(consumers[0], &RI_OBJECT(command_t));
     ri_producer_vector_add(producers[0], &RI_OBJECT(response_t));
 
-    init_consumer_vector(consumers[1], rpdo1);
-    init_consumer_vector(consumers[2], rpdo2);
+    int index = 1;
 
-    init_producer_vector(producers[1], tpdo1);
-    init_producer_vector(producers[2], tpdo2);
-    init_producer_vector(producers[3], tpdo3);
+    index = init_consumer_vector(consumers[1], rpdo1, index);
+    index = init_consumer_vector(consumers[2], rpdo2, index);
+
+    index = init_producer_vector(producers[1], tpdo1, index);
+    index = init_producer_vector(producers[2], tpdo2, index);
+    index = init_producer_vector(producers[3], tpdo3, index);
 
     return odb;
 
+}
+
+static int await_command(ri_consumer_object_t *object, command_t *command)
+{
+    ri_consumer_mapper_t *mapper = ri_consumer_object_get_mapper(object);
+
+    for (unsigned i = 0; i < 1000; i++) {
+        int r = ri_consumer_mapper_update(mapper);
+
+        if (r == 1) {
+            return ri_consumer_object_copy(object, command);
+        }
+
+        usleep(1000);
+    }
+
+    return -ETIMEDOUT;
+}
+
+
+static int execute_command(server_t *server, const command_t *command, response_t *response)
+{
+    if (command->cmd == COMMAND_ID_GET) {
+        ri_consumer_mapper_t *mapper = ri_shm_mapper_get_producer(server->shm_mapper, command->channel + 1);
+
+        if (!mapper)
+            return -EINVAL;
+
+        ri_consumer_mapper_update(mapper);
+
+        ri_consumer_object_t *object = ri_consumer_mapper_get_object(mapper, command->index);
+
+        if (!object)
+            return -EINVAL;
+
+        generic_t v;
+        ri_consumer_object_copy(object, &v);
+
+        *response = (response_t) {
+            .cookie = command->cookie,
+            .timestamp = timestamp_now(),
+            .value = v,
+        };
+
+    } else {
+
+    }
 }
 
 
@@ -131,14 +206,12 @@ void server_run(int socket)
     ri_odb_t *odb = create_odb();
 
     if (!odb)
-        return;
+        goto fail_alloc;
 
+    ri_shm_mapper_t *shm_mapper = ri_odb_create_anon_shm(odb);
 
-    server->shm_mapper = ri_odb_create_anon_shm(odb);
-
-    // not needed anymore
-    ri_odb_delete(odb);
-
+    if (!shm_mapper)
+        goto fail_shm;
 
     ri_shm_t *shm_server = ri_shm_mapper_get_shm(server->shm_mapper);
 
@@ -146,31 +219,35 @@ void server_run(int socket)
 
     ipc_send_fd(socket, fd);
 
-    ri_consumer_mapper_t *command_channel = ri_shm_mapper_get_consumer(server->shm_mapper, 0);
-    ri_consumer_object_t *command_object = ri_consumer_mapper_get_object(command_channel, 0);
 
-    for (unsigned i = 0; i < 1000; i++) {
-        int r = ri_consumer_mapper_update(command_channel);
+    ri_consumer_mapper_t *command_mapper = ri_shm_mapper_get_consumer(server->shm_mapper, 0);
+    ri_producer_mapper_t *response_mapper = ri_shm_mapper_get_producer(server->shm_mapper, 0);
 
-        if (r == 1) {
-            //command_t *command = ri_consumer_object_get_pointer(command_object);
-        }
-       // usleep(1000);
 
+    ri_consumer_object_t *command_object = ri_consumer_mapper_get_object(command_mapper, 0);
+    ri_producer_object_t *response_object = ri_producer_mapper_get_object(response_mapper, 0);
+
+
+    for (;;) {
+        command_t command;
+        response_t response;
+        int r = await_command(command_object, &command);
+        if (r < 0)
+            goto fail_command;
+
+        r = execute_command(server, &command, &response);
+        if (r < 0)
+            goto fail_command;
     }
 
-
-
-
-
+fail_command:
+    ri_shm_mapper_delete(shm_mapper);
+fail_shm:
+    ri_odb_delete(odb);
+fail_alloc:
+    free(server);
 }
 
-static server_t* server_new(int socket)
-{
-    int r;
-
-
-}
 
 
 

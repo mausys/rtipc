@@ -1,10 +1,10 @@
-#include "time.h"
+#include "timestamp.h"
 
 
 #include <time.h>
 
 
-uint64_t time_now(void)
+uint64_t timestamp_now(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
