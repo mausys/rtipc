@@ -125,8 +125,8 @@ static int init_channel(ri_channel_t *channel, void *ptr, const shm_group_t *gro
     if (entry->meta_offset + entry->meta_size > group->meta.size)
         return -1;
 
-    channel->meta.ptr = mem_offset(ptr, group->meta.offset + entry->meta_offset);
     channel->meta.size = entry->meta_size;
+    channel->meta.ptr = entry->meta_size > 0 ? mem_offset(ptr, group->meta.offset + entry->meta_offset) : NULL;
 
     return 0;
 }
