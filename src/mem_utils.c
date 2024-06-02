@@ -29,7 +29,7 @@ static size_t get_cls_level(int level, size_t min)
 }
 
 
-size_t cache_line_size(void)
+size_t cacheline_size(void)
 {
     static atomic_ulong s_cls = 0;
     size_t cls = atomic_load_explicit(&s_cls, memory_order_relaxed);

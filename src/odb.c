@@ -36,16 +36,37 @@ struct ri_odb {
 };
 
 
-static unsigned count_objects(ri_odb_t *collection)
+
+static bool check_odb(ri_odb_t *odb)
+{
+    for (unsigned i = 0; i < odb->num_consumers; i++) {
+        if (odb->consumers[i].vec.num == 0) {
+            LOG_ERR("odb consumer channel %u is empty", i);
+            return false;
+        }
+    }
+
+    for (unsigned i = 0; i < odb->num_producers; i++) {
+        if (odb->producers[i].vec.num == 0) {
+            LOG_ERR("odb producer channel %u is empty", i);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+static unsigned count_objects(ri_odb_t *odb)
 {
     unsigned count = 0;
 
-    for (unsigned i = 0; i < collection->num_consumers; i++) {
-        count += collection->consumers[i].vec.num;
+    for (unsigned i = 0; i < odb->num_consumers; i++) {
+        count += odb->consumers[i].vec.num;
     }
 
-    for (unsigned i = 0; i < collection->num_producers; i++) {
-        count += collection->producers[i].vec.num;
+    for (unsigned i = 0; i < odb->num_producers; i++) {
+        count += odb->producers[i].vec.num;
     }
 
     return count;
@@ -192,10 +213,16 @@ static void copy_metas(ri_object_meta_t metas[], const object_vector_t *vec)
 
 static ri_shm_mapper_t* odb_create_shm(ri_odb_t *odb, const char *name, mode_t mode)
 {
+
+    if (!check_odb(odb))
+        return NULL;
+
     unsigned num_objects = count_objects(odb);
 
-    if (num_objects == 0)
+    if (num_objects == 0) {
+        LOG_ERR("odb contains zero objects");
         return NULL;
+    }
 
     ri_object_meta_t* metas = calloc(num_objects, sizeof(ri_object_meta_t));
 

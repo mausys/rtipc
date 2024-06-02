@@ -89,12 +89,12 @@ static unsigned count_description_entries(const ri_channel_req_t entries[])
 
 static size_t table_entry_size(void)
 {
-    return mem_align(sizeof(table_entry_t), cache_line_size());
+    return mem_align(sizeof(table_entry_t), cacheline_size());
 }
 
 static size_t buffer_size(size_t min_size)
 {
-    return mem_align(min_size, cache_line_size());
+    return mem_align(min_size, cacheline_size());
 }
 
 static size_t channel_data_size(size_t buf_size)
@@ -267,9 +267,9 @@ static int validate_header(shm_header_t *header)
         LOG_ERR("validate_header: invalid magic=0x%x expected=0x%x", header->magic, MAGIC);
         return -1;
     }
-
-    if (header->cach_line_size != cache_line_size()) {
-        LOG_ERR("validate_header: cach_line_size disagreement server=%u client=%zu", header->cach_line_size, cache_line_size());
+    
+    if (header->cach_line_size != cacheline_size()) {
+        LOG_ERR("validate_header: cach_line_size disagreement server=%u client=%zu", header->cach_line_size, cacheline_size());
         return -1;
     }
 
@@ -364,7 +364,7 @@ static size_t server_set_segment_offsets(shm_layout_t *layout, size_t offset)
 
 static size_t server_init_layout(shm_layout_t *layout, const ri_channel_req_t consumers[], const ri_channel_req_t producers[])
 {
-    size_t offset = mem_align(sizeof(shm_header_t), cache_line_size());
+    size_t offset = mem_align(sizeof(shm_header_t), cacheline_size());
 
     server_set_group_sizes(&layout->consumers, consumers);
     server_set_group_sizes(&layout->producers, producers);
@@ -389,7 +389,7 @@ static void server_write_header(void *ptr, const shm_layout_t *layout)
         .offset_s2c_meta = layout->producers.meta.offset,
 
         .max_alignment = alignof(max_align_t),
-        .cach_line_size = cache_line_size(),
+        .cach_line_size = cacheline_size(),
         .xchg_size = sizeof(ri_xchg_t),
         .magic = MAGIC,
     };
