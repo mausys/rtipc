@@ -38,12 +38,16 @@ typedef struct ri_producer_mapper ri_producer_mapper_t;
 
 ri_shm_mapper_t* ri_shm_mapper_new(ri_shm_t *shm);
 
+ri_shm_mapper_t* ri_shm_mapper_map(int fd);
+
 void ri_shm_mapper_delete(ri_shm_mapper_t *shm_mapper);
 
 void ri_shm_mapper_dump(const ri_shm_mapper_t *shm_mapper);
 
 
 ri_shm_t* ri_shm_mapper_get_shm(const ri_shm_mapper_t *mapper);
+
+int ri_shm_mapper_get_fd(const ri_shm_mapper_t *mapper);
 
 ri_consumer_mapper_t* ri_shm_mapper_get_consumer(ri_shm_mapper_t *mapper, unsigned index);
 

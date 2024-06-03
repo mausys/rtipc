@@ -355,6 +355,24 @@ fail_alloc:
 }
 
 
+ri_shm_mapper_t* ri_shm_mapper_map(int fd)
+{
+    ri_shm_t *shm = ri_shm_map(fd);
+
+    if (!shm)
+        return NULL;
+
+    ri_shm_mapper_t* mapper = ri_shm_mapper_new(shm);
+
+    if (!mapper) {
+        ri_shm_delete(shm);
+        return NULL;
+    }
+
+    return mapper;
+}
+
+
 void ri_shm_mapper_delete(ri_shm_mapper_t *shm_mapper)
 {
     delete_producer_mappers(shm_mapper);
@@ -428,6 +446,17 @@ ri_shm_t* ri_shm_mapper_get_shm(const ri_shm_mapper_t *shm_mapper)
 }
 
 
+int ri_shm_mapper_get_fd(const ri_shm_mapper_t *mapper)
+{
+    ri_shm_t* shm = ri_shm_mapper_get_shm(mapper);
+
+    if (!shm)
+        return -ENXIO;
+
+    return ri_shm_get_fd(shm);
+}
+
+
 int ri_producer_mapper_enable_cache(ri_producer_mapper_t *mapper)
 {
     if (mapper->cache)
@@ -439,7 +468,7 @@ int ri_producer_mapper_enable_cache(ri_producer_mapper_t *mapper)
         return -ENOMEM;
 
     if (mapper->buffer)
-        memcpy(mapper->cache, mapper->cache, mapper->buffer_size);
+        memcpy(mapper->cache, mapper->buffer, mapper->buffer_size);
 
     return 0;
 }

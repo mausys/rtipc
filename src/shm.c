@@ -267,7 +267,7 @@ static int validate_header(shm_header_t *header)
         LOG_ERR("validate_header: invalid magic=0x%x expected=0x%x", header->magic, MAGIC);
         return -1;
     }
-    
+
     if (header->cach_line_size != cacheline_size()) {
         LOG_ERR("validate_header: cach_line_size disagreement server=%u client=%zu", header->cach_line_size, cacheline_size());
         return -1;
