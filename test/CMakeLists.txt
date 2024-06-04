@@ -1,6 +1,6 @@
 find_package(Check REQUIRED)
 
-add_executable(test_rtipc test_rtipc.c)
+add_executable(tests tests.c test_rtipc.c test_mapper.c )
 
-target_link_libraries(test_rtipc rtipc Check::checkShared )
+target_link_libraries(tests  rtipc Check::checkShared )
 
