@@ -152,13 +152,18 @@ static int init_consumer_mapper(ri_consumer_mapper_t *mapper, ri_consumer_t *con
     size_t offset = 0;
 
     for (unsigned i = 0; i < num; i++) {
+        const ri_object_meta_t *meta = &metas[i];
+
+        if (meta->align != 0)
+            offset = mem_align(offset, meta->align);
+
         mapper->objects[i] = (ri_consumer_object_t) {
             .mapper = mapper,
-            .meta = metas[i],
+            .meta = *meta,
             .offset = offset,
         };
 
-        offset = ri_object_get_offset_next(offset, &metas[i]);
+        offset += meta->size;
 
         if (offset > mapper->buffer_size) {
             LOG_ERR("object exeeds buffer size");
@@ -205,13 +210,18 @@ static int init_producer_mapper(ri_producer_mapper_t *mapper, ri_producer_t *pro
     size_t offset = 0;
 
     for (unsigned i = 0; i < num; i++) {
+        const ri_object_meta_t *meta = &metas[i];
+
+        if (meta->align != 0)
+            offset = mem_align(offset, meta->align);
+
         mapper->objects[i] = (ri_producer_object_t) {
             .mapper = mapper,
-            .meta = metas[i],
+            .meta = *meta,
             .offset = offset,
         };
 
-        offset = ri_object_get_offset_next(offset, &metas[i]);
+        offset += meta->size;
 
         if (offset > mapper->buffer_size) {
             LOG_ERR("object exeeds buffer size");
