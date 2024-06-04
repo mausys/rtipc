@@ -5,10 +5,10 @@
 #include <stddef.h>
 #include <stdalign.h>
 
-#define RI_OBJECT(x) (ri_object_meta_t) { .size = sizeof(x), .align = __alignof__(x) }
-#define RI_OBJECT_ARRAY(x, n) (ri_object_meta_t) { .size = sizeof(x) * (n), .align = __alignof__(x) }
-#define RI_OBJECT_ID(_id, x) (ri_object_meta_t) { .id = (_id), .size = sizeof(x), .align = __alignof__(x) }
-#define RI_OBJECT_ARRAY_ID(_id, x, n) (ri_object_meta_t) { .id = (_id), .size = sizeof(x) * (n), .align = __alignof__(x) }
+#define RI_OBJECT(x) (ri_object_meta_t) { .size = sizeof(x), .align = alignof(x) }
+#define RI_OBJECT_ARRAY(x, n) (ri_object_meta_t) { .size = sizeof(x) * (n), .align = alignof(x) }
+#define RI_OBJECT_ID(_id, x) (ri_object_meta_t) { .id = (_id), .size = sizeof(x), .align = alignof(x) }
+#define RI_OBJECT_ARRAY_ID(_id, x, n) (ri_object_meta_t) { .id = (_id), .size = sizeof(x) * (n), .align = alignof(x) }
 #define RI_OBJECT_END (ri_object_meta_t) { .size = 0, .align = 0 }
 
 
