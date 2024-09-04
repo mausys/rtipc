@@ -382,7 +382,7 @@ static size_t server_init_layout(shm_layout_t *layout, const ri_channel_req_t co
     server_set_group_sizes(&layout->producers, producers);
 
     if (shm_meta)
-        layout->meta.size = shm_meta->size;
+        layout->meta.size = mem_align(shm_meta->size, alignof(max_align_t));
 
     offset = server_set_segment_offsets(layout, offset);
 
