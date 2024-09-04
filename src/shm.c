@@ -17,7 +17,7 @@
 
 #define LAST_CHANNEL_MASK 0x2
 
-#define LAYOUT_NUM_SEGMENTS 6
+#define LAYOUT_NUM_SEGMENTS 7
 
 typedef struct ri_shm_segment {
     size_t offset;
@@ -34,6 +34,7 @@ typedef struct ri_group {
 
 typedef struct {
     size_t hdr_size;
+    shm_segment_t meta;
     shm_group_t producers;
     shm_group_t consumers;
 } shm_layout_t;
@@ -43,6 +44,7 @@ typedef struct {
 struct ri_shm {
     ri_sys_t *sys;
     shm_layout_t layout;
+    ri_span_t meta;
     ri_consumer_t *consumers;
     ri_producer_t *producers;
 };
@@ -60,6 +62,7 @@ typedef struct {
 typedef struct {
     uint32_t num_c2s; /**< number of consumers from server perspective */
     uint32_t num_s2c; /**< number of producers from server perspective */
+    uint32_t offset_shm_meta;
     uint32_t offset_s2c_table;
     uint32_t offset_c2s_table;
     uint32_t offset_s2c_data;
@@ -235,6 +238,8 @@ static int client_set_layout_sizes(shm_layout_t *layout, size_t shm_size)
         &layout->producers.data,
         &layout->consumers.data,
 
+        &layout->meta,
+
         &layout->producers.meta,
         &layout->consumers.meta,
     };
@@ -291,6 +296,8 @@ static int client_read_layout(const void *ptr, size_t shm_size, shm_layout_t *la
         return r;
 
     *layout = (shm_layout_t) {
+        .meta.offset = header.offset_shm_meta,
+
         .consumers.num = header.num_s2c,
         .consumers.table.offset = header.offset_s2c_table,
         .consumers.data.offset = header.offset_s2c_data,
@@ -317,6 +324,9 @@ static int client_read_shm(ri_shm_t *shm)
 
     if (r < 0)
         return r;
+
+    shm->meta.ptr = mem_offset(shm->sys->ptr, shm->layout.meta.offset);
+    shm->meta.size = shm->layout.meta.size;
 
     return create_channels(shm);
 }
@@ -355,6 +365,8 @@ static size_t server_set_segment_offsets(shm_layout_t *layout, size_t offset)
     offset = server_set_segment_offset(&cns->data, offset);
     offset = server_set_segment_offset(&prd->data, offset);
 
+    offset = server_set_segment_offset(&layout->meta, offset);
+
     offset = server_set_segment_offset(&cns->meta, offset);
     offset = server_set_segment_offset(&prd->meta, offset);
 
@@ -362,12 +374,15 @@ static size_t server_set_segment_offsets(shm_layout_t *layout, size_t offset)
 }
 
 
-static size_t server_init_layout(shm_layout_t *layout, const ri_channel_req_t consumers[], const ri_channel_req_t producers[])
+static size_t server_init_layout(shm_layout_t *layout, const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const ri_span_t *shm_meta)
 {
     size_t offset = mem_align(sizeof(shm_header_t), cacheline_size());
 
     server_set_group_sizes(&layout->consumers, consumers);
     server_set_group_sizes(&layout->producers, producers);
+
+    if (shm_meta)
+        layout->meta.size = shm_meta->size;
 
     offset = server_set_segment_offsets(layout, offset);
 
@@ -375,7 +390,7 @@ static size_t server_init_layout(shm_layout_t *layout, const ri_channel_req_t co
 }
 
 
-static void server_write_header(void *ptr, const shm_layout_t *layout)
+static void server_write_header(void *shm_ptr, const shm_layout_t *layout)
 {
     shm_header_t header = {
         .num_c2s = layout->consumers.num,
@@ -388,20 +403,22 @@ static void server_write_header(void *ptr, const shm_layout_t *layout)
         .offset_s2c_data = layout->producers.data.offset,
         .offset_s2c_meta = layout->producers.meta.offset,
 
+        .offset_shm_meta = layout->meta.offset,
+
         .max_alignment = alignof(max_align_t),
         .cach_line_size = cacheline_size(),
         .xchg_size = sizeof(ri_xchg_t),
         .magic = MAGIC,
     };
 
-    memcpy(ptr, &header, sizeof(header));
+    memcpy(shm_ptr, &header, sizeof(header));
 }
 
 
-static void server_write_group(void *ptr, const shm_group_t *group, const ri_channel_req_t channels[])
+static void server_write_group(void *shm_ptr, const shm_group_t *group, const ri_channel_req_t channels[])
 {
-    void *table_ptr = mem_offset(ptr, group->table.offset);
-    void *meta_ptr = mem_offset(ptr, group->meta.offset);
+    void *table_ptr = mem_offset(shm_ptr, group->table.offset);
+    void *meta_ptr = mem_offset(shm_ptr, group->meta.offset);
 
     size_t offset_table = 0;
     size_t data_offset = 0;
@@ -428,14 +445,27 @@ static void server_write_group(void *ptr, const shm_group_t *group, const ri_cha
 }
 
 
-static ri_shm_t* create_shm(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const char *name, mode_t mode)
+static void server_write_shm_meta(void *shm_ptr, const shm_segment_t *meta_segment, const ri_span_t *shm_meta)
+{
+    if (!shm_meta)
+        return;
+
+    if (shm_meta->size == 0)
+        return;
+
+    void *meta_ptr = mem_offset(shm_ptr,  meta_segment->offset);
+    memcpy(meta_ptr, shm_meta->ptr, shm_meta->size);
+}
+
+
+static ri_shm_t* create_shm(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const ri_span_t *shm_meta, const char *name, mode_t mode)
 {
     ri_shm_t *shm = calloc(1, sizeof(ri_shm_t));
 
     if (!shm)
         goto fail_alloc;
 
-    size_t shm_size = server_init_layout(&shm->layout, consumers, producers);
+    size_t shm_size = server_init_layout(&shm->layout, consumers, producers, shm_meta);
 
     if (name)
         shm->sys = ri_sys_named_new(shm_size, name, mode);
@@ -445,7 +475,11 @@ static ri_shm_t* create_shm(const ri_channel_req_t consumers[], const ri_channel
     if (!shm->sys)
         goto fail_sys;
 
+    shm->meta.ptr = mem_offset(shm->sys->ptr, shm->layout.meta.offset);
+    shm->meta.size = shm->layout.meta.size;
+
     server_write_header(shm->sys->ptr, &shm->layout);
+    server_write_shm_meta(shm->sys->ptr, &shm->layout.meta, shm_meta);
     server_write_group(shm->sys->ptr, &shm->layout.consumers, consumers);
     server_write_group(shm->sys->ptr, &shm->layout.producers, producers);
 
@@ -465,18 +499,24 @@ fail_alloc:
 }
 
 
-ri_shm_t* ri_anon_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[])
+ri_span_t ri_shm_get_meta(const ri_shm_t *shm)
 {
-    return create_shm(consumers, producers, NULL, 0);
+    return shm->meta;
 }
 
 
-ri_shm_t* ri_named_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const char *name, mode_t mode)
+ri_shm_t* ri_anon_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const ri_span_t *shm_meta)
+{
+    return create_shm(consumers, producers, shm_meta, NULL, 0);
+}
+
+
+ri_shm_t* ri_named_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const ri_span_t *shm_meta, const char *name, mode_t mode)
 {
     if (!name)
         return NULL;
 
-    return create_shm(consumers, producers, name, mode);
+    return create_shm(consumers, producers, shm_meta, name, mode);
 }
 
 
@@ -617,6 +657,8 @@ void ri_shm_dump(const ri_shm_t *shm)
     const shm_layout_t *layout = &shm->layout;
 
     LOG_INF("shared memory: ptr=%p size=%zu", shm->sys->ptr, shm->sys->size);
+
+    LOG_INF("\nshm meta data: %p %zu", shm->meta.ptr, shm->meta.size);
 
     LOG_INF("\tnumber of consumers: %u", layout->consumers.num);
     LOG_INF("\tnumber of producers: %u", layout->producers.num);

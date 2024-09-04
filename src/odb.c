@@ -272,7 +272,7 @@ static ri_shm_mapper_t* odb_create_shm(ri_odb_t *odb, const char *name, mode_t m
         }
     }
 
-    ri_shm_t *shm = name ? ri_named_shm_new(consumers, producers, name, mode) : ri_anon_shm_new(consumers, producers);
+    ri_shm_t *shm = name ? ri_named_shm_new(consumers, producers, NULL, name, mode) : ri_anon_shm_new(consumers, producers, NULL);
 
     if (!shm)
         goto fail;

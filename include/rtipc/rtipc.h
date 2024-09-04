@@ -56,6 +56,12 @@ typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
  */
 void ri_set_log_handler(ri_log_fn log_handler);
 
+/**
+ * @brief ri_shm_get_meta creates, get the shared memory meta data
+ *
+ * @param shm shared memory object
+ */
+ri_span_t ri_shm_get_meta(const ri_shm_t *shm);
 
 /**
  * @brief ri_anon_shm_new creates, maps and initializes anonymous shared memory
@@ -64,9 +70,10 @@ void ri_set_log_handler(ri_log_fn log_handler);
  *
  * @param consumers terminated list of of consumer (server perspective) channel descriptions
  * @param producers null terminated list of of producer (server perspective) descriptions
+ * @param shm_meta shared memory meta data
  * @return pointer to the new shared memory object; NULL on error
  */
-ri_shm_t* ri_anon_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[]);
+ri_shm_t* ri_anon_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const ri_span_t *shm_meta);
 
 
 /**
@@ -75,11 +82,12 @@ ri_shm_t* ri_anon_shm_new(const ri_channel_req_t consumers[], const ri_channel_r
  *
  * @param cns consumers terminated list of of consumer (server perspective) channel descriptions
  * @param producers null terminated list of of producer (server perspective) descriptions
+ * @param shm_meta shared memory meta data
  * @param name shared memory name (file system)
  * @param mode used by shm_open
  * @return pointer to the new shared memory object; NULL on error
  */
-ri_shm_t* ri_named_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const char *name, mode_t mode);
+ri_shm_t* ri_named_shm_new(const ri_channel_req_t consumers[], const ri_channel_req_t producers[], const ri_span_t *shm_meta, const char *name, mode_t mode);
 
 
 /**
