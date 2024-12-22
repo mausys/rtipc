@@ -51,7 +51,7 @@ struct ri_shm {
 
 
 typedef struct {
-    ri_xchg_t xchg;
+    ri_atomic_t xchg;
     uint32_t data_offset;
     uint32_t buffer_size;
     uint32_t meta_offset;
@@ -407,7 +407,7 @@ static void server_write_header(void *shm_ptr, const shm_layout_t *layout)
 
         .max_alignment = alignof(max_align_t),
         .cach_line_size = cacheline_size(),
-        .xchg_size = sizeof(ri_xchg_t),
+        .xchg_size = sizeof(ri_atomic_t),
         .magic = MAGIC,
     };
 

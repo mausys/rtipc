@@ -7,14 +7,14 @@
 #include "rtipc/rtipc.h"
 
 #if ATOMIC_INT_LOCK_FREE == 2
-typedef atomic_uint ri_xchg_t;
+typedef atomic_uint ri_atomic_t;
 #elif ATOMIC_SHORT_LOCK_FREE == 2
-typedef atomic_ushort ri_xchg_t;
+typedef atomic_ushort ri_atomic_t;
 #elif ATOMIC_CHAR_LOCK_FREE == 2
-typedef atomic_uchar ri_xchg_t;
+typedef atomic_uchar ri_atomic_t;
 #else
 #warning "no suitable always lockfree datatype found"
-typedef atomic_uint ri_xchg_t;
+typedef atomic_uint ri_atomic_t;
 #endif
 
 #define RI_NUM_BUFFERS 3
@@ -29,7 +29,7 @@ typedef enum {
 
 
 typedef struct ri_channel {
-    ri_xchg_t *xchg;
+    ri_atomic_t *xchg;
     void *bufs[RI_NUM_BUFFERS];
     ri_span_t meta;
 } ri_channel_t;
