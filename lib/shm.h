@@ -14,13 +14,13 @@ typedef struct ri_shm {
 } ri_shm_t;
 
 
-ri_shm_t* ri_sys_anon_new(size_t size);
+ri_shm_t* ri_shm_anon_new(size_t size);
 
-ri_shm_t* ri_sys_named_new(size_t size, const char *name, mode_t mode);
+ri_shm_t* ri_shm_named_new(size_t size, const char *name, mode_t mode);
 
-ri_shm_t* ri_sys_map(int fd);
+ri_shm_t* ri_shm_map(int fd);
 
-ri_shm_t* ri_sys_map_named(const char *name);
+ri_shm_t* ri_shm_named_map(const char *name);
 
 void ri_shm_delete(ri_shm_t *shm);
 

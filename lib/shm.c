@@ -177,7 +177,7 @@ fail_stat:
 }
 
 
-ri_shm_t* ri_shm_map_named(const char *name)
+ri_shm_t* ri_shm_named_map(const char *name)
 {
     struct stat stat;
     ri_shm_t *shm = calloc(1, sizeof(ri_shm_t));

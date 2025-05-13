@@ -57,6 +57,8 @@ typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
  */
 void ri_set_log_handler(ri_log_fn log_handler);
 
+size_t ri_calc_shm_size(const ri_channel_size_t consumers[], const ri_channel_size_t producers[]);
+
 /**
  * @brief ri_anon_shm_new creates, maps and initializes anonymous shared memory
  *        file descriptor can be retrieved with ri_shm_get_fd and send to client over an unix socket
