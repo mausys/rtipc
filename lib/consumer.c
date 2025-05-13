@@ -11,7 +11,7 @@ uintptr_t ri_consumer_init(ri_consumer_t *consumer, uintptr_t start, const ri_ch
     return ri_channel_init(&consumer->channel, start, size);
 }
 
-void* consumer_get_head(ri_consumer_t *consumer)
+void* ri_consumer_fetch_head(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
 
@@ -40,7 +40,7 @@ void* consumer_get_head(ri_consumer_t *consumer)
 }
 
 
-void* ri_consumer_get_tail(ri_consumer_t *consumer)
+void* ri_consumer_fetch_tail(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
     ri_index_t tail = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);

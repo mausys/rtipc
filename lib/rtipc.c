@@ -93,15 +93,15 @@ static size_t get_channels_offset(unsigned num)
 static int validate_header(const shm_header_t *header)
 {
     int r = 0;
-    size_t r_cacheline_size = (size_t)1 << header->cacheline_size;
-    if (r_cacheline_size != cacheline_size()) {
-        LOG_ERR("cacheline_size missmatch %zu != %zu", r_cacheline_size, cacheline_size());
+
+    if (header->cacheline_size != cacheline_size()) {
+        LOG_ERR("cacheline_size missmatch %u != %zu", header->cacheline_size, cacheline_size());
         r = -EINVAL;
     }
 
-    size_t atomic_size = (size_t)1 << header->atomic_size;
-    if (atomic_size != sizeof(ri_atomic_index_t)) {
-        LOG_ERR("atomic size missmatch %zu != %zu", atomic_size, sizeof(ri_atomic_index_t));
+
+    if (header->atomic_size != sizeof(ri_atomic_index_t)) {
+        LOG_ERR("atomic size missmatch %u != %zu", header->atomic_size, sizeof(ri_atomic_index_t));
         r = -EINVAL;
     }
 

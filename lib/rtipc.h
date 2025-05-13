@@ -152,24 +152,25 @@ ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned index);
 void ri_rtipc_dump(const ri_rtipc_t *rtipc);
 
 /**
- * @brief ri_consume fetches a buffer from channel
+ * @brief consumer_fetch_head fetches a buffer from channel
  *
  * @param consumer pointer to consumer
  * @return pointer to the latest message updated by the remote producer; NULL until remote producer updates it for the first time
  */
-void* ri_consumer_get(ri_consumer_t *consumer);
+void* ri_consumer_fetch_head(ri_consumer_t *consumer);
+void* ri_consumer_fetch_tail(ri_consumer_t *consumer);
 
-
+void* ri_producer_get_msg(ri_producer_t *producer);
 /**
  * @brief ri_produce submits current buffer and get a new one for writing
  *
  * @param producer pointer to producer
  * @return pointer to buffer for writng
  */
-int ri_producer_force_put(ri_producer_t *producer, void **msg);
+void* ri_producer_force_put(ri_producer_t *producer, bool *discarded);
 
 
-int ri_producer_try_put(ri_producer_t *producer, void **msg);
+void* ri_producer_try_put(ri_producer_t *producer);
 
 
 
