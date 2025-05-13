@@ -166,7 +166,7 @@ ri_shm_t* ri_shm_map(int fd)
         goto fail_map;
     }
 
-    LOG_INF("maped shared memory name=%s size=%zu, on %p", shm->path, shm->size, shm->mem);
+    LOG_INF("mapped shared memory name=%s size=%zu, on %p", shm->path, shm->size, shm->mem);
 
     return shm;
 
