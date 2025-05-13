@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#include "log.h"
 
 /* set the next message as head
 * get_next(msgq, producer->current) after this call
@@ -75,8 +76,8 @@ uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_ch
  * used by consumer. Returns pointer to new message */
 void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
 {
-    bool discarded = false;
     ri_channel_t *channel = &producer->channel;
+    bool discarded = false;
 
     ri_index_t next = ri_channel_get_next(channel, producer->current);
 
@@ -106,7 +107,6 @@ void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
              * because the message queue is still full */
             if (move_tail(channel, tail)) {
                 producer->current = tail & RI_INDEX_MASK;
-
                 discarded = true;
             } else {
                 /* consumer just released overrun message, so we can use it */
@@ -142,7 +142,9 @@ void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
         }
     }
 
-    assert(old_current != producer->current);
+    if (old_current == producer->current) {
+        LOG_ERR("old_current == producer->current 0x%x %i", old_current, discarded);
+    }
 
     if (p_discarded) {
         *p_discarded = discarded;

@@ -43,7 +43,7 @@ static int shm_init(ri_shm_t *shm, bool sealing)
         return r;
     }
 
-    LOG_INF("mmaped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
+    LOG_INF("mmapped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
 
     return 0;
 }
@@ -80,7 +80,7 @@ ri_shm_t* ri_shm_anon_new(size_t size)
     if (r < 0)
         goto fail_init;
 
-    LOG_INF("mmaped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
+    LOG_INF("mmapped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
 
     return shm;
 

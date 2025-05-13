@@ -145,9 +145,9 @@ ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned index);
 
 
 /**
- * @brief ri_shm_dump print shared memory information
+ * @brief ri_rtipc_dump print shared memory information
  *
- * @param shm shared memory object
+ * @param rtipc rtipc object
  */
 void ri_rtipc_dump(const ri_rtipc_t *rtipc);
 

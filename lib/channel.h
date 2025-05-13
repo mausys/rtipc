@@ -48,3 +48,5 @@ size_t ri_channel_calc_size(const ri_channel_size_t *size);
 uintptr_t ri_channel_init(ri_channel_t *channel, uintptr_t start, const ri_channel_size_t *size);
 
 void ri_channel_shm_init(ri_channel_t *channel);
+
+void ri_channel_dump(ri_channel_t *channel);

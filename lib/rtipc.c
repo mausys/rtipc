@@ -303,3 +303,20 @@ int ri_rtipc_get_shm_fd(const ri_rtipc_t *rtipc)
     return rtipc->shm->fd;
 }
 
+
+void ri_rtipc_dump(const ri_rtipc_t *rtipc)
+{
+    LOG_INF("shm addr=%p size=%zu", rtipc->shm->mem, rtipc->shm->size);
+    LOG_INF("\tconsumers (%u):", rtipc->num_consumers);
+
+    for (unsigned i = 0; i < rtipc->num_consumers; i++) {
+        ri_channel_dump(&rtipc->consumers[i].channel);
+    }
+
+    LOG_INF("\tproducers (%u):", rtipc->num_producers);
+
+    for (unsigned i = 0; i < rtipc->num_producers; i++) {
+        ri_channel_dump(&rtipc->producers[i].channel);
+    }
+
+}
