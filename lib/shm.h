@@ -18,7 +18,7 @@ ri_shm_t* ri_shm_anon_new(size_t size);
 
 ri_shm_t* ri_shm_named_new(size_t size, const char *name, mode_t mode);
 
-ri_shm_t* ri_shm_map(int fd);
+ri_shm_t* ri_shm_new(int fd);
 
 ri_shm_t* ri_shm_named_map(const char *name);
 

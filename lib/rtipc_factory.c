@@ -44,7 +44,7 @@ ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_size_t consumers[], const ri
 
 ri_rtipc_t* ri_rtipc_shm_map(int fd)
 {
-     ri_shm_t *shm = ri_shm_map(fd);
+     ri_shm_t *shm = ri_shm_new(fd);
 
     if (!shm)
         return NULL;

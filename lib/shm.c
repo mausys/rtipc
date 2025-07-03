@@ -18,32 +18,23 @@
 #include "log.h"
 
 
-static int shm_init(ri_shm_t *shm, bool sealing)
+static int shm_init(int fd, size_t size, bool sealing)
 {
-    int r = ftruncate(shm->fd, shm->size);
+    int r = ftruncate(fd, size);
 
     if (r < 0) {
-        LOG_ERR("ftruncate to size=%zu failed: %s", shm->size, strerror(errno));
+        LOG_ERR("ftruncate to size=%zu failed: %s", size, strerror(errno));
         return r;
     }
 
     if (sealing) {
-        r = fcntl(shm->fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
+        r = fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
 
         if (r < 0) {
             LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
             return r;
         }
     }
-
-    shm->mem = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
-
-    if (shm->mem == MAP_FAILED) {
-        LOG_ERR("mmap for %d with size=%zu failed: %s", shm->fd, shm->size, strerror(errno));
-        return r;
-    }
-
-    LOG_INF("mmapped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
 
     return 0;
 }
@@ -52,93 +43,85 @@ static int shm_init(ri_shm_t *shm, bool sealing)
 ri_shm_t* ri_shm_anon_new(size_t size)
 {
     static atomic_uint anr = 0;
-    ri_shm_t *shm = malloc(sizeof(ri_shm_t));
-
-    if (!shm)
-        return NULL;
 
     unsigned nr = atomic_fetch_add_explicit(&anr, 1, memory_order_relaxed);
     char name[64];
 
     snprintf(name, sizeof(name) - 1, "rtipc_%u", nr);
 
-    int r = memfd_create(name, MFD_ALLOW_SEALING);
+    int fd = memfd_create(name, MFD_ALLOW_SEALING);
 
-    if (r < 0) {
+    if (fd < 0) {
         LOG_ERR("memfd_create failed for %s: %s", name, strerror(errno));
         goto fail_create;
     }
 
-    *shm = (ri_shm_t) {
-        .size = size,
-        .fd = r,
-        .owner = true,
-    };
-
-    r = shm_init(shm, true);
+    int r = shm_init(fd, size, true);
 
     if (r < 0)
         goto fail_init;
 
+    ri_shm_t *shm = ri_shm_new(fd);
+
+    if (!shm)
+        goto fail_map;
+
+    shm->owner = true;
+
     LOG_INF("mmapped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
 
-    return shm;
+  return shm;
 
 fail_init:
-    close(shm->fd);
+fail_map:
+    close(fd);
 fail_create:
-    free(shm);
     return NULL;
 }
 
 
 ri_shm_t* ri_shm_named_new(size_t size, const char *name, mode_t mode)
 {
-    ri_shm_t *shm = malloc(sizeof(ri_shm_t));
+    int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, mode);
 
-    if (!shm)
-        return NULL;
+    if (fd < 0) {
+        LOG_ERR("shm_open failed for %s: %s", name, strerror(errno));
+        goto fail_create;
+    }
 
-    *shm = (ri_shm_t) {
-        .size = size,
-        .owner = true,
-    };
+    int r = shm_init(fd, size, false);
+
+    if (r < 0)
+        goto fail_init;
+
+    ri_shm_t *shm = ri_shm_new(fd);
+
+    if(!shm)
+        goto fail_map;
 
     shm->path = strdup(name);
 
     if (!shm->path)
         goto fail_path;
 
-    int r = shm_open(shm->path, O_CREAT | O_EXCL | O_RDWR, mode);
-
-    if (r < 0) {
-        LOG_ERR("shm_open failed for %s: %s", name, strerror(errno));
-        goto fail_create;
-    }
-
-    shm->fd = r;
-
-    r = shm_init(shm, false);
-
-    if (r < 0)
-        goto fail_init;
+    shm->owner = true;
 
     LOG_INF("create shared memory name=%s size=%zu, fd=%d on %p", name, shm->size, shm->fd, shm->mem);
 
     return shm;
 
-fail_init:
-    close(shm->fd);
-    shm_unlink(shm->path);
-fail_create:
-    free(shm->path);
 fail_path:
-    free(shm);
+  ri_shm_delete(shm);
+fail_map:
+fail_init:
+    close(fd);
+    shm_unlink(name);
+fail_create:
     return NULL;
 }
 
 
-ri_shm_t* ri_shm_map(int fd)
+ri_shm_t* ri_shm_new(int fd)
 {
     struct stat stat;
     ri_shm_t *shm = malloc(sizeof(ri_shm_t));

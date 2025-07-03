@@ -150,7 +150,7 @@ void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
         *p_discarded = discarded;
     }
 
-    return ri_channel_get_msg(channel, producer->current);;
+    return ri_channel_get_msg(channel, producer->current);
 }
 
 
