@@ -8,6 +8,5 @@ set(CMAKE_C_STANDARD 11)
 include(GNUInstallDirs)
 
 add_subdirectory(lib)
-add_subdirectory(samples)
 
 
