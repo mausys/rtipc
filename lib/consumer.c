@@ -61,7 +61,7 @@ void* ri_consumer_fetch_tail(ri_consumer_t *consumer)
             }
         }
     } else {
-        /* producer moved tail, use it*/
+        /* producer moved tail, use it */
         consumer->current = tail;
     }
 

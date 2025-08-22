@@ -15,8 +15,8 @@
 #include "consumer.h"
 
 
-#define MAGIC 0x1f0c // lock-free zero-copy atomic triple buffer exchange :)
-
+#define MAGIC 0x1f0c /* lock-free and zero-copy :) */
+#define HEADER_VERSION 1
 
 struct ri_rtipc {
   ri_shm_t *shm;
@@ -28,6 +28,8 @@ struct ri_rtipc {
 
 
 typedef struct {
+  uint16_t magic;
+  uint16_t version;
   uint32_t cookie;  /**< cookie for object protocol */
   uint32_t num_channels[2]; /**< number of channels for producers / consumers */
   uint16_t cacheline_size;
@@ -92,25 +94,34 @@ static size_t get_channels_offset(unsigned num)
 
 static int validate_header(const shm_header_t *header)
 {
-    int r = 0;
+    if (header->magic != MAGIC) {
+        LOG_ERR("magic missmatch 0x%x != 0x%x", header->magic, MAGIC);
+        return -EINVAL;
+    }
+
+    if (header->version != HEADER_VERSION) {
+        LOG_ERR("verison missmatch %u != %u", header->version, HEADER_VERSION);
+        return -EINVAL;
+    }
 
     if (header->cacheline_size != cacheline_size()) {
         LOG_ERR("cacheline_size missmatch %u != %zu", header->cacheline_size, cacheline_size());
-        r = -EINVAL;
+        return -EINVAL;
     }
-
 
     if (header->atomic_size != sizeof(ri_atomic_index_t)) {
         LOG_ERR("atomic size missmatch %u != %zu", header->atomic_size, sizeof(ri_atomic_index_t));
-        r = -EINVAL;
+        return -EINVAL;
     }
 
-    return r;
+    return 0;
 }
 
 
 static void init_header(shm_header_t *header, uint32_t num_consumers, uint32_t num_producers)
 {
+    header->magic = MAGIC;
+    header->version = HEADER_VERSION;
     header->cacheline_size = cacheline_size();
     header->atomic_size = sizeof(ri_atomic_index_t);
     header->num_channels[0] = num_consumers;

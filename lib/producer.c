@@ -122,23 +122,21 @@ void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
         if (!full) {
             /* message queue not full, simply use next */
             producer->current = next;
-        } else {
-            if (!consumed) {
-                /* message queue is full, but no message is consumed yet, so try to move tail */
-                if (move_tail(channel, tail)) {
-                    /* message queue is full -> tail & INDEX_MASK == next */
-                    producer->current = next;
-                } else {
-                    /*  consumer just started and consumed tail
-                    *  we're assuming that consumer flagged tail (tail | CONSUMED_FLAG),
-                    *  if this this is not the case, consumer already moved on
-                    *  and we will use tail  */
-                    discarded = overrun(producer, tail | RI_CONSUMED_FLAG);
-                }
+        } else if (!consumed) {
+            /* message queue is full, but no message is consumed yet, so try to move tail */
+            if (move_tail(channel, tail)) {
+                /* message queue is full -> tail & INDEX_MASK == next */
+                producer->current = next;
             } else {
-                /* overrun the consumer, if the consumer keeps tail*/
-                discarded = overrun(producer, tail);
+                /*  consumer just started and consumed tail
+                *  we're assuming that consumer flagged tail (tail | CONSUMED_FLAG),
+                *  if this this is not the case, consumer already moved on
+                *  and we will use tail  */
+                discarded = overrun(producer, tail | RI_CONSUMED_FLAG);
             }
+        } else {
+            /* overrun the consumer, if the consumer keeps tail */
+            discarded = overrun(producer, tail);
         }
     }
 

@@ -39,7 +39,7 @@ size_t cacheline_size(void)
 
     cls = get_cls_level(_SC_LEVEL1_DCACHE_LINESIZE, alignof(max_align_t));
     cls = get_cls_level(_SC_LEVEL2_CACHE_LINESIZE, cls);
-    cls = get_cls_level(_SC_LEVEL3_CACHE_LINESIZE, cls);
+    /* LEVEL 3 Cache is usually shared */
 
     atomic_store_explicit(&s_cls, cls, memory_order_relaxed);
 
