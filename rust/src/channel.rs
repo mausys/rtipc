@@ -381,11 +381,7 @@ impl ConsumerChannel {
             let next = self.channel.queue_load(self.current);
 
             if next == INVALID_INDEX {
-                if self.current == INVALID_INDEX {
-                    return FetchResult::None;
-                } else {
-                    return FetchResult::Same;
-                }
+                return FetchResult::Same;
             }
 
             if self
