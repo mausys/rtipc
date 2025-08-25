@@ -43,9 +43,9 @@ static inline void* ri_channel_get_msg(const ri_channel_t *channel, ri_index_t i
     return (void*)(channel->msgs_start_addr + (index * channel->msg_size));
 }
 
-size_t ri_channel_calc_size(const ri_channel_size_t *size);
+size_t ri_channel_calc_size(const ri_channel_param_t *size);
 
-uintptr_t ri_channel_init(ri_channel_t *channel, uintptr_t start, const ri_channel_size_t *size);
+uintptr_t ri_channel_init(ri_channel_t *channel, uintptr_t start, const ri_channel_param_t *size);
 
 void ri_channel_shm_init(ri_channel_t *channel);
 

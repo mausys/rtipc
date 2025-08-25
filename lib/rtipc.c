@@ -37,7 +37,7 @@ typedef struct {
 } shm_header_t;
 
 
-typedef uintptr_t (*init_channel_fn)(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start, const ri_channel_size_t *size);
+typedef uintptr_t (*init_channel_fn)(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start, const ri_channel_param_t *size);
 
 
 static size_t header_size(void)
@@ -46,7 +46,7 @@ static size_t header_size(void)
 }
 
 
-static unsigned count_channels(const ri_channel_size_t channels[])
+static unsigned count_channels(const ri_channel_param_t channels[])
 {
     if (!channels)
         return 0;
@@ -60,15 +60,15 @@ static unsigned count_channels(const ri_channel_size_t channels[])
 }
 
 
-static const ri_channel_size_t* shm_get_channel_size(void *shm_start, unsigned idx)
+static const ri_channel_param_t* shm_get_channel_size(void *shm_start, unsigned idx)
 {
-    const ri_channel_size_t *sizes = mem_offset(shm_start, header_size());
+    const ri_channel_param_t *sizes = mem_offset(shm_start, header_size());
 
     return &sizes[idx];
 }
 
 
-static uintptr_t init_consumer(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start, const ri_channel_size_t *size)
+static uintptr_t init_consumer(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start, const ri_channel_param_t *size)
 {
   ri_consumer_t *consumer = &rtipc->consumers[idx];
 
@@ -76,7 +76,7 @@ static uintptr_t init_consumer(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start,
 }
 
 
-static uintptr_t init_producer(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start, const ri_channel_size_t *size)
+static uintptr_t init_producer(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start, const ri_channel_param_t *size)
 {
   ri_producer_t *producer = &rtipc->producers[idx];
 
@@ -87,7 +87,7 @@ static uintptr_t init_producer(ri_rtipc_t *rtipc, unsigned idx, uintptr_t start,
 static size_t get_channels_offset(unsigned num)
 {
     size_t size = header_size();
-    size += num * sizeof(ri_channel_size_t); // table size
+    size += num * sizeof(ri_channel_param_t); // table size
     return cacheline_aligned(size);
 }
 
@@ -129,7 +129,7 @@ static void init_header(shm_header_t *header, uint32_t num_consumers, uint32_t n
 }
 
 
-size_t ri_calc_shm_size(const ri_channel_size_t consumers[], const ri_channel_size_t producers[])
+size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_param_t producers[])
 {
     unsigned num_consumers = count_channels(consumers);
     unsigned num_producers = count_channels(producers);
@@ -195,13 +195,13 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm)
         goto fail_size;
 
     for (unsigned i = 0; i < num_g0; i++)  {
-        const ri_channel_size_t* channel_size = shm_get_channel_size(shm->mem, i);
+        const ri_channel_param_t* channel_size = shm_get_channel_size(shm->mem, i);
 
         addr = init_channel_g0(rtipc, i, addr, channel_size);
     }
 
     for (unsigned i = 0; i < num_g1; i++)  {
-        const ri_channel_size_t* channel_size = shm_get_channel_size(shm->mem, num_g0 + i);
+        const ri_channel_param_t* channel_size = shm_get_channel_size(shm->mem, num_g0 + i);
 
         addr = init_channel_g1(rtipc, i, addr, channel_size);
     }
@@ -228,7 +228,7 @@ fail_alloc:
 }
 
 
-ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_size_t consumers[], const ri_channel_size_t producers[])
+ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers[], const ri_channel_param_t producers[])
 {
     if (shm->size <= header_size())
         return NULL;
@@ -240,7 +240,7 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_size_t consumers[
 
     init_header(header, num_consumers, num_producers);
 
-    ri_channel_size_t *channel_table = mem_offset(shm->mem, header_size());
+    ri_channel_param_t *channel_table = mem_offset(shm->mem, header_size());
 
     for (unsigned i = 0; i < num_consumers; i++)
         channel_table[i] = consumers[i];
@@ -294,13 +294,13 @@ ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned idx)
 }
 
 
-unsigned ri_rticp_get_num_consumers(const ri_rtipc_t *rtipc)
+unsigned ri_rticp_num_consumers(const ri_rtipc_t *rtipc)
 {
     return rtipc->num_consumers;
 }
 
 
-unsigned ri_rtipc_get_num_producers(const ri_rtipc_t *rtipc)
+unsigned ri_rtipc_num_producers(const ri_rtipc_t *rtipc)
 {
     return rtipc->num_producers;
 }

@@ -4,14 +4,14 @@
 #include "log.h"
 
 
-static size_t channel_data_size(const ri_channel_size_t *size)
+static size_t channel_data_size(const ri_channel_param_t *size)
 {
     unsigned n = RI_CHANNEL_MIN_MSGS + size->add_msgs;
 
     return n * cacheline_aligned(size->msg_size);
 }
 
-static size_t channel_queue_size(const ri_channel_size_t *size)
+static size_t channel_queue_size(const ri_channel_param_t *size)
 {
     unsigned n = RI_CHANNEL_MIN_MSGS + size->add_msgs;
     n += 2; /* tail + head*/
@@ -19,13 +19,13 @@ static size_t channel_queue_size(const ri_channel_size_t *size)
     return cacheline_aligned(n * sizeof(ri_atomic_index_t));
 }
 
-size_t ri_channel_calc_size(const ri_channel_size_t *size)
+size_t ri_channel_calc_size(const ri_channel_param_t *size)
 {
     /* tail + head + queue*/
     return  channel_queue_size(size) + channel_data_size(size);
 }
 
-uintptr_t ri_channel_init(ri_channel_t *channel, uintptr_t start, const ri_channel_size_t *size)
+uintptr_t ri_channel_init(ri_channel_t *channel, uintptr_t start, const ri_channel_param_t *size)
 {
     ri_atomic_index_t *indices = (ri_atomic_index_t*) start;
 

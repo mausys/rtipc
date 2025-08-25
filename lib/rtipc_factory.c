@@ -1,7 +1,7 @@
 #include "rtipc_private.h"
 
 
-ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_size_t consumers[], const ri_channel_size_t producers[])
+ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[])
 {
     size_t size = ri_calc_shm_size(consumers, producers);
 
@@ -21,7 +21,7 @@ ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_size_t consumers[], const ri_
 }
 
 
-ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_size_t consumers[], const ri_channel_size_t producers[], const char *name, mode_t mode)
+ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[], const char *name, mode_t mode)
 {
     size_t size = ri_calc_shm_size(consumers, producers);
 

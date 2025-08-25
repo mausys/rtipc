@@ -5,6 +5,12 @@
 
 #include "log.h"
 
+size_t ri_producer_msg_size(const ri_producer_t *producer)
+{
+  return producer->channel.msg_size;
+}
+
+
 /* set the next message as head
 * get_next(msgq, producer->current) after this call
 * will return INDEX_END */
@@ -60,7 +66,7 @@ static bool overrun(ri_producer_t *producer, ri_index_t tail)
     }
 }
 
-uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_channel_size_t *size)
+uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_channel_param_t *size)
 {
     *producer = (ri_producer_t) {
         .current = 0,
@@ -74,7 +80,7 @@ uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_ch
 /* inserts the next message into the queue and
  * if the queue is full, discard the last message that is not
  * used by consumer. Returns pointer to new message */
-void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
+int ri_producer_force_put(ri_producer_t *producer)
 {
     ri_channel_t *channel = &producer->channel;
     bool discarded = false;
@@ -144,17 +150,13 @@ void* ri_producer_force_put(ri_producer_t *producer, bool *p_discarded)
         LOG_ERR("old_current == producer->current 0x%x %i", old_current, discarded);
     }
 
-    if (p_discarded) {
-        *p_discarded = discarded;
-    }
-
-    return ri_channel_get_msg(channel, producer->current);
+    return discarded ? 1 : 0;
 }
 
 
 
 /* trys to insert the next message into the queue */
-void* ri_producer_try_put(ri_producer_t *producer)
+int ri_producer_try_put(ri_producer_t *producer)
 {
     ri_channel_t *channel = &producer->channel;
 
@@ -177,7 +179,7 @@ void* ri_producer_try_put(ri_producer_t *producer)
             producer->current = producer->overrun;
             producer->overrun = RI_INDEX_INVALID;
 
-            return ri_channel_get_msg(channel, producer->current);
+            return 0;
         }
     } else {
         /* no previous overrun, use next or after next message */
@@ -186,15 +188,15 @@ void* ri_producer_try_put(ri_producer_t *producer)
 
             producer->current = next;
 
-            return ri_channel_get_msg(channel, producer->current);
+            return 0;
         }
     }
 
-    return NULL;
+    return -1;
 }
 
 
-void* ri_producer_get_msg(ri_producer_t *producer)
+void* ri_producer_msg(ri_producer_t *producer)
 {
     return ri_channel_get_msg(&producer->channel, producer->current);
 }

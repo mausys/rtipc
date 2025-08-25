@@ -13,6 +13,6 @@ typedef struct ri_producer {
 } ri_producer_t;
 
 
-uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_channel_size_t *size);
+uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_channel_param_t *size);
 
-void* ri_producer_get_msg(ri_producer_t *producer);
+void* ri_producer_msg(ri_producer_t *producer);

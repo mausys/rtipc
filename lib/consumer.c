@@ -1,8 +1,13 @@
 #include "consumer.h"
 #include "channel.h"
 
+size_t ri_consumer_msg_size(const ri_consumer_t *consumer)
+{
+  return consumer->channel.msg_size;
+}
 
-uintptr_t ri_consumer_init(ri_consumer_t *consumer, uintptr_t start, const ri_channel_size_t *size)
+
+uintptr_t ri_consumer_init(ri_consumer_t *consumer, uintptr_t start, const ri_channel_param_t *size)
 {
     *consumer = (ri_consumer_t) {
         .current = 0,
@@ -11,7 +16,7 @@ uintptr_t ri_consumer_init(ri_consumer_t *consumer, uintptr_t start, const ri_ch
     return ri_channel_init(&consumer->channel, start, size);
 }
 
-void* ri_consumer_fetch_head(ri_consumer_t *consumer)
+int ri_consumer_fetch_head(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
 
@@ -20,7 +25,7 @@ void* ri_consumer_fetch_head(ri_consumer_t *consumer)
 
         if (tail == RI_INDEX_INVALID) {
             /* or CONSUMED_FLAG doesn't change INDEX_END*/
-            return NULL;
+            return -1;
         }
 
         ri_index_t head = atomic_load(channel->head);
@@ -36,17 +41,17 @@ void* ri_consumer_fetch_head(ri_consumer_t *consumer)
         }
     }
 
-    return ri_channel_get_msg(channel, consumer->current);
+    return 0;
 }
 
 
-void* ri_consumer_fetch_tail(ri_consumer_t *consumer)
+int ri_consumer_fetch_tail(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
     ri_index_t tail = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);
 
     if (tail == RI_INDEX_INVALID)
-        return NULL;
+        return -1;
 
     if (tail & RI_CONSUMED_FLAG) {
         /* try to get next message */
@@ -67,8 +72,8 @@ void* ri_consumer_fetch_tail(ri_consumer_t *consumer)
 
     if (consumer->current == RI_INDEX_INVALID) {
         /* nothing produced yet */
-        return NULL;
+        return -1;
     }
 
-    return ri_channel_get_msg(channel, consumer->current);
+    return 0;
 }

@@ -4,4 +4,4 @@
 #include "shm.h"
 
 ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm);
-ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_size_t consumers[], const ri_channel_size_t producers[]);
+ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers[], const ri_channel_param_t producers[]);
