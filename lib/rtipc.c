@@ -92,7 +92,7 @@ static size_t get_channels_offset(unsigned num)
 }
 
 
-static int validate_header(const shm_header_t *header)
+static int validate_header(const shm_header_t *header, uint32_t cookie)
 {
     if (header->magic != MAGIC) {
         LOG_ERR("magic missmatch 0x%x != 0x%x", header->magic, MAGIC);
@@ -101,6 +101,11 @@ static int validate_header(const shm_header_t *header)
 
     if (header->version != HEADER_VERSION) {
         LOG_ERR("verison missmatch %u != %u", header->version, HEADER_VERSION);
+        return -EINVAL;
+    }
+
+    if (header->cookie != cookie) {
+        LOG_ERR("cookie missmatch %x != %x", header->cookie, cookie);
         return -EINVAL;
     }
 
@@ -118,10 +123,11 @@ static int validate_header(const shm_header_t *header)
 }
 
 
-static void init_header(shm_header_t *header, uint32_t num_consumers, uint32_t num_producers)
+static void init_header(shm_header_t *header, uint32_t num_consumers, uint32_t num_producers, uint32_t cookie)
 {
     header->magic = MAGIC;
     header->version = HEADER_VERSION;
+    header->cookie = cookie;
     header->cacheline_size = cacheline_size();
     header->atomic_size = sizeof(ri_atomic_index_t);
     header->num_channels[0] = num_consumers;
@@ -147,7 +153,7 @@ size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_p
 
 
 
-ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm)
+ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie)
 {
     ri_rtipc_t *rtipc = calloc(1, sizeof(ri_rtipc_t));
 
@@ -161,7 +167,7 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm)
 
     const shm_header_t *header = shm->mem;
 
-    if (validate_header(header) < 0)
+    if (validate_header(header, cookie) < 0)
         goto fail_valid;
 
     unsigned num_g0 =  header->num_channels[0];
@@ -228,7 +234,7 @@ fail_alloc:
 }
 
 
-ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers[], const ri_channel_param_t producers[])
+ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers[], const ri_channel_param_t producers[], uint32_t cookie)
 {
     if (shm->size <= header_size())
         return NULL;
@@ -238,7 +244,7 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers
 
     shm_header_t *header = shm->mem;
 
-    init_header(header, num_consumers, num_producers);
+    init_header(header, num_consumers, num_producers, cookie);
 
     ri_channel_param_t *channel_table = mem_offset(shm->mem, header_size());
 
@@ -248,7 +254,7 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers
     for (unsigned i = 0; i < num_producers; i++)
         channel_table[num_consumers + i] = producers[i];
 
-    ri_rtipc_t *rtipc = ri_rtipc_new(shm);
+    ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie);
 
     if (!rtipc)
         return NULL;

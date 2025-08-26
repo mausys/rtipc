@@ -80,7 +80,7 @@ uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_ch
 /* inserts the next message into the queue and
  * if the queue is full, discard the last message that is not
  * used by consumer. Returns pointer to new message */
-int ri_producer_force_put(ri_producer_t *producer)
+ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
     ri_channel_t *channel = &producer->channel;
     bool discarded = false;
@@ -133,6 +133,7 @@ int ri_producer_force_put(ri_producer_t *producer)
             if (move_tail(channel, tail)) {
                 /* message queue is full -> tail & INDEX_MASK == next */
                 producer->current = next;
+                discarded = true;
             } else {
                 /*  consumer just started and consumed tail
                 *  we're assuming that consumer flagged tail (tail | CONSUMED_FLAG),
@@ -150,13 +151,13 @@ int ri_producer_force_put(ri_producer_t *producer)
         LOG_ERR("old_current == producer->current 0x%x %i", old_current, discarded);
     }
 
-    return discarded ? 1 : 0;
+    return discarded ? RI_PRODUCE_RESULT_DISCARDED : RI_PRODUCE_RESULT_SUCCESS;
 }
 
 
 
 /* trys to insert the next message into the queue */
-int ri_producer_try_put(ri_producer_t *producer)
+ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 {
     ri_channel_t *channel = &producer->channel;
 
@@ -179,7 +180,7 @@ int ri_producer_try_put(ri_producer_t *producer)
             producer->current = producer->overrun;
             producer->overrun = RI_INDEX_INVALID;
 
-            return 0;
+            return RI_PRODUCE_RESULT_SUCCESS;
         }
     } else {
         /* no previous overrun, use next or after next message */
@@ -188,11 +189,11 @@ int ri_producer_try_put(ri_producer_t *producer)
 
             producer->current = next;
 
-            return 0;
+            return RI_PRODUCE_RESULT_SUCCESS;
         }
     }
 
-    return -1;
+    return RI_PRODUCE_RESULT_FAIL;
 }
 
 

@@ -16,7 +16,7 @@ uintptr_t ri_consumer_init(ri_consumer_t *consumer, uintptr_t start, const ri_ch
     return ri_channel_init(&consumer->channel, start, size);
 }
 
-int ri_consumer_fetch_head(ri_consumer_t *consumer)
+ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
 
@@ -25,7 +25,7 @@ int ri_consumer_fetch_head(ri_consumer_t *consumer)
 
         if (tail == RI_INDEX_INVALID) {
             /* or CONSUMED_FLAG doesn't change INDEX_END*/
-            return -1;
+            return RI_CONSUME_RESULT_NO_MSG;
         }
 
         ri_index_t head = atomic_load(channel->head);
@@ -41,39 +41,47 @@ int ri_consumer_fetch_head(ri_consumer_t *consumer)
         }
     }
 
-    return 0;
+    return RI_CONSUME_RESULT_DISCARDED;
 }
 
 
-int ri_consumer_fetch_tail(ri_consumer_t *consumer)
+ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
     ri_index_t tail = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);
 
     if (tail == RI_INDEX_INVALID)
-        return -1;
+        return RI_CONSUME_RESULT_NO_MSG;
 
-    if (tail & RI_CONSUMED_FLAG) {
-        /* try to get next message */
-        ri_index_t next = ri_channel_get_next(channel, consumer->current);
-
-        if (next != RI_INDEX_INVALID) {
-            if (atomic_compare_exchange_strong(channel->tail, &tail, next | RI_CONSUMED_FLAG)) {
-                consumer->current = next;
-            } else {
-                /* producer just moved tail, use it */
-                consumer->current = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);
-            }
-        }
-    } else {
-        /* producer moved tail, use it */
+    if ((tail & RI_CONSUMED_FLAG) == 0) {
+        /* producer moved tail (force_push), so use it; one or more messages were discarded */
         consumer->current = tail;
+        return RI_CONSUME_RESULT_DISCARDED;
     }
 
-    if (consumer->current == RI_INDEX_INVALID) {
-        /* nothing produced yet */
-        return -1;
+    /* try to get next message */
+    ri_index_t next = ri_channel_get_next(channel, consumer->current);
+
+    if (next == RI_INDEX_INVALID) {
+      /* end of queue, no newer message available */
+      return RI_CONSUME_RESULT_NO_UPDATE;
     }
 
-    return 0;
+    if (atomic_compare_exchange_strong(channel->tail, &tail, next | RI_CONSUMED_FLAG)) {
+        consumer->current = next;
+        return RI_CONSUME_RESULT_SUCCESS;
+    } else {
+        /* producer just moved tail, use it */
+        consumer->current = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);
+        return RI_CONSUME_RESULT_DISCARDED;
+    }
+}
+
+
+const void* ri_consumer_msg(ri_consumer_t *consumer)
+{
+  if (consumer->current == RI_INDEX_INVALID)
+    return NULL;
+
+  return ri_channel_get_msg(&consumer->channel, consumer->current);
 }

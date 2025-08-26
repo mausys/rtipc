@@ -50,6 +50,22 @@ typedef struct ri_consumer ri_consumer_t;
 typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
                           const char *func, const char *format, va_list ap);
 
+
+
+typedef enum ri_consume_result {
+    RI_CONSUME_RESULT_NO_MSG = -1,
+    RI_CONSUME_RESULT_NO_UPDATE = 0,
+    RI_CONSUME_RESULT_SUCCESS = 1,
+    RI_CONSUME_RESULT_DISCARDED = 2,
+} ri_consume_result_t;
+
+
+typedef enum ri_produce_result {
+    RI_PRODUCE_RESULT_FAIL = -1,
+    RI_PRODUCE_RESULT_SUCCESS = 1,
+    RI_PRODUCE_RESULT_DISCARDED = 2,
+} ri_produce_result_t;
+
 /**
  * @brief ri_set_log_handler redirects rtipc library logs to custom handler
  *
@@ -66,9 +82,10 @@ size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_p
  *
  * @param consumers (msg_size = 0) terminated list of of consumers (owner perspective) channels
  * @param producers (msg_size = 0) terminated list of of producers (owner perspective) channels
+ * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[]);
+ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[], uint32_t cookie);
 
 
 /**
@@ -78,10 +95,11 @@ ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[], const ri
  * @param consumers (msg_size = 0) terminated list of of consumers (owner perspective) channels
  * @param producers (msg_size = 0) terminated list of of producers (owner perspective) channels
  * @param name shared memory name (file system)
+ * @param cookie user defined velue that must match the other side
  * @param mode used by shm_open
  * @return pointer to the new shared memory object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[], const char *name, mode_t mode);
+ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[], const char *name, mode_t mode, uint32_t cookie);
 
 
 /**
@@ -89,9 +107,10 @@ ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[], const r
  *        retrieved from owner
  *
  * @param fd file descriptor of shared memory
+ * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc memory object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_shm_map(int fd);
+ri_rtipc_t* ri_rtipc_shm_map(int fd, uint32_t cookie);
 
 
 /**
@@ -99,9 +118,10 @@ ri_rtipc_t* ri_rtipc_shm_map(int fd);
  *        retrieved from owner
  *
  * @param name shared memory name (file system)
+ * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_named_shm_map(const char *name);
+ri_rtipc_t* ri_rtipc_named_shm_map(const char *name, uint32_t cookie);
 
 
 /**
@@ -151,14 +171,23 @@ ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned index);
  */
 void ri_rtipc_dump(const ri_rtipc_t *rtipc);
 
+
 /**
- * @brief consumer_fetch_head fetches a message from channel
+ * @brief ri_consumer_msg get pointer to current message
+ *
+ * @param consumer pointer to consumer
+ * @return pointer to current message (always valid)
+ */
+const void* ri_consumer_msg(ri_consumer_t *consumer);
+
+/**
+ * @brief consumer_flush get message from the head, discarding all older messages
  *
  * @param consumer pointer to consumer
  * @return pointer to the latest message updated by the remote producer; NULL until remote producer updates it for the first time
  */
-int ri_consumer_fetch_head(ri_consumer_t *consumer);
-int ri_consumer_fetch_tail(ri_consumer_t *consumer);
+ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
+ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
 
 
 /**
@@ -176,7 +205,7 @@ void* ri_producer_msg(ri_producer_t *producer);
  * @param producer pointer to producer
  * @return 0 => success, 1 => success, but discarded last unused message
  */
-int ri_producer_force_put(ri_producer_t *producer);
+ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
 
 /**
  * @brief ri_producer_try_put submits current message and get a new message,
@@ -185,7 +214,7 @@ int ri_producer_force_put(ri_producer_t *producer);
  * @param producer pointer to producer
  * @return 0 => success, -1 => fail, because queue was full
  */
-int ri_producer_try_put(ri_producer_t *producer);
+ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 
 
 
