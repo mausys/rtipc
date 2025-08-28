@@ -28,11 +28,19 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
             return RI_CONSUME_RESULT_NO_MSG;
         }
 
+        if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK)) {
+            return RI_CONSUME_RESULT_ERROR;
+        }
+
         ri_index_t head = atomic_load(channel->head);
+
+        if (!ri_channel_index_valid(channel, head)) {
+            return RI_CONSUME_RESULT_ERROR;
+        }
 
         tail |= RI_CONSUMED_FLAG;
 
-        if (atomic_compare_exchange_strong(channel->tail, &tail, head | RI_CONSUMED_FLAG)) {
+        if (ri_channel_tail_compare_exchange(channel, tail, head | RI_CONSUMED_FLAG)) {
             /* only accept head if producer didn't move tail,
             *  otherwise the producer could fill the whole queue and the head could be the
             *  producers current message  */
@@ -48,10 +56,13 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer)
 {
     ri_channel_t *channel = &consumer->channel;
-    ri_index_t tail = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);
+    ri_index_t tail = ri_channel_tail_fetch_or(channel, RI_CONSUMED_FLAG);
 
     if (tail == RI_INDEX_INVALID)
         return RI_CONSUME_RESULT_NO_MSG;
+
+    if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
+        return RI_CONSUME_RESULT_ERROR;
 
     if ((tail & RI_CONSUMED_FLAG) == 0) {
         /* producer moved tail (force_push), so use it; one or more messages were discarded */
@@ -60,19 +71,27 @@ ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer)
     }
 
     /* try to get next message */
-    ri_index_t next = ri_channel_get_next(channel, consumer->current);
+    ri_index_t next = ri_channel_queue_load(channel, consumer->current);
 
-    if (next == RI_INDEX_INVALID) {
+    if (next == RI_INDEX_INVALID)
       /* end of queue, no newer message available */
       return RI_CONSUME_RESULT_NO_UPDATE;
-    }
 
-    if (atomic_compare_exchange_strong(channel->tail, &tail, next | RI_CONSUMED_FLAG)) {
+    if (!ri_channel_index_valid(channel, next))
+        return RI_CONSUME_RESULT_ERROR;
+
+    if (ri_channel_tail_compare_exchange(channel, tail, next | RI_CONSUMED_FLAG)) {
         consumer->current = next;
         return RI_CONSUME_RESULT_SUCCESS;
     } else {
         /* producer just moved tail, use it */
-        consumer->current = atomic_fetch_or(channel->tail, RI_CONSUMED_FLAG);
+        ri_index_t current = ri_channel_tail_fetch_or(channel, RI_CONSUMED_FLAG);
+
+        if (!ri_channel_index_valid(channel, current))
+            return RI_CONSUME_RESULT_ERROR;
+
+        consumer->current = current;
+
         return RI_CONSUME_RESULT_DISCARDED;
     }
 }

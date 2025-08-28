@@ -53,6 +53,7 @@ typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
 
 
 typedef enum ri_consume_result {
+    RI_CONSUME_RESULT_ERROR = -2,
     RI_CONSUME_RESULT_NO_MSG = -1,
     RI_CONSUME_RESULT_NO_UPDATE = 0,
     RI_CONSUME_RESULT_SUCCESS = 1,
@@ -61,6 +62,7 @@ typedef enum ri_consume_result {
 
 
 typedef enum ri_produce_result {
+    RI_PRODUCE_RESULT_ERROR = -2,
     RI_PRODUCE_RESULT_FAIL = -1,
     RI_PRODUCE_RESULT_SUCCESS = 1,
     RI_PRODUCE_RESULT_DISCARDED = 2,

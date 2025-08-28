@@ -216,7 +216,18 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie)
     if (addr > addr_end)
         goto fail_size;
 
+    for (unsigned i = 0; i < rtipc->num_producers; i++) {
+      int r = ri_producer_alloc_queue(&rtipc->producers[i]);
+      if (r < 0)
+        goto fail_queues;
+
+    }
+
     return rtipc;
+
+fail_queues:
+    for (unsigned i = 0; i < rtipc->num_producers; i++)
+      ri_producer_free_queue(&rtipc->producers[i]);
 
 fail_size:
     if (rtipc->producers)
@@ -271,8 +282,12 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm, const ri_channel_param_t consumers
 
 void ri_rtipc_delete(ri_rtipc_t *rtipc)
 {
+    for (unsigned i = 0; i < rtipc->num_producers; i++)
+        ri_producer_free_queue(&rtipc->producers[i]);
+
     if (rtipc->producers)
         free(rtipc->producers);
+
     if (rtipc->consumers)
         free(rtipc->consumers);
 
