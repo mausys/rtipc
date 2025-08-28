@@ -1,9 +1,9 @@
 #include "producer.h"
 
-#include <stdbool.h>
 #include <assert.h>
-#include <stdlib.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 #include "log.h"
 
@@ -28,14 +28,12 @@ int ri_producer_alloc_queue(ri_producer_t *producer)
   return 0;
 }
 
-
 void ri_producer_free_queue(ri_producer_t *producer)
 {
   if (producer->queue) {
     free(producer->queue);
     producer->queue = NULL;
   }
-
 }
 
 size_t ri_producer_msg_size(const ri_producer_t *producer)
@@ -43,90 +41,83 @@ size_t ri_producer_msg_size(const ri_producer_t *producer)
   return producer->channel.msg_size;
 }
 
-
 static void queue_store(ri_producer_t *producer, ri_index_t idx, ri_index_t val)
 {
   producer->queue[idx] = val;
   ri_channel_queue_store(&producer->channel, idx, val);
 }
 
-
-
 static void enqueue_first_msg(ri_producer_t *producer)
 {
-    ri_channel_t *channel = &producer->channel;
+  ri_channel_t *channel = &producer->channel;
 
-    /* current message is the new end of chain*/
-    queue_store(producer, producer->current, RI_INDEX_INVALID);
+  /* current message is the new end of chain*/
+  queue_store(producer, producer->current, RI_INDEX_INVALID);
 
-    ri_channel_tail_store(channel, producer->current);
+  ri_channel_tail_store(channel, producer->current);
 
-    producer->head = producer->current;
+  producer->head = producer->current;
 
-    /* announce the new head for consumer_get_head */
-    ri_channel_head_store(channel, producer->head);
+  /* announce the new head for consumer_get_head */
+  ri_channel_head_store(channel, producer->head);
 }
-
 
 /* set the next message as head
 * get_next(msgq, producer->current) after this call
 * will return INDEX_END */
 static void enqueue_msg(ri_producer_t *producer)
 {
-    ri_channel_t *channel = &producer->channel;
+  ri_channel_t *channel = &producer->channel;
 
-    /* current message is the new end of chain*/
-    queue_store(producer, producer->current, RI_INDEX_INVALID);
+  /* current message is the new end of chain*/
+  queue_store(producer, producer->current, RI_INDEX_INVALID);
 
-    /* append current message to the chain */
-    queue_store(producer, producer->head, producer->current);
+  /* append current message to the chain */
+  queue_store(producer, producer->head, producer->current);
 
-    producer->head = producer->current;
+  producer->head = producer->current;
 
-    /* announce the new head for consumer_get_head */
-    ri_channel_head_store(channel, producer->head);
+  /* announce the new head for consumer_get_head */
+  ri_channel_head_store(channel, producer->head);
 }
-
-
-
 
 static bool move_tail(ri_producer_t *producer, ri_index_t tail)
 {
-    ri_index_t next = producer->queue[tail & RI_INDEX_MASK];
+  ri_index_t next = producer->queue[tail & RI_INDEX_MASK];
 
-    return ri_channel_tail_compare_exchange(&producer->channel, tail, next);
+  return ri_channel_tail_compare_exchange(&producer->channel, tail, next);
 }
 
 /* try to jump over tail blocked by consumer */
 static bool overrun(ri_producer_t *producer, ri_index_t tail)
 {
-    const ri_channel_t *channel = &producer->channel;
+  const ri_channel_t *channel = &producer->channel;
 
-    ri_index_t new_current = producer->queue[tail & RI_INDEX_MASK]; /* next */
-    ri_index_t new_tail = producer->queue[new_current]; /* after next */
+  ri_index_t new_current = producer->queue[tail & RI_INDEX_MASK]; /* next */
+  ri_index_t new_tail = producer->queue[new_current];             /* after next */
 
-    if (ri_channel_tail_compare_exchange(channel, tail, new_tail)) {
-        producer->overrun = tail & RI_INDEX_MASK;
-        producer->current = new_current;
+  if (ri_channel_tail_compare_exchange(channel, tail, new_tail)) {
+    producer->overrun = tail & RI_INDEX_MASK;
+    producer->current = new_current;
 
-        return true;
-    } else {
-        /* consumer just released tail, so use it */
-        producer->current = tail & RI_INDEX_MASK;
+    return true;
+  } else {
+    /* consumer just released tail, so use it */
+    producer->current = tail & RI_INDEX_MASK;
 
-        return false;
-    }
+    return false;
+  }
 }
 
 uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_channel_param_t *size)
 {
-    *producer = (ri_producer_t) {
-        .current = 0,
-        .overrun = RI_INDEX_INVALID,
-        .head = RI_INDEX_INVALID,
-    };
+  *producer = (ri_producer_t) {
+      .current = 0,
+      .overrun = RI_INDEX_INVALID,
+      .head = RI_INDEX_INVALID,
+  };
 
-    return ri_channel_init(&producer->channel, start, size);
+  return ri_channel_init(&producer->channel, start, size);
 }
 
 /* inserts the next message into the queue and
@@ -134,134 +125,131 @@ uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_ch
  * used by consumer. Returns pointer to new message */
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
-    ri_index_t next = producer->queue[producer->current];
+  ri_index_t next = producer->queue[producer->current];
 
-    if (producer->head == RI_INDEX_INVALID) {
-      enqueue_first_msg(producer);
-      producer->current = next;
-      return RI_PRODUCE_RESULT_SUCCESS;
-    }
+  if (producer->head == RI_INDEX_INVALID) {
+    enqueue_first_msg(producer);
+    producer->current = next;
+    return RI_PRODUCE_RESULT_SUCCESS;
+  }
 
-    ri_channel_t *channel = &producer->channel;
+  ri_channel_t *channel = &producer->channel;
 
-    bool discarded = false;
+  bool discarded = false;
 
-    enqueue_msg(producer);
+  enqueue_msg(producer);
 
-    ri_index_t tail = ri_channel_tail_load(channel);
+  ri_index_t tail = ri_channel_tail_load(channel);
 
-    if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
-      return RI_PRODUCE_RESULT_ERROR;
+  if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
+    return RI_PRODUCE_RESULT_ERROR;
 
-    bool consumed = !!(tail & RI_CONSUMED_FLAG);
+  bool consumed = !!(tail & RI_CONSUMED_FLAG);
 
-    bool full = (next == (tail & RI_INDEX_MASK));
+  bool full = (next == (tail & RI_INDEX_MASK));
 
-    if (producer->overrun != RI_INDEX_INVALID) {
-        /* we overran the consumer and moved the tail, use overran message as
+  if (producer->overrun != RI_INDEX_INVALID) {
+    /* we overran the consumer and moved the tail, use overran message as
         * soon as the consumer releases it */
-        if (consumed) {
-            /* consumer released overrun message, so we can use it */
-            /* requeue overrun */
-            queue_store(producer, producer->overrun, next);
+    if (consumed) {
+      /* consumer released overrun message, so we can use it */
+      /* requeue overrun */
+      queue_store(producer, producer->overrun, next);
 
-            producer->current = producer->overrun;
-            producer->overrun = RI_INDEX_INVALID;
-        } else {
-            /* consumer still blocks overran message, move the tail again,
-             * because the message queue is still full */
-            if (move_tail(producer, tail)) {
-                producer->current = tail & RI_INDEX_MASK;
-                discarded = true;
-            } else {
-                /* consumer just released overrun message, so we can use it */
-                /* requeue overrun */
-                queue_store(producer, producer->overrun, next);
-
-                producer->current = producer->overrun;
-                producer->overrun = RI_INDEX_INVALID;
-            }
-        }
+      producer->current = producer->overrun;
+      producer->overrun = RI_INDEX_INVALID;
     } else {
-        /* no previous overrun, use next or after next message */
-        if (!full) {
-            /* message queue not full, simply use next */
-            producer->current = next;
-        } else if (!consumed) {
-            /* message queue is full, but no message is consumed yet, so try to move tail */
-            if (move_tail(producer, tail)) {
-                /* message queue is full -> tail & INDEX_MASK == next */
-                producer->current = next;
-                discarded = true;
-            } else {
-                /*  consumer just started and consumed tail
+      /* consumer still blocks overran message, move the tail again,
+             * because the message queue is still full */
+      if (move_tail(producer, tail)) {
+        producer->current = tail & RI_INDEX_MASK;
+        discarded = true;
+      } else {
+        /* consumer just released overrun message, so we can use it */
+        /* requeue overrun */
+        queue_store(producer, producer->overrun, next);
+
+        producer->current = producer->overrun;
+        producer->overrun = RI_INDEX_INVALID;
+      }
+    }
+  } else {
+    /* no previous overrun, use next or after next message */
+    if (!full) {
+      /* message queue not full, simply use next */
+      producer->current = next;
+    } else if (!consumed) {
+      /* message queue is full, but no message is consumed yet, so try to move tail */
+      if (move_tail(producer, tail)) {
+        /* message queue is full -> tail & INDEX_MASK == next */
+        producer->current = next;
+        discarded = true;
+      } else {
+        /*  consumer just started and consumed tail
                 *  we're assuming that consumer flagged tail (tail | CONSUMED_FLAG),
                 *  if this this is not the case, consumer already moved on
                 *  and we will use tail  */
-                discarded = overrun(producer, tail | RI_CONSUMED_FLAG);
-            }
-        } else {
-            /* overrun the consumer, if the consumer keeps tail */
-            discarded = overrun(producer, tail);
-        }
+        discarded = overrun(producer, tail | RI_CONSUMED_FLAG);
+      }
+    } else {
+      /* overrun the consumer, if the consumer keeps tail */
+      discarded = overrun(producer, tail);
     }
+  }
 
-    return discarded ? RI_PRODUCE_RESULT_DISCARDED : RI_PRODUCE_RESULT_SUCCESS;
+  return discarded ? RI_PRODUCE_RESULT_DISCARDED : RI_PRODUCE_RESULT_SUCCESS;
 }
-
-
 
 /* trys to insert the next message into the queue */
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 {
-    ri_index_t next = producer->queue[producer->current];
+  ri_index_t next = producer->queue[producer->current];
 
-    if (producer->head == RI_INDEX_INVALID) {
-      enqueue_first_msg(producer);
-      producer->current = next;
+  if (producer->head == RI_INDEX_INVALID) {
+    enqueue_first_msg(producer);
+    producer->current = next;
+    return RI_PRODUCE_RESULT_SUCCESS;
+  }
+
+  const ri_channel_t *channel = &producer->channel;
+
+  ri_index_t tail = ri_channel_tail_load(channel);
+
+  if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
+    return RI_PRODUCE_RESULT_ERROR;
+
+  bool consumed = !!(tail & RI_CONSUMED_FLAG);
+
+  bool full = (next == (tail & RI_INDEX_MASK));
+
+  if (producer->overrun != RI_INDEX_INVALID) {
+    if (consumed) {
+      /* consumer released overrun message, so we can use it */
+      /* requeue overrun */
+      enqueue_msg(producer);
+
+      queue_store(producer, producer->overrun, next);
+
+      producer->current = producer->overrun;
+      producer->overrun = RI_INDEX_INVALID;
+
       return RI_PRODUCE_RESULT_SUCCESS;
     }
+  } else {
+    /* no previous overrun, use next or after next message */
+    if (!full) {
+      enqueue_msg(producer);
 
-    const ri_channel_t *channel = &producer->channel;
+      producer->current = next;
 
-    ri_index_t tail = ri_channel_tail_load(channel);
-
-    if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
-      return RI_PRODUCE_RESULT_ERROR;
-
-    bool consumed = !!(tail & RI_CONSUMED_FLAG);
-
-    bool full = (next == (tail & RI_INDEX_MASK));
-
-    if (producer->overrun != RI_INDEX_INVALID) {
-        if (consumed) {
-            /* consumer released overrun message, so we can use it */
-            /* requeue overrun */
-            enqueue_msg(producer);
-
-            queue_store(producer, producer->overrun, next);
-
-            producer->current = producer->overrun;
-            producer->overrun = RI_INDEX_INVALID;
-
-            return RI_PRODUCE_RESULT_SUCCESS;
-        }
-    } else {
-        /* no previous overrun, use next or after next message */
-        if (!full) {
-            enqueue_msg(producer);
-
-            producer->current = next;
-
-            return RI_PRODUCE_RESULT_SUCCESS;
-        }
+      return RI_PRODUCE_RESULT_SUCCESS;
     }
+  }
 
-    return RI_PRODUCE_RESULT_FAIL;
+  return RI_PRODUCE_RESULT_FAIL;
 }
-
 
 void* ri_producer_msg(ri_producer_t *producer)
 {
-    return ri_channel_get_msg(&producer->channel, producer->current);
+  return ri_channel_get_msg(&producer->channel, producer->current);
 }

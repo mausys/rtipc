@@ -1,16 +1,14 @@
 #pragma once
 
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdarg.h>
+#include <stdint.h>
 #include <sys/types.h>
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /**
  * @typedef ri_rtipc_t
@@ -19,15 +17,15 @@ extern "C" {
  */
 typedef struct ri_rtipc ri_rtipc_t;
 
-
 /**
  * @typedef ri_channel_size_t
  *
  * @brief specifies channels size
  */
-typedef struct ri_channel_param {
-    uint32_t msg_size;
-    uint32_t add_msgs; /* additional messages to the minimum of 3 */
+typedef struct ri_channel_param
+{
+  uint32_t msg_size;
+  uint32_t add_msgs; /* additional messages to the minimum of 3 */
 } ri_channel_param_t;
 
 /**
@@ -44,28 +42,26 @@ typedef struct ri_producer ri_producer_t;
  */
 typedef struct ri_consumer ri_consumer_t;
 
-
-
-
-typedef void (*ri_log_fn) (int priority, const char *file, const char *line,
-                          const char *func, const char *format, va_list ap);
-
-
+typedef void (*ri_log_fn)(int priority,
+                          const char *file,
+                          const char *line,
+                          const char *func,
+                          const char *format,
+                          va_list ap);
 
 typedef enum ri_consume_result {
-    RI_CONSUME_RESULT_ERROR = -2,
-    RI_CONSUME_RESULT_NO_MSG = -1,
-    RI_CONSUME_RESULT_NO_UPDATE = 0,
-    RI_CONSUME_RESULT_SUCCESS = 1,
-    RI_CONSUME_RESULT_DISCARDED = 2,
+  RI_CONSUME_RESULT_ERROR = -2,
+  RI_CONSUME_RESULT_NO_MSG = -1,
+  RI_CONSUME_RESULT_NO_UPDATE = 0,
+  RI_CONSUME_RESULT_SUCCESS = 1,
+  RI_CONSUME_RESULT_DISCARDED = 2,
 } ri_consume_result_t;
 
-
 typedef enum ri_produce_result {
-    RI_PRODUCE_RESULT_ERROR = -2,
-    RI_PRODUCE_RESULT_FAIL = -1,
-    RI_PRODUCE_RESULT_SUCCESS = 1,
-    RI_PRODUCE_RESULT_DISCARDED = 2,
+  RI_PRODUCE_RESULT_ERROR = -2,
+  RI_PRODUCE_RESULT_FAIL = -1,
+  RI_PRODUCE_RESULT_SUCCESS = 1,
+  RI_PRODUCE_RESULT_DISCARDED = 2,
 } ri_produce_result_t;
 
 /**
@@ -87,8 +83,9 @@ size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_p
  * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[], uint32_t cookie);
-
+ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[],
+                                  const ri_channel_param_t producers[],
+                                  uint32_t cookie);
 
 /**
  * @brief ri_named_shm_new creates, maps and initializes named shared memory
@@ -101,8 +98,11 @@ ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[], const ri
  * @param mode used by shm_open
  * @return pointer to the new shared memory object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[], const ri_channel_param_t producers[], const char *name, mode_t mode, uint32_t cookie);
-
+ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[],
+                                   const ri_channel_param_t producers[],
+                                   const char *name,
+                                   mode_t mode,
+                                   uint32_t cookie);
 
 /**
  * @brief ri_rtipc_shm_map maps shared memory
@@ -114,7 +114,6 @@ ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[], const r
  */
 ri_rtipc_t* ri_rtipc_shm_map(int fd, uint32_t cookie);
 
-
 /**
  * @brief ri_rtipc_named_shm_map maps named shared memory
  *        retrieved from owner
@@ -125,14 +124,12 @@ ri_rtipc_t* ri_rtipc_shm_map(int fd, uint32_t cookie);
  */
 ri_rtipc_t* ri_rtipc_named_shm_map(const char *name, uint32_t cookie);
 
-
 /**
  * @brief ri_shm_delete unmaps and deletes shared memory and its channels
  *
  * @param rtipc object
  */
 void ri_rtipc_delete(ri_rtipc_t *rtipc);
-
 
 /**
  * @brief ri_rtipc_get_shm_fd retreive file descriptor from rtipc object
@@ -141,7 +138,6 @@ void ri_rtipc_delete(ri_rtipc_t *rtipc);
  * @return file descriptor
  */
 int ri_rtipc_get_shm_fd(const ri_rtipc_t *rtipc);
-
 
 unsigned ri_rtipc_num_consumers(const ri_rtipc_t *rtipc);
 unsigned ri_rtipc_num_producers(const ri_rtipc_t *rtipc);
@@ -155,7 +151,6 @@ unsigned ri_rtipc_num_producers(const ri_rtipc_t *rtipc);
  */
 ri_consumer_t* ri_rtipc_get_consumer(const ri_rtipc_t *rtipc, unsigned index);
 
-
 /**
  * @brief ri_rtipc_get_producer get a pointer to a producer
  *
@@ -165,14 +160,12 @@ ri_consumer_t* ri_rtipc_get_consumer(const ri_rtipc_t *rtipc, unsigned index);
  */
 ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned index);
 
-
 /**
  * @brief ri_rtipc_dump print shared memory information
  *
  * @param rtipc rtipc object
  */
 void ri_rtipc_dump(const ri_rtipc_t *rtipc);
-
 
 /**
  * @brief ri_consumer_msg get pointer to current message
@@ -191,7 +184,6 @@ const void* ri_consumer_msg(ri_consumer_t *consumer);
 ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
 
-
 /**
  * @brief ri_producer_msg get pointer to current message
  *
@@ -199,7 +191,6 @@ ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
  * @return pointer to current message (always valid)
  */
 void* ri_producer_msg(ri_producer_t *producer);
-
 
 /**
  * @brief ri_producer_force_put submits current message and get a new message
@@ -218,8 +209,6 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
  */
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 
-
-
 /**
  * @brief ri_consumer_get_buffer_size submits current buffer and get a new one for writing
  *
@@ -229,9 +218,6 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
 
 size_t ri_producer_msg_size(const ri_producer_t *producer);
-
-
-
 
 #ifdef __cplusplus
 }

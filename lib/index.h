@@ -1,9 +1,8 @@
 #pragma once
 
-#include <stddef.h>
 #include <limits.h>
 #include <stdatomic.h>
-
+#include <stddef.h>
 
 #if ATOMIC_INT_LOCK_FREE == 2
 
