@@ -51,7 +51,7 @@ ri_rtipc_t* ri_rtipc_shm_map(int fd, uint32_t cookie)
   if (!shm)
     return NULL;
 
-  ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie);
+  ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie, false);
 
   if (!rtipc) {
     ri_shm_delete(shm);
@@ -68,7 +68,7 @@ ri_rtipc_t* ri_rtipc_named_shm_map(const char *name, uint32_t cookie)
   if (!shm)
     return NULL;
 
-  ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie);
+  ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie, false);
 
   if (!rtipc) {
     ri_shm_delete(shm);

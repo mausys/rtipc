@@ -6,12 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "consumer.h"
+#include "param.h"
 #include "index.h"
 #include "log.h"
 #include "mem_utils.h"
-#include "producer.h"
+
 #include "shm.h"
+#include "consumer.h"
+#include "producer.h"
 
 #define MAGIC 0x1f0c /* lock-free and zero-copy :) */
 #define HEADER_VERSION 1
@@ -21,8 +23,8 @@ struct ri_rtipc
   ri_shm_t *shm;
   uint32_t num_consumers;
   uint32_t num_producers;
-  ri_consumer_t *consumers;
-  ri_producer_t *producers;
+  ri_consumer_t **consumers;
+  ri_producer_t **producers;
 };
 
 typedef struct
@@ -35,10 +37,6 @@ typedef struct
   uint16_t atomic_size;
 } shm_header_t;
 
-typedef uintptr_t (*init_channel_fn)(ri_rtipc_t *rtipc,
-                                     unsigned idx,
-                                     uintptr_t start,
-                                     const ri_channel_param_t *size);
 
 static size_t header_size(void)
 {
@@ -65,25 +63,6 @@ static const ri_channel_param_t* shm_get_channel_size(void *shm_start, unsigned 
   return &sizes[idx];
 }
 
-static uintptr_t init_consumer(ri_rtipc_t *rtipc,
-                               unsigned idx,
-                               uintptr_t start,
-                               const ri_channel_param_t *size)
-{
-  ri_consumer_t *consumer = &rtipc->consumers[idx];
-
-  return ri_consumer_init(consumer, start, size);
-}
-
-static uintptr_t init_producer(ri_rtipc_t *rtipc,
-                               unsigned idx,
-                               uintptr_t start,
-                               const ri_channel_param_t *size)
-{
-  ri_producer_t *producer = &rtipc->producers[idx];
-
-  return ri_producer_init(producer, start, size);
-}
 
 static size_t get_channels_offset(unsigned num)
 {
@@ -136,6 +115,45 @@ static void init_header(shm_header_t *header,
   header->num_channels[1] = num_producers;
 }
 
+static ssize_t init_producers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_end, unsigned index_offset, bool shm_init)
+{
+  for (unsigned i = 0; i < rtipc->num_producers; i++) {
+    const ri_channel_param_t *param = shm_get_channel_size(rtipc->shm->mem, index_offset + i);
+
+    size_t size = ri_calc_channel_size(param);
+    if (addr + size > addr_end)
+      return -1;
+
+    rtipc->producers[i] = ri_producer_new(param, addr, shm_init);
+    if (!rtipc->producers[i])
+      return -1;
+
+    addr += size;
+  }
+  return addr;
+}
+
+
+
+static ssize_t init_consumers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_end, unsigned index_offset, bool shm_init)
+{
+  for (unsigned i = 0; i < rtipc->num_consumers; i++) {
+    const ri_channel_param_t *param = shm_get_channel_size(rtipc->shm->mem, index_offset + i);
+
+    size_t size = ri_calc_channel_size(param);
+    if (addr + size > addr_end)
+      return -1;
+
+    rtipc->consumers[i] = ri_consumer_new(param, addr, shm_init);
+    if (!rtipc->consumers[i])
+      return -1;
+
+    addr += size;
+  }
+
+  return addr;
+}
+
 size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_param_t producers[])
 {
   unsigned num_consumers = count_channels(consumers);
@@ -144,15 +162,15 @@ size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_p
   size_t size = get_channels_offset(num_consumers + num_producers);
 
   for (unsigned i = 0; i < num_consumers; i++)
-    size += ri_channel_calc_size(&consumers[i]);
+    size += ri_calc_channel_size(&consumers[i]);
 
   for (unsigned i = 0; i < num_producers; i++)
-    size += ri_channel_calc_size(&producers[i]);
+    size += ri_calc_channel_size(&producers[i]);
 
   return size;
 }
 
-ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie)
+ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie, bool shm_init)
 {
   ri_rtipc_t *rtipc = calloc(1, sizeof(ri_rtipc_t));
 
@@ -173,20 +191,19 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie)
   unsigned num_g1 = header->num_channels[1];
   unsigned num_channels = num_g0 + num_g1;
 
+
   rtipc->num_consumers = shm->owner ? num_g0 : num_g1;
   rtipc->num_producers = shm->owner ? num_g1 : num_g0;
-  init_channel_fn init_channel_g0 = shm->owner ? init_consumer : init_producer;
-  init_channel_fn init_channel_g1 = shm->owner ? init_producer : init_consumer;
 
   if (rtipc->num_consumers > 0) {
-    rtipc->consumers = calloc(rtipc->num_consumers, sizeof(ri_consumer_t));
+    rtipc->consumers = calloc(rtipc->num_consumers, sizeof(ri_consumer_t*));
 
     if (!rtipc->consumers)
       goto fail_alloc_consumers;
   }
 
   if (rtipc->num_producers > 0) {
-    rtipc->producers = calloc(rtipc->num_producers, sizeof(ri_producer_t));
+    rtipc->producers = calloc(rtipc->num_producers, sizeof(ri_producer_t*));
 
     if (!rtipc->producers)
       goto fail_alloc_producers;
@@ -197,37 +214,44 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie)
 
   /* check if table doesn't exeeds shm size */
   if (addr > addr_end)
-    goto fail_size;
+    goto fail_channels;
 
-  for (unsigned i = 0; i < num_g0; i++) {
-    const ri_channel_param_t *channel_size = shm_get_channel_size(shm->mem, i);
+  if (shm->owner) {
+     ssize_t ret = init_consumers(rtipc, addr, addr_end, 0, shm_init);
+     if (ret < 0)
+      goto fail_channels;
 
-    addr = init_channel_g0(rtipc, i, addr, channel_size);
+     addr = ret;
+
+     ret = init_producers(rtipc, addr, addr_end, rtipc->num_consumers, shm_init);
+     if (ret < 0)
+       goto fail_channels;
+  } else {
+    ssize_t ret = init_producers(rtipc, addr, addr_end, 0, shm_init);
+    if (ret < 0)
+      goto fail_channels;
+
+    addr = ret;
+
+    ret = init_consumers(rtipc, addr, addr_end, rtipc->num_producers, shm_init);
+    if (ret < 0)
+      goto fail_channels;
   }
 
-  for (unsigned i = 0; i < num_g1; i++) {
-    const ri_channel_param_t *channel_size = shm_get_channel_size(shm->mem, num_g0 + i);
-
-    addr = init_channel_g1(rtipc, i, addr, channel_size);
-  }
-
-  /* check if data doesn't exeeds shm size */
-  if (addr > addr_end)
-    goto fail_size;
-
-  for (unsigned i = 0; i < rtipc->num_producers; i++) {
-    int r = ri_producer_alloc_queue(&rtipc->producers[i]);
-    if (r < 0)
-      goto fail_queues;
-  }
 
   return rtipc;
 
-fail_queues:
-  for (unsigned i = 0; i < rtipc->num_producers; i++)
-    ri_producer_free_queue(&rtipc->producers[i]);
+fail_channels:
+  for (unsigned i = 0; i < rtipc->num_producers; i++) {
+    if (rtipc->producers[i])
+      ri_producer_delete(rtipc->producers[i]);
+  }
 
-fail_size:
+  for (unsigned i = 0; i < rtipc->num_consumers; i++) {
+    if (rtipc->consumers[i])
+      ri_consumer_delete(rtipc->consumers[i]);
+  }
+
   if (rtipc->producers)
     free(rtipc->producers);
 
@@ -265,30 +289,27 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm,
   for (unsigned i = 0; i < num_producers; i++)
     channel_table[num_consumers + i] = producers[i];
 
-  ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie);
-
-  if (!rtipc)
-    return NULL;
-
-  for (unsigned i = 0; i < num_consumers; i++)
-    ri_channel_shm_init(&rtipc->consumers[i].channel);
-
-  for (unsigned i = 0; i < num_producers; i++)
-    ri_channel_shm_init(&rtipc->producers[i].channel);
-
-  return rtipc;
+  return ri_rtipc_new(shm, cookie, true);
 }
 
 void ri_rtipc_delete(ri_rtipc_t *rtipc)
 {
-  for (unsigned i = 0; i < rtipc->num_producers; i++)
-    ri_producer_free_queue(&rtipc->producers[i]);
 
-  if (rtipc->producers)
+  if (rtipc->producers) {
+    for (unsigned i = 0; i < rtipc->num_producers; i++) {
+      if (rtipc->producers[i])
+        ri_producer_delete(rtipc->producers[i]);
+    }
     free(rtipc->producers);
+  }
 
-  if (rtipc->consumers)
+  if (rtipc->consumers) {
+    for (unsigned i = 0; i < rtipc->num_consumers; i++) {
+      if (rtipc->consumers[i])
+        ri_consumer_delete(rtipc->consumers[i]);
+    }
     free(rtipc->consumers);
+  }
 
   ri_shm_delete(rtipc->shm);
 
@@ -300,7 +321,7 @@ ri_consumer_t* ri_rtipc_get_consumer(const ri_rtipc_t *rtipc, unsigned idx)
   if (idx >= rtipc->num_consumers)
     return NULL;
 
-  return &rtipc->consumers[idx];
+  return rtipc->consumers[idx];
 }
 
 ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned idx)
@@ -308,7 +329,7 @@ ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned idx)
   if (idx >= rtipc->num_producers)
     return NULL;
 
-  return &rtipc->producers[idx];
+  return rtipc->producers[idx];
 }
 
 unsigned ri_rticp_num_consumers(const ri_rtipc_t *rtipc)
@@ -334,13 +355,13 @@ void ri_rtipc_dump(const ri_rtipc_t *rtipc)
   LOG_INF("shm addr=%p size=%zu", rtipc->shm->mem, rtipc->shm->size);
   LOG_INF("\tconsumers (%u):", rtipc->num_consumers);
 
-  for (unsigned i = 0; i < rtipc->num_consumers; i++) {
-    ri_channel_dump(&rtipc->consumers[i].channel);
-  }
+  //for (unsigned i = 0; i < rtipc->num_consumers; i++) {
+  //  ri_channel_dump(rtipc->consumers[i].channel);
+  //}
 
   LOG_INF("\tproducers (%u):", rtipc->num_producers);
 
-  for (unsigned i = 0; i < rtipc->num_producers; i++) {
-    ri_channel_dump(&rtipc->producers[i].channel);
-  }
+  //for (unsigned i = 0; i < rtipc->num_producers; i++) {
+  //  ri_channel_dump(rtipc->producers[i].channel);
+  //}
 }

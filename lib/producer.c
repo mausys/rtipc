@@ -5,46 +5,70 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include "param.h"
+#include "channel.h"
+
 #include "log.h"
 
-int ri_producer_alloc_queue(ri_producer_t *producer)
+
+struct ri_producer
 {
-  if (producer->queue) {
-    return -EINVAL;
-  }
-  unsigned n = producer->channel.n_msgs;
-  producer->queue = calloc(n, sizeof(ri_index_t));
+  ri_channel_t channel;
 
-  if (!producer->queue) {
-    return -ENOMEM;
-  }
+  ri_index_t head; /* last message in chain that can be used by consumer, chain[head] is always INDEX_END */
+  ri_index_t current; /* message used by producer, will become head  */
+  ri_index_t overrun; /* message used by consumer when tail moved away by producer, will become current when released by consumer */
+  ri_index_t queue[]; /* local copy of queue, because queue is read only for consumer */
+};
 
-  for (unsigned i = 0; i < n - 1; i++) {
-    producer->queue[i] = i + 1;
-  }
-
-  producer->queue[n - 1] = 0;
-
-  return 0;
-}
-
-void ri_producer_free_queue(ri_producer_t *producer)
-{
-  if (producer->queue) {
-    free(producer->queue);
-    producer->queue = NULL;
-  }
-}
-
-size_t ri_producer_msg_size(const ri_producer_t *producer)
-{
-  return producer->channel.msg_size;
-}
 
 static void queue_store(ri_producer_t *producer, ri_index_t idx, ri_index_t val)
 {
   producer->queue[idx] = val;
   ri_channel_queue_store(&producer->channel, idx, val);
+}
+
+
+
+ri_producer_t* ri_producer_new(const ri_channel_param_t *param, uintptr_t start, bool shm_init)
+{
+  unsigned queue_len = ri_calc_queue_len(param);
+  size_t size = sizeof(ri_producer_t) + queue_len * sizeof(ri_index_t);
+
+  ri_producer_t *producer =  malloc(size);
+
+  if (!producer)
+    return NULL;
+
+  *producer = (ri_producer_t) {
+      .current = 0,
+      .overrun = RI_INDEX_INVALID,
+      .head = RI_INDEX_INVALID,
+  };
+
+  ri_channel_init(&producer->channel, param, start);
+
+  for (unsigned i = 0; i < queue_len - 1; i++) {
+    queue_store(producer, i, i + 1);
+  }
+
+  queue_store(producer, queue_len - 1, 0);
+
+  if (shm_init)
+    ri_channel_shm_init(&producer->channel);
+
+  return producer;
+}
+
+void ri_producer_delete(ri_producer_t* producer)
+{
+  free(producer);
+}
+
+
+size_t ri_producer_msg_size(const ri_producer_t *producer)
+{
+  return producer->channel.msg_size;
 }
 
 static void enqueue_first_msg(ri_producer_t *producer)
@@ -107,17 +131,6 @@ static bool overrun(ri_producer_t *producer, ri_index_t tail)
 
     return false;
   }
-}
-
-uintptr_t ri_producer_init(ri_producer_t *producer, uintptr_t start, const ri_channel_param_t *size)
-{
-  *producer = (ri_producer_t) {
-      .current = 0,
-      .overrun = RI_INDEX_INVALID,
-      .head = RI_INDEX_INVALID,
-  };
-
-  return ri_channel_init(&producer->channel, start, size);
 }
 
 /* inserts the next message into the queue and

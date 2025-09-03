@@ -1,18 +1,44 @@
 #include "consumer.h"
+
+#include <stdlib.h>
+
 #include "channel.h"
+
+struct ri_consumer
+{
+  ri_channel_t channel;
+  ri_index_t current;
+};
+
 
 size_t ri_consumer_msg_size(const ri_consumer_t *consumer)
 {
   return consumer->channel.msg_size;
 }
 
-uintptr_t ri_consumer_init(ri_consumer_t *consumer, uintptr_t start, const ri_channel_param_t *size)
+ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, uintptr_t start, bool shm_init)
 {
+  ri_consumer_t *consumer = malloc(sizeof(ri_consumer_t));
+
+  if (!consumer)
+    return NULL;
+
   *consumer = (ri_consumer_t) {
       .current = 0,
   };
 
-  return ri_channel_init(&consumer->channel, start, size);
+  ri_channel_init(&consumer->channel, param, start);
+
+  if (shm_init)
+    ri_channel_shm_init(&consumer->channel);
+
+  return consumer;
+}
+
+
+void ri_consumer_delete(ri_consumer_t *consumer)
+{
+  free(consumer);
 }
 
 ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
