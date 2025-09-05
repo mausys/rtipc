@@ -37,6 +37,18 @@ static int shm_init(int fd, size_t size, bool sealing)
   return 0;
 }
 
+static void shm_delete(ri_shm_t *shm)
+{
+  munmap(shm->mem, shm->size);
+  close(shm->fd);
+  if (shm->path) {
+    if (shm->owner)
+      shm_unlink(shm->path);
+    free(shm->path);
+  }
+  free(shm);
+}
+
 ri_shm_t* ri_shm_anon_new(size_t size)
 {
   static atomic_uint anr = 0;
@@ -107,7 +119,7 @@ ri_shm_t* ri_shm_named_new(size_t size, const char *name, mode_t mode)
   return shm;
 
 fail_path:
-  ri_shm_delete(shm);
+  shm_delete(shm);
 fail_map:
 fail_init:
   close(fd);
@@ -125,7 +137,8 @@ ri_shm_t* ri_shm_new(int fd)
     return NULL;
 
   *shm = (ri_shm_t) {
-      .fd = fd,
+    .ref_cnt = 1,
+    .fd = fd,
   };
 
   int r = fstat(shm->fd, &stat);
@@ -206,14 +219,17 @@ fail_path:
   return NULL;
 }
 
-void ri_shm_delete(ri_shm_t *shm)
+
+void ri_shm_ref(ri_shm_t *shm)
 {
-  munmap(shm->mem, shm->size);
-  close(shm->fd);
-  if (shm->path) {
-    if (shm->owner)
-      shm_unlink(shm->path);
-    free(shm->path);
-  }
-  free(shm);
+  atomic_fetch_add(&shm->ref_cnt, 1);
 }
+
+void ri_shm_unref(ri_shm_t *shm)
+{
+  if (atomic_fetch_sub(&shm->ref_cnt, 1) == 1) {
+    shm_delete(shm);
+  }
+}
+
+

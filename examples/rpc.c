@@ -51,7 +51,6 @@ const ri_channel_param_t server2client_channels[] = {
 
 
 typedef struct client {
-    ri_rtipc_t *rtipc;
     ri_producer_t *command;
     ri_consumer_t *response;
     ri_consumer_t *event;
@@ -59,7 +58,7 @@ typedef struct client {
 
 
 typedef struct server {
-    ri_rtipc_t *rtipc;
+    int fd;
     ri_consumer_t *command;
     ri_producer_t *response;
     ri_producer_t *event;
@@ -126,27 +125,28 @@ static client_t* client_new(int fd)
   if (!client)
     goto fail_alloc;
 
-  client->rtipc = ri_rtipc_shm_map(fd, COOKIE);
+  ri_rtipc_t *rtipc = ri_rtipc_shm_map(fd, COOKIE);
 
-  if (!client->rtipc)
+  if (!rtipc)
     goto fail_rtipc;
 
-  client->command = ri_rtipc_get_producer(client->rtipc, 0);
+  client->command = ri_rtipc_take_producer(rtipc, 0);
   if (!client->command)
     goto fail_channel;
 
-  client->response = ri_rtipc_get_consumer(client->rtipc, 0);
+  client->response = ri_rtipc_take_consumer(rtipc, 0);
   if (!client->response)
     goto fail_channel;
 
-  client->event = ri_rtipc_get_consumer(client->rtipc, 1);
+  client->event = ri_rtipc_take_consumer(rtipc, 1);
   if (!client->event)
     goto fail_channel;
 
+  ri_rtipc_delete(rtipc);
   return client;
 
 fail_channel:
-  ri_rtipc_delete(client->rtipc);
+  ri_rtipc_delete(rtipc);
 fail_rtipc:
   free(client);
 fail_alloc:
@@ -161,31 +161,50 @@ static server_t* server_new(const ri_channel_param_t *consumers, const ri_channe
   if (!server)
     goto fail_alloc;
 
-  server->rtipc = ri_rtipc_anon_shm_new(consumers, producers, COOKIE);
+  ri_rtipc_t *rtipc = ri_rtipc_anon_shm_new(consumers, producers, COOKIE);
 
-  if (!server->rtipc)
+  if (!rtipc)
     goto fail_rtipc;
 
-  server->command = ri_rtipc_get_consumer(server->rtipc, 0);
+  server->command = ri_rtipc_take_consumer(rtipc, 0);
   if (!server->command)
     goto fail_channel;
 
-  server->response = ri_rtipc_get_producer(server->rtipc, 0);
+  server->response = ri_rtipc_take_producer(rtipc, 0);
   if (!server->response)
     goto fail_channel;
 
-  server->event = ri_rtipc_get_producer(server->rtipc, 1);
+  server->event = ri_rtipc_take_producer(rtipc, 1);
   if (!server->event)
     goto fail_channel;
 
+  server->fd = ri_rtipc_get_shm_fd(rtipc);
+  ri_rtipc_delete(rtipc);
   return server;
 
 fail_channel:
-  ri_rtipc_delete(server->rtipc);
+  ri_rtipc_delete(rtipc);
 fail_rtipc:
   free(server);
 fail_alloc:
   return NULL;
+}
+
+
+static void server_delete(server_t *server)
+{
+  ri_consumer_delete(server->command);
+  ri_producer_delete(server->response);
+  ri_producer_delete(server->event);
+  free(server);
+}
+
+static void client_delete(client_t *client)
+{
+  ri_producer_delete(client->command);
+  ri_consumer_delete(client->response);
+  ri_consumer_delete(client->event);
+  free(client);
 }
 
 void client_run(client_t *client, const msg_command_t *cmds)
@@ -296,15 +315,12 @@ int server_start(void* arg)
     return -1;
   }
 
-  int fd = ri_rtipc_get_shm_fd(server->rtipc);
-
-  atomic_store(&g_fd, fd);
+  atomic_store(&g_fd, server->fd);
 
   server_run(server);
 
   printf("deleting server\n");
-  ri_rtipc_delete(server->rtipc);
-  free(server);
+  server_delete(server);
 
   return 0;
 }
@@ -330,8 +346,7 @@ int client_start(void* arg)
   client_run(client, commands);
 
   printf("deleting client\n");
-  ri_rtipc_delete(client->rtipc);
-  free(client);
+  client_delete(client);
 
   return 0;
 }

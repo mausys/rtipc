@@ -6,6 +6,7 @@
 
 struct ri_consumer
 {
+  ri_shm_t *shm;
   ri_channel_t channel;
   ri_index_t current;
 };
@@ -16,7 +17,7 @@ size_t ri_consumer_msg_size(const ri_consumer_t *consumer)
   return consumer->channel.msg_size;
 }
 
-ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, uintptr_t start, bool shm_init)
+ri_consumer_t* ri_consumer_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init)
 {
   ri_consumer_t *consumer = malloc(sizeof(ri_consumer_t));
 
@@ -24,6 +25,7 @@ ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, uintptr_t start,
     return NULL;
 
   *consumer = (ri_consumer_t) {
+      .shm = shm,
       .current = 0,
   };
 
@@ -32,12 +34,14 @@ ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, uintptr_t start,
   if (shm_init)
     ri_channel_shm_init(&consumer->channel);
 
+  ri_shm_ref(consumer->shm);
   return consumer;
 }
 
 
 void ri_consumer_delete(ri_consumer_t *consumer)
 {
+  ri_shm_unref(consumer->shm);
   free(consumer);
 }
 

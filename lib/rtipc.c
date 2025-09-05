@@ -124,7 +124,7 @@ static ssize_t init_producers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_
     if (addr + size > addr_end)
       return -1;
 
-    rtipc->producers[i] = ri_producer_new(param, addr, shm_init);
+    rtipc->producers[i] = ri_producer_new(rtipc->shm, param, addr, shm_init);
     if (!rtipc->producers[i])
       return -1;
 
@@ -144,7 +144,7 @@ static ssize_t init_consumers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_
     if (addr + size > addr_end)
       return -1;
 
-    rtipc->consumers[i] = ri_consumer_new(param, addr, shm_init);
+    rtipc->consumers[i] = ri_consumer_new(rtipc->shm, param, addr, shm_init);
     if (!rtipc->consumers[i])
       return -1;
 
@@ -311,25 +311,29 @@ void ri_rtipc_delete(ri_rtipc_t *rtipc)
     free(rtipc->consumers);
   }
 
-  ri_shm_delete(rtipc->shm);
-
   free(rtipc);
 }
 
-ri_consumer_t* ri_rtipc_get_consumer(const ri_rtipc_t *rtipc, unsigned idx)
+ri_consumer_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned idx)
 {
   if (idx >= rtipc->num_consumers)
     return NULL;
 
-  return rtipc->consumers[idx];
+  ri_consumer_t* consumer = rtipc->consumers[idx];
+  rtipc->consumers[idx] = NULL;
+
+  return consumer;
 }
 
-ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned idx)
+ri_producer_t* ri_rtipc_take_producer(const ri_rtipc_t *rtipc, unsigned idx)
 {
   if (idx >= rtipc->num_producers)
     return NULL;
 
-  return rtipc->producers[idx];
+  ri_producer_t* producer = rtipc->producers[idx];
+  rtipc->producers[idx] = NULL;
+
+  return producer;
 }
 
 unsigned ri_rticp_num_consumers(const ri_rtipc_t *rtipc)

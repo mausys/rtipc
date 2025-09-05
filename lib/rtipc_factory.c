@@ -12,11 +12,7 @@ ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[],
     return NULL;
 
   ri_rtipc_t *rtipc = ri_rtipc_owner_new(shm, consumers, producers, cookie);
-
-  if (!rtipc) {
-    ri_shm_delete(shm);
-    return NULL;
-  }
+  ri_shm_unref(shm);
 
   return rtipc;
 }
@@ -35,11 +31,7 @@ ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[],
     return NULL;
 
   ri_rtipc_t *rtipc = ri_rtipc_owner_new(shm, consumers, producers, cookie);
-
-  if (!rtipc) {
-    ri_shm_delete(shm);
-    return NULL;
-  }
+   ri_shm_unref(shm);
 
   return rtipc;
 }
@@ -52,11 +44,7 @@ ri_rtipc_t* ri_rtipc_shm_map(int fd, uint32_t cookie)
     return NULL;
 
   ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie, false);
-
-  if (!rtipc) {
-    ri_shm_delete(shm);
-    return NULL;
-  }
+   ri_shm_unref(shm);
 
   return rtipc;
 }
@@ -69,11 +57,7 @@ ri_rtipc_t* ri_rtipc_named_shm_map(const char *name, uint32_t cookie)
     return NULL;
 
   ri_rtipc_t *rtipc = ri_rtipc_new(shm, cookie, false);
-
-  if (!rtipc) {
-    ri_shm_delete(shm);
-    return NULL;
-  }
+   ri_shm_unref(shm);
 
   return rtipc;
 }

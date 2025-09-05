@@ -13,6 +13,7 @@
 
 struct ri_producer
 {
+  ri_shm_t *shm;
   ri_channel_t channel;
 
   ri_index_t head; /* last message in chain that can be used by consumer, chain[head] is always INDEX_END */
@@ -30,7 +31,7 @@ static void queue_store(ri_producer_t *producer, ri_index_t idx, ri_index_t val)
 
 
 
-ri_producer_t* ri_producer_new(const ri_channel_param_t *param, uintptr_t start, bool shm_init)
+ri_producer_t* ri_producer_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init)
 {
   unsigned queue_len = ri_calc_queue_len(param);
   size_t size = sizeof(ri_producer_t) + queue_len * sizeof(ri_index_t);
@@ -41,6 +42,7 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, uintptr_t start,
     return NULL;
 
   *producer = (ri_producer_t) {
+      .shm = shm,
       .current = 0,
       .overrun = RI_INDEX_INVALID,
       .head = RI_INDEX_INVALID,
@@ -57,11 +59,15 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, uintptr_t start,
   if (shm_init)
     ri_channel_shm_init(&producer->channel);
 
+  ri_shm_ref(producer->shm);
+
   return producer;
 }
 
 void ri_producer_delete(ri_producer_t* producer)
 {
+  ri_shm_unref(producer->shm);
+
   free(producer);
 }
 

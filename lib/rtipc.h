@@ -143,22 +143,23 @@ unsigned ri_rtipc_num_consumers(const ri_rtipc_t *rtipc);
 unsigned ri_rtipc_num_producers(const ri_rtipc_t *rtipc);
 
 /**
- * @brief ri_rtipc_get_consumer get a pointer to a consumer
+ * @brief ri_rtipc_take_consumer get a pointer to a consumer
  *
  * @param shm shared memory object
  * @param index consumer channel index
  * @return pointer to consumer; NULL on error
  */
-ri_consumer_t* ri_rtipc_get_consumer(const ri_rtipc_t *rtipc, unsigned index);
+ri_consumer_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned index);
 
 /**
- * @brief ri_rtipc_get_producer get a pointer to a producer
+ * @brief ri_rtipc_take_producer get a pointer to a producer
  *
  * @param shm shared memory object
  * @param index producer channel index
  * @return pointer to producer; NULL on error
  */
-ri_producer_t* ri_rtipc_get_producer(const ri_rtipc_t *rtipc, unsigned index);
+ri_producer_t* ri_rtipc_take_producer(const ri_rtipc_t *rtipc, unsigned index);
+
 
 /**
  * @brief ri_rtipc_dump print shared memory information
@@ -218,6 +219,9 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
 
 size_t ri_producer_msg_size(const ri_producer_t *producer);
+
+void ri_consumer_delete(ri_consumer_t *consumer);
+void ri_producer_delete(ri_producer_t* producer);
 
 #ifdef __cplusplus
 }
