@@ -32,9 +32,9 @@ typedef struct
   uint16_t magic;
   uint16_t version;
   uint32_t cookie;          /**< cookie for object protocol */
-  uint32_t num_channels[2]; /**< number of channels for producers / consumers */
   uint16_t cacheline_size;
   uint16_t atomic_size;
+  uint32_t num_channels[2]; /**< number of channels for producers / consumers */
 } shm_header_t;
 
 
