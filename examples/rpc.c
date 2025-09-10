@@ -125,7 +125,7 @@ static client_t* client_new(int fd)
   if (!client)
     goto fail_alloc;
 
-  ri_rtipc_t *rtipc = ri_rtipc_shm_map(fd, COOKIE);
+  ri_rtipc_t *rtipc = ri_rtipc_shm_map(fd);
 
   if (!rtipc)
     goto fail_rtipc;
@@ -161,7 +161,7 @@ static server_t* server_new(const ri_channel_param_t *consumers, const ri_channe
   if (!server)
     goto fail_alloc;
 
-  ri_rtipc_t *rtipc = ri_rtipc_anon_shm_new(consumers, producers, COOKIE);
+  ri_rtipc_t *rtipc = ri_rtipc_anon_shm_new(consumers, producers);
 
   if (!rtipc)
     goto fail_rtipc;

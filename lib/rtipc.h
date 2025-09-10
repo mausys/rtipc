@@ -80,12 +80,10 @@ size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_p
  *
  * @param consumers (msg_size = 0) terminated list of of consumers (owner perspective) channels
  * @param producers (msg_size = 0) terminated list of of producers (owner perspective) channels
- * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc object; NULL on error
  */
 ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[],
-                                  const ri_channel_param_t producers[],
-                                  uint32_t cookie);
+                                  const ri_channel_param_t producers[]);
 
 /**
  * @brief ri_named_shm_new creates, maps and initializes named shared memory
@@ -94,35 +92,31 @@ ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[],
  * @param consumers (msg_size = 0) terminated list of of consumers (owner perspective) channels
  * @param producers (msg_size = 0) terminated list of of producers (owner perspective) channels
  * @param name shared memory name (file system)
- * @param cookie user defined velue that must match the other side
  * @param mode used by shm_open
  * @return pointer to the new shared memory object; NULL on error
  */
 ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[],
                                    const ri_channel_param_t producers[],
                                    const char *name,
-                                   mode_t mode,
-                                   uint32_t cookie);
+                                   mode_t mode);
 
 /**
  * @brief ri_rtipc_shm_map maps shared memory
  *        retrieved from owner
  *
  * @param fd file descriptor of shared memory
- * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc memory object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_shm_map(int fd, uint32_t cookie);
+ri_rtipc_t* ri_rtipc_shm_map(int fd);
 
 /**
  * @brief ri_rtipc_named_shm_map maps named shared memory
  *        retrieved from owner
  *
  * @param name shared memory name (file system)
- * @param cookie user defined velue that must match the other side
  * @return pointer to the new rtipc object; NULL on error
  */
-ri_rtipc_t* ri_rtipc_named_shm_map(const char *name, uint32_t cookie);
+ri_rtipc_t* ri_rtipc_named_shm_map(const char *name);
 
 /**
  * @brief ri_shm_delete unmaps and deletes shared memory and its channels

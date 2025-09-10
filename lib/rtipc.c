@@ -31,7 +31,6 @@ typedef struct
 {
   uint16_t magic;
   uint16_t version;
-  uint32_t cookie;          /**< cookie for object protocol */
   uint16_t cacheline_size;
   uint16_t atomic_size;
   uint32_t num_channels[2]; /**< number of channels for producers / consumers */
@@ -71,7 +70,7 @@ static size_t get_channels_offset(unsigned num)
   return cacheline_aligned(size);
 }
 
-static int validate_header(const shm_header_t *header, uint32_t cookie)
+static int validate_header(const shm_header_t *header)
 {
   if (header->magic != MAGIC) {
     LOG_ERR("magic missmatch 0x%x != 0x%x", header->magic, MAGIC);
@@ -83,10 +82,6 @@ static int validate_header(const shm_header_t *header, uint32_t cookie)
     return -EINVAL;
   }
 
-  if (header->cookie != cookie) {
-    LOG_ERR("cookie missmatch %x != %x", header->cookie, cookie);
-    return -EINVAL;
-  }
 
   if (header->cacheline_size != cacheline_size()) {
     LOG_ERR("cacheline_size missmatch %u != %zu", header->cacheline_size, cacheline_size());
@@ -103,12 +98,10 @@ static int validate_header(const shm_header_t *header, uint32_t cookie)
 
 static void init_header(shm_header_t *header,
                         uint32_t num_consumers,
-                        uint32_t num_producers,
-                        uint32_t cookie)
+                        uint32_t num_producers)
 {
   header->magic = MAGIC;
   header->version = HEADER_VERSION;
-  header->cookie = cookie;
   header->cacheline_size = cacheline_size();
   header->atomic_size = sizeof(ri_atomic_index_t);
   header->num_channels[0] = num_consumers;
@@ -170,7 +163,7 @@ size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_p
   return size;
 }
 
-ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie, bool shm_init)
+ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, bool shm_init)
 {
   ri_rtipc_t *rtipc = calloc(1, sizeof(ri_rtipc_t));
 
@@ -184,7 +177,7 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, uint32_t cookie, bool shm_init)
 
   const shm_header_t *header = shm->mem;
 
-  if (validate_header(header, cookie) < 0)
+  if (validate_header(header) < 0)
     goto fail_valid;
 
   unsigned num_g0 = header->num_channels[0];
@@ -268,8 +261,7 @@ fail_alloc:
 
 ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm,
                                const ri_channel_param_t consumers[],
-                               const ri_channel_param_t producers[],
-                               uint32_t cookie)
+                               const ri_channel_param_t producers[])
 {
   if (shm->size <= header_size())
     return NULL;
@@ -279,7 +271,7 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm,
 
   shm_header_t *header = shm->mem;
 
-  init_header(header, num_consumers, num_producers, cookie);
+  init_header(header, num_consumers, num_producers);
 
   ri_channel_param_t *channel_table = mem_offset(shm->mem, header_size());
 
@@ -289,7 +281,7 @@ ri_rtipc_t* ri_rtipc_owner_new(ri_shm_t *shm,
   for (unsigned i = 0; i < num_producers; i++)
     channel_table[num_consumers + i] = producers[i];
 
-  return ri_rtipc_new(shm, cookie, true);
+  return ri_rtipc_new(shm, true);
 }
 
 void ri_rtipc_delete(ri_rtipc_t *rtipc)
