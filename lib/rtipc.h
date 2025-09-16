@@ -29,18 +29,18 @@ typedef struct ri_channel_param
 } ri_channel_param_t;
 
 /**
- * @typedef ri_producer_t
+ * @typedef ri_producerq_t
  *
  * @brief writing to a shared memory channel
  */
-typedef struct ri_producer ri_producer_t;
+typedef struct ri_producerq ri_producerq_t;
 
 /**
- * @typedef ri_consumer_t
+ * @typedef ri_consumerq_t
  *
  * @brief reading from a shared memory channel
  */
-typedef struct ri_consumer ri_consumer_t;
+typedef struct ri_consumerq ri_consumerq_t;
 
 typedef void (*ri_log_fn)(int priority,
                           const char *file,
@@ -143,7 +143,7 @@ unsigned ri_rtipc_num_producers(const ri_rtipc_t *rtipc);
  * @param index consumer channel index
  * @return pointer to consumer; NULL on error
  */
-ri_consumer_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned index);
+ri_consumerq_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned index);
 
 /**
  * @brief ri_rtipc_take_producer get a pointer to a producer
@@ -152,7 +152,7 @@ ri_consumer_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned index);
  * @param index producer channel index
  * @return pointer to producer; NULL on error
  */
-ri_producer_t* ri_rtipc_take_producer(const ri_rtipc_t *rtipc, unsigned index);
+ri_producerq_t* ri_rtipc_take_producer(const ri_rtipc_t *rtipc, unsigned index);
 
 
 /**
@@ -168,7 +168,7 @@ void ri_rtipc_dump(const ri_rtipc_t *rtipc);
  * @param consumer pointer to consumer
  * @return pointer to current message (always valid)
  */
-const void* ri_consumer_msg(ri_consumer_t *consumer);
+const void* ri_consumerq_msg(ri_consumerq_t *consumer);
 
 /**
  * @brief consumer_flush get message from the head, discarding all older messages
@@ -176,8 +176,8 @@ const void* ri_consumer_msg(ri_consumer_t *consumer);
  * @param consumer pointer to consumer
  * @return pointer to the latest message updated by the remote producer; NULL until remote producer updates it for the first time
  */
-ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
-ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
+ri_consume_result_t ri_consumerq_flush(ri_consumerq_t *consumer);
+ri_consume_result_t ri_consumerq_pop(ri_consumerq_t *consumer);
 
 /**
  * @brief ri_producer_msg get pointer to current message
@@ -185,7 +185,7 @@ ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
  * @param producer pointer to producer
  * @return pointer to current message (always valid)
  */
-void* ri_producer_msg(ri_producer_t *producer);
+void* ri_producerq_msg(ri_producerq_t *producer);
 
 /**
  * @brief ri_producer_force_put submits current message and get a new message
@@ -193,7 +193,7 @@ void* ri_producer_msg(ri_producer_t *producer);
  * @param producer pointer to producer
  * @return 0 => success, 1 => success, but discarded last unused message
  */
-ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
+ri_produce_result_t ri_producerq_force_push(ri_producerq_t *producer);
 
 /**
  * @brief ri_producer_try_put submits current message and get a new message,
@@ -202,7 +202,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
  * @param producer pointer to producer
  * @return 0 => success, -1 => fail, because queue was full
  */
-ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
+ri_produce_result_t ri_producerq_try_push(ri_producerq_t *producer);
 
 /**
  * @brief ri_consumer_get_buffer_size submits current buffer and get a new one for writing
@@ -210,12 +210,12 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
  * @param producer pointer to producer
  * @return size of buffer
  */
-size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
+size_t ri_consumerq_msg_size(const ri_consumerq_t *consumer);
 
-size_t ri_producer_msg_size(const ri_producer_t *producer);
+size_t ri_producerq_msg_size(const ri_producerq_t *producer);
 
-void ri_consumer_delete(ri_consumer_t *consumer);
-void ri_producer_delete(ri_producer_t* producer);
+void ri_consumerq_delete(ri_consumerq_t *consumer);
+void ri_producerq_delete(ri_producerq_t* producer);
 
 #ifdef __cplusplus
 }

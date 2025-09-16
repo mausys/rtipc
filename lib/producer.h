@@ -8,10 +8,10 @@
 #include "shm.h"
 
 
-typedef struct ri_producer ri_producer_t;
+typedef struct ri_producerq ri_producerq_t;
 
 
-ri_producer_t * ri_producer_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init);
-void ri_producer_delete(ri_producer_t* producer);
+ri_producerq_t * ri_producerq_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init);
+void ri_producerq_delete(ri_producerq_t* producer);
 
-void* ri_producer_msg(ri_producer_t *producer);
+void* ri_producerq_msg(ri_producerq_t *producer);
