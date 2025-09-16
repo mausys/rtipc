@@ -4,7 +4,7 @@
 
 #include "queue.h"
 
-struct ri_consumerq
+struct ri_consumer_q
 {
   ri_shm_t *shm;
   ri_queue_t queue;
@@ -12,19 +12,19 @@ struct ri_consumerq
 };
 
 
-size_t ri_consumerq_msg_size(const ri_consumerq_t *consumer)
+size_t ri_consumer_q_msg_size(const ri_consumer_q_t *consumer)
 {
   return consumer->queue.msg_size;
 }
 
-ri_consumerq_t* ri_consumerq_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init)
+ri_consumer_q_t* ri_consumer_q_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init)
 {
-  ri_consumerq_t *consumer = malloc(sizeof(ri_consumerq_t));
+  ri_consumer_q_t *consumer = malloc(sizeof(ri_consumer_q_t));
 
   if (!consumer)
     return NULL;
 
-  *consumer = (ri_consumerq_t) {
+  *consumer = (ri_consumer_q_t) {
       .shm = shm,
       .current = 0,
   };
@@ -39,13 +39,13 @@ ri_consumerq_t* ri_consumerq_new(ri_shm_t *shm, const ri_channel_param_t *param,
 }
 
 
-void ri_consumerq_delete(ri_consumerq_t *consumer)
+void ri_consumer_q_delete(ri_consumer_q_t *consumer)
 {
   ri_shm_unref(consumer->shm);
   free(consumer);
 }
 
-ri_consume_result_t ri_consumerq_flush(ri_consumerq_t *consumer)
+ri_consume_result_t ri_consumer_q_flush(ri_consumer_q_t *consumer)
 {
   ri_queue_t *queue = &consumer->queue;
 
@@ -81,7 +81,7 @@ ri_consume_result_t ri_consumerq_flush(ri_consumerq_t *consumer)
   return RI_CONSUME_RESULT_DISCARDED;
 }
 
-ri_consume_result_t ri_consumerq_pop(ri_consumerq_t *consumer)
+ri_consume_result_t ri_consumer_q_pop(ri_consumer_q_t *consumer)
 {
   ri_queue_t *queue = &consumer->queue;
   ri_index_t tail = ri_queue_tail_fetch_or(queue, RI_CONSUMED_FLAG);
@@ -124,7 +124,7 @@ ri_consume_result_t ri_consumerq_pop(ri_consumerq_t *consumer)
   }
 }
 
-const void* ri_consumerq_msg(ri_consumerq_t *consumer)
+const void* ri_consumer_q_msg(ri_consumer_q_t *consumer)
 {
   if (consumer->current == RI_INDEX_INVALID)
     return NULL;
