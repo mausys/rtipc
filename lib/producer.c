@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #include "param.h"
-#include "channel.h"
+#include "queue.h"
 
 #include "log.h"
 
@@ -14,19 +14,19 @@
 struct ri_producer
 {
   ri_shm_t *shm;
-  ri_channel_t channel;
+  ri_queue_t queue;
 
   ri_index_t head; /* last message in chain that can be used by consumer, chain[head] is always INDEX_END */
   ri_index_t current; /* message used by producer, will become head  */
   ri_index_t overrun; /* message used by consumer when tail moved away by producer, will become current when released by consumer */
-  ri_index_t queue[]; /* local copy of queue, because queue is read only for consumer */
+  ri_index_t chain[]; /* local copy of chain, because queue is read only for consumer */
 };
 
 
 static void queue_store(ri_producer_t *producer, ri_index_t idx, ri_index_t val)
 {
-  producer->queue[idx] = val;
-  ri_channel_queue_store(&producer->channel, idx, val);
+  producer->chain[idx] = val;
+  ri_queue_chain_store(&producer->queue, idx, val);
 }
 
 
@@ -48,7 +48,7 @@ ri_producer_t* ri_producer_new(ri_shm_t *shm, const ri_channel_param_t *param, u
       .head = RI_INDEX_INVALID,
   };
 
-  ri_channel_init(&producer->channel, param, start);
+  ri_queue_init(&producer->queue, param, start);
 
   for (unsigned i = 0; i < queue_len - 1; i++) {
     queue_store(producer, i, i + 1);
@@ -57,7 +57,7 @@ ri_producer_t* ri_producer_new(ri_shm_t *shm, const ri_channel_param_t *param, u
   queue_store(producer, queue_len - 1, 0);
 
   if (shm_init)
-    ri_channel_shm_init(&producer->channel);
+    ri_queue_shm_init(&producer->queue);
 
   ri_shm_ref(producer->shm);
 
@@ -74,22 +74,22 @@ void ri_producer_delete(ri_producer_t* producer)
 
 size_t ri_producer_msg_size(const ri_producer_t *producer)
 {
-  return producer->channel.msg_size;
+  return producer->queue.msg_size;
 }
 
 static void enqueue_first_msg(ri_producer_t *producer)
 {
-  ri_channel_t *channel = &producer->channel;
+  ri_queue_t *queue = &producer->queue;
 
   /* current message is the new end of chain*/
   queue_store(producer, producer->current, RI_INDEX_INVALID);
 
-  ri_channel_tail_store(channel, producer->current);
+  ri_queue_tail_store(queue, producer->current);
 
   producer->head = producer->current;
 
   /* announce the new head for consumer_get_head */
-  ri_channel_head_store(channel, producer->head);
+  ri_queue_head_store(queue, producer->head);
 }
 
 /* set the next message as head
@@ -97,7 +97,7 @@ static void enqueue_first_msg(ri_producer_t *producer)
 * will return INDEX_END */
 static void enqueue_msg(ri_producer_t *producer)
 {
-  ri_channel_t *channel = &producer->channel;
+  ri_queue_t *queue = &producer->queue;
 
   /* current message is the new end of chain*/
   queue_store(producer, producer->current, RI_INDEX_INVALID);
@@ -108,25 +108,25 @@ static void enqueue_msg(ri_producer_t *producer)
   producer->head = producer->current;
 
   /* announce the new head for consumer_get_head */
-  ri_channel_head_store(channel, producer->head);
+  ri_queue_head_store(queue, producer->head);
 }
 
 static bool move_tail(ri_producer_t *producer, ri_index_t tail)
 {
-  ri_index_t next = producer->queue[tail & RI_INDEX_MASK];
+  ri_index_t next = producer->chain[tail & RI_INDEX_MASK];
 
-  return ri_channel_tail_compare_exchange(&producer->channel, tail, next);
+  return ri_queue_tail_compare_exchange(&producer->queue, tail, next);
 }
 
 /* try to jump over tail blocked by consumer */
 static bool overrun(ri_producer_t *producer, ri_index_t tail)
 {
-  const ri_channel_t *channel = &producer->channel;
+  const ri_queue_t *queue = &producer->queue;
 
-  ri_index_t new_current = producer->queue[tail & RI_INDEX_MASK]; /* next */
-  ri_index_t new_tail = producer->queue[new_current];             /* after next */
+  ri_index_t new_current = producer->chain[tail & RI_INDEX_MASK]; /* next */
+  ri_index_t new_tail = producer->chain[new_current];             /* after next */
 
-  if (ri_channel_tail_compare_exchange(channel, tail, new_tail)) {
+  if (ri_queue_tail_compare_exchange(queue, tail, new_tail)) {
     producer->overrun = tail & RI_INDEX_MASK;
     producer->current = new_current;
 
@@ -144,7 +144,7 @@ static bool overrun(ri_producer_t *producer, ri_index_t tail)
  * used by consumer. Returns pointer to new message */
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
-  ri_index_t next = producer->queue[producer->current];
+  ri_index_t next = producer->chain[producer->current];
 
   if (producer->head == RI_INDEX_INVALID) {
     enqueue_first_msg(producer);
@@ -152,15 +152,15 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
     return RI_PRODUCE_RESULT_SUCCESS;
   }
 
-  ri_channel_t *channel = &producer->channel;
+  ri_queue_t *queue = &producer->queue;
 
   bool discarded = false;
 
   enqueue_msg(producer);
 
-  ri_index_t tail = ri_channel_tail_load(channel);
+  ri_index_t tail = ri_queue_tail_load(queue);
 
-  if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
+  if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK))
     return RI_PRODUCE_RESULT_ERROR;
 
   bool consumed = !!(tail & RI_CONSUMED_FLAG);
@@ -222,7 +222,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 /* trys to insert the next message into the queue */
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 {
-  ri_index_t next = producer->queue[producer->current];
+  ri_index_t next = producer->chain[producer->current];
 
   if (producer->head == RI_INDEX_INVALID) {
     enqueue_first_msg(producer);
@@ -230,11 +230,11 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
     return RI_PRODUCE_RESULT_SUCCESS;
   }
 
-  const ri_channel_t *channel = &producer->channel;
+  const ri_queue_t *queue = &producer->queue;
 
-  ri_index_t tail = ri_channel_tail_load(channel);
+  ri_index_t tail = ri_queue_tail_load(queue);
 
-  if (!ri_channel_index_valid(channel, tail & RI_INDEX_MASK))
+  if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK))
     return RI_PRODUCE_RESULT_ERROR;
 
   bool consumed = !!(tail & RI_CONSUMED_FLAG);
@@ -270,5 +270,5 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 
 void* ri_producer_msg(ri_producer_t *producer)
 {
-  return ri_channel_get_msg(&producer->channel, producer->current);
+  return ri_queue_get_msg(&producer->queue, producer->current);
 }

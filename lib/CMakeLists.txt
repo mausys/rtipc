@@ -18,15 +18,16 @@ set(RTIPC_SRCS
   rtipc.c
   rtipc.h
   rtipc_factory.c
-  channel.c
-  channel.h
+  queue.c
+  queue.h
   producer.c
   producer.h
   consumer.c
   consumer.h
   mem_utils.c
   mem_utils.h
-  index.h)
+  index.h
+  socket.c)
 
 
 set(RTIPC_INCLUDE_FILES rtipc.h
