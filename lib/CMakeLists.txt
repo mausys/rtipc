@@ -27,6 +27,8 @@ set(RTIPC_SRCS
   mem_utils.c
   mem_utils.h
   index.h
+  table.c
+  table.h
   socket.c)
 
 
