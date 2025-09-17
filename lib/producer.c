@@ -31,7 +31,7 @@ static void chain_store(ri_producer_queue_t *producer, ri_index_t idx, ri_index_
 
 
 
-ri_producer_queue_t* ri_producer_queue_new(ri_shm_t *shm, const ri_channel_param_t *param, uintptr_t start, bool shm_init)
+ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, uintptr_t start)
 {
   unsigned queue_len = ri_calc_queue_len(param);
   size_t size = sizeof(ri_producer_queue_t) + queue_len * sizeof(ri_index_t);
@@ -55,9 +55,6 @@ ri_producer_queue_t* ri_producer_queue_new(ri_shm_t *shm, const ri_channel_param
   }
 
   chain_store(producer, queue_len - 1, 0);
-
-  if (shm_init)
-    ri_queue_shm_init(&producer->queue);
 
   ri_shm_ref(producer->shm);
 
