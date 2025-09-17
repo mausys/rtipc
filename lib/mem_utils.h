@@ -13,6 +13,11 @@ static inline void* mem_offset(void *p, size_t offset)
   return (void*)((uintptr_t)p + offset);
 }
 
+static inline const void* cmem_offset(const void *p, size_t offset)
+{
+  return (const void*)((uintptr_t)p + offset);
+}
+
 size_t cacheline_size(void);
 
 static inline size_t cacheline_aligned(size_t size)
