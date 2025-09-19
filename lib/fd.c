@@ -1,5 +1,6 @@
 #include "fd.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +9,7 @@
 static const char c_memfd_link[] = "/memfd:";
 static const char c_eventfd_link[] = "anon_inode:[eventfd";
 
-ri_fd_t ri_fd_get_type(int fd)
+int ri_fd_check(int fd, ri_fd_t expected)
 {
   char path[32];
   char link[32];
@@ -16,16 +17,16 @@ ri_fd_t ri_fd_get_type(int fd)
   ssize_t r = readlink(path, link, sizeof(link));
 
   if ((r < 0) || ((size_t)r >= sizeof(link) - 1))
-    return RI_FD_UNKNOWN;
+    return -1;
 
-  /* make sure buf is null terminated */
-  link[r] = 0;
+  switch (expected) {
+    case RI_FD_EVENT:
+      r = strncmp(link, c_eventfd_link, sizeof(c_eventfd_link) - 1) == 0 ? 0 : -1;
+      break;
+    case RI_FD_MEM:
+      r = strncmp(link, c_memfd_link, sizeof(c_memfd_link) - 1) == 0 ? 0 : -1;
+      break;
+  }
 
-  if (strncmp(link, c_eventfd_link, sizeof(c_eventfd_link) - 1) == 0)
-    return RI_FD_EVENT;
-
-  if (strncmp(link, c_memfd_link, sizeof(c_memfd_link) - 1) == 0)
-    return RI_FD_MEM;
-
-  return RI_FD_UNKNOWN;
+  return r;
 }

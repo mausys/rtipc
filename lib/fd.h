@@ -2,10 +2,9 @@
 
 
 typedef enum {
-  RI_FD_UNKNOWN,
   RI_FD_EVENT,
   RI_FD_MEM,
 } ri_fd_t;
 
 
-ri_fd_t ri_fd_get_type(int fd);
+int ri_fd_check(int fd, ri_fd_t expected);
