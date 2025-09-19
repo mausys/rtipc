@@ -17,22 +17,33 @@ size_t ri_consumer_queue_msg_size(const ri_consumer_queue_t *consumer)
   return consumer->queue.msg_size;
 }
 
-ri_consumer_queue_t* ri_consumer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, uintptr_t start)
+ri_consumer_queue_t* ri_consumer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset)
 {
   ri_consumer_queue_t *consumer = malloc(sizeof(ri_consumer_queue_t));
 
   if (!consumer)
-    return NULL;
+    goto fail_alloc;
 
   *consumer = (ri_consumer_queue_t) {
       .shm = shm,
       .current = 0,
   };
 
-  ri_queue_init(&consumer->queue, param, start);
+  void *ptr = ri_shm_ptr(shm, shm_offset);
+
+  if (!ptr)
+    goto fail_shm;
+
+  ri_queue_init(&consumer->queue, param, ptr);
 
   ri_shm_ref(consumer->shm);
+
   return consumer;
+
+fail_shm:
+  free(consumer);
+fail_alloc:
+  return NULL;
 }
 
 

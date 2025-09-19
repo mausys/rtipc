@@ -5,9 +5,9 @@
 
 
 
-void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, uintptr_t start)
+void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, void* shm)
 {
-  ri_atomic_index_t *indices = (ri_atomic_index_t *) start;
+  ri_atomic_index_t *indices = (ri_atomic_index_t *) shm;
 
   *queue = (ri_queue_t) {
       .n_msgs = ri_calc_queue_len(param),
@@ -15,15 +15,26 @@ void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, uintptr_t
       .tail = &indices[0],
       .head = &indices[1],
       .chain = &indices[2],
-      .msgs_start_addr = start + ri_calc_queue_size(param),
+      .msgs =  mem_offset(shm, ri_calc_queue_size(param)),
   };
 }
+
 
 void ri_queue_shm_init(ri_queue_t *queue)
 {
   atomic_store(queue->tail, RI_INDEX_INVALID);
   atomic_store(queue->head, RI_INDEX_INVALID);
 }
+
+
+void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx)
+{
+  if (idx >= queue->n_msgs)
+    return NULL;
+
+  return mem_offset(queue->msgs, idx * queue->msg_size);
+}
+
 
 void ri_queue_dump(ri_queue_t *queue)
 {
@@ -35,5 +46,5 @@ void ri_queue_dump(ri_queue_t *queue)
     LOG_INF("\t\t\tqueue[0x%p]=0x%x", &queue->chain[i], queue->chain[i]);
   }
 
-  LOG_INF("\t\t\tmsgs_start_addr=0x%p", (void*) queue->msgs_start_addr);
+  LOG_INF("\t\t\tmsgs_start_addr=0x%p", queue->msgs);
 }

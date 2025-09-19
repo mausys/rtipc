@@ -31,7 +31,7 @@ static void chain_store(ri_producer_queue_t *producer, ri_index_t idx, ri_index_
 
 
 
-ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, uintptr_t start)
+ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset)
 {
   unsigned queue_len = ri_calc_queue_len(param);
   size_t size = sizeof(ri_producer_queue_t) + queue_len * sizeof(ri_index_t);
@@ -39,7 +39,7 @@ ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_s
   ri_producer_queue_t *producer =  malloc(size);
 
   if (!producer)
-    return NULL;
+    goto fail_alloc;
 
   *producer = (ri_producer_queue_t) {
       .shm = shm,
@@ -48,7 +48,12 @@ ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_s
       .head = RI_INDEX_INVALID,
   };
 
-  ri_queue_init(&producer->queue, param, start);
+  void *ptr = ri_shm_ptr(shm, shm_offset);
+
+  if (!ptr)
+    goto fail_shm;
+
+  ri_queue_init(&producer->queue, param, ptr);
 
   for (unsigned i = 0; i < queue_len - 1; i++) {
     chain_store(producer, i, i + 1);
@@ -59,6 +64,11 @@ ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_s
   ri_shm_ref(producer->shm);
 
   return producer;
+
+fail_shm:
+  free(producer);
+fail_alloc:
+  return NULL;
 }
 
 void ri_producer_queue_delete(ri_producer_queue_t* producer)

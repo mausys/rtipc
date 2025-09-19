@@ -15,7 +15,7 @@ typedef struct ri_queue
   /* number of messages available, can't be lesser than 3 */
   unsigned n_msgs;
   size_t msg_size;
-  uintptr_t msgs_start_addr;
+  void* msgs;
   /* producer and consumer can change the tail
     *  the MSB shows who has last modified the tail */
   ri_atomic_index_t *tail;
@@ -33,17 +33,9 @@ typedef struct ri_queue
 
 
 
-static inline void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx)
-{
-  if (idx >= queue->n_msgs)
-    return NULL;
+void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx);
 
-  return (void*) (queue->msgs_start_addr + (idx * queue->msg_size));
-}
-
-
-
-void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, uintptr_t start);
+void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, void* shm);
 
 void ri_queue_shm_init(ri_queue_t *queue);
 
