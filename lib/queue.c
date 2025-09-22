@@ -11,7 +11,8 @@ void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, void* shm
 
   *queue = (ri_queue_t) {
       .n_msgs = ri_param_queue_len(param),
-      .msg_size = cacheline_aligned(param->msg_size),
+      .msg_size = param->msg_size,
+      .msg_size_aligned = cacheline_aligned(param->msg_size),
       .tail = &indices[0],
       .head = &indices[1],
       .chain = &indices[2],
@@ -32,7 +33,7 @@ void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx)
   if (idx >= queue->n_msgs)
     return NULL;
 
-  return mem_offset(queue->msgs, idx * queue->msg_size);
+  return mem_offset(queue->msgs, idx * queue->msg_size_aligned);
 }
 
 

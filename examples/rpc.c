@@ -249,7 +249,7 @@ void client_run(client_t *client, const msg_command_t *cmds)
       ri_consume_result_t r = ri_consumer_pop(client->event);
 
       if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE))
-        continue;
+        break;
 
       printf("client received:\n");
       dump_msg_event(ri_consumer_msg(client->event));
@@ -364,8 +364,6 @@ int client_start(void* arg)
 
   return 0;
 }
-
-
 
 
 

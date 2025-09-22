@@ -7,7 +7,7 @@
 #include "producer.h"
 #include "consumer.h"
 #include "param.h"
-
+#include "log.h"
 
 struct ri_consumer {
   ri_consumer_queue_t *queue;
@@ -28,7 +28,7 @@ struct ri_producer {
 };
 
 
-ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t  shm_offset, int eventfd, bool shm_init)
+ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset, int eventfd, bool shm_init)
 {
   ri_consumer_t *consumer = malloc(sizeof(ri_consumer_t));
 
@@ -56,6 +56,8 @@ ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
 
   if (shm_init)
     ri_consumer_queue_shm_init(consumer->queue);
+
+  LOG_DBG("consumer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", param->add_msgs, param->msg_size, eventfd, shm_offset);
 
   return consumer;
 
@@ -97,6 +99,8 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
 
   if (shm_init)
     ri_producer_queue_shm_init(producer->queue);
+
+  LOG_DBG("producer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", param->add_msgs, param->msg_size, eventfd, shm_offset);
 
   return producer;
 

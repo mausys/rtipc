@@ -15,6 +15,7 @@ typedef struct ri_queue
   /* number of messages available, can't be lesser than 3 */
   unsigned n_msgs;
   size_t msg_size;
+  size_t msg_size_aligned;
   void* msgs;
   /* producer and consumer can change the tail
     *  the MSB shows who has last modified the tail */

@@ -128,6 +128,31 @@ ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
 
   size_t shm_offset = 0;
 
+  for (unsigned i = 0; i < num_producers; i++) {
+    const ri_channel_param_t *param = &producers[i];
+    int fd = - 1;
+
+    if (param->eventfd) {
+      fd = ri_event_create();
+
+      if (fd < 0)
+        goto fail_channel;
+    }
+
+    vec->producers[i] = ri_producer_new(param, vec->shm, shm_offset, fd, true);
+
+    if (!vec->producers[i]) {
+      /* if channel creation fails, fd has no owner */
+      if (fd > 0)
+        close(fd);
+
+      goto fail_channel;
+    }
+
+    shm_offset += ri_param_channel_size(param);
+  }
+
+
   for (unsigned i = 0; i < num_consumers; i++) {
     const ri_channel_param_t *param = &consumers[i];
     int fd = - 1;
@@ -149,30 +174,6 @@ ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
       goto fail_channel;
     }
 
-
-    shm_offset += ri_param_channel_size(param);
-  }
-
-  for (unsigned i = 0; i < num_producers; i++) {
-    const ri_channel_param_t *param = &producers[i];
-    int fd = - 1;
-
-    if (param->eventfd) {
-      fd = ri_event_create();
-
-      if (fd < 0)
-        goto fail_channel;
-    }
-
-    vec->producers[i] = ri_producer_new(param, vec->shm, shm_offset, fd, true);
-
-    if (!vec->producers[i]) {
-      /* if channel creation fails, fd has no owner */
-      if (fd > 0)
-        close(fd);
-
-      goto fail_channel;
-    }
 
     shm_offset += ri_param_channel_size(param);
   }
