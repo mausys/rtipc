@@ -4,13 +4,13 @@
 #include <unistd.h>
 #include <string.h>
 
+#include "channel.h"
+#include "fd.h"
+#include "header.h"
+#include "log.h"
 #include "mem_utils.h"
 #include "param.h"
 #include "shm.h"
-#include "channel.h"
-#include "header.h"
-#include "fd.h"
-
 
 typedef struct entry {
   uint32_t add_msgs;
@@ -166,8 +166,6 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
   };
 
   for (unsigned i = 0; i < num_consumers; i++) {
-    req_iter_next(&iter);
-
     int r = check_iter(&iter, req, vec->shm);
 
     if (r < 0)
@@ -196,11 +194,11 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
         close(fd);
       goto fail_channel;
     }
+
+    req_iter_next(&iter);
   }
 
   for (unsigned i = 0; i < num_producers; i++) {
-    req_iter_next(&iter);
-
     int r = check_iter(&iter, req, vec->shm);
 
     if (r < 0)
@@ -229,6 +227,8 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
         close(fd);
       goto fail_channel;
     }
+
+    req_iter_next(&iter);
   }
 
   return vec;
@@ -303,6 +303,7 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
       memcpy(mem_offset(msg, info_offset), info.data, info.size);
       info_offset += info.size;
     }
+    entry++;
   }
 
   for (unsigned i = 0 ; i < vec->num_consumers; i++) {
@@ -327,6 +328,7 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
       memcpy(mem_offset(msg, info_offset), info.data, info.size);
       info_offset += info.size;
     }
+    entry++;
   }
 
   return req;

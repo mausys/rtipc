@@ -221,11 +221,14 @@ fail_alloc:
   return NULL;
 }
 
+
 void client_run(client_t *client, const msg_command_t *cmds)
 {
-  for (const msg_command_t *cmd = cmds; cmd->id != CMDID_UNKNOWN; cmd++) {
-    *(msg_command_t*)ri_producer_msg(client->command) = *cmd;
-    ri_producer_force_push(client->command);
+  const msg_command_t *cmd = cmds;
+  *(msg_command_t*)ri_producer_msg(client->command) = *cmd;
+  ri_producer_force_push(client->command);
+
+  for (;;) {
     usleep(10000);
     for (;;) {
       ri_consume_result_t r = ri_consumer_pop(client->response);
@@ -235,12 +238,18 @@ void client_run(client_t *client, const msg_command_t *cmds)
 
       printf("client received:\n");
       dump_msg_response(ri_consumer_msg(client->response));
+      if (cmd->id == CMDID_UNKNOWN)
+        return;
+      *(msg_command_t*)ri_producer_msg(client->command) = *cmd;
+      ri_producer_force_push(client->command);
+      cmd++;
     }
+
     for (;;) {
       ri_consume_result_t r = ri_consumer_pop(client->event);
 
       if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE))
-        break;
+        continue;
 
       printf("client received:\n");
       dump_msg_event(ri_consumer_msg(client->event));

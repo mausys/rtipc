@@ -22,7 +22,6 @@ struct ri_shm
   void *mem;
   size_t size;
   int fd;
-  char *path;
   bool owner;
 };
 
@@ -51,11 +50,6 @@ static void shm_delete(ri_shm_t *shm)
 {
   munmap(shm->mem, shm->size);
   close(shm->fd);
-  if (shm->path) {
-    if (shm->owner)
-      shm_unlink(shm->path);
-    free(shm->path);
-  }
   free(shm);
 }
 
@@ -115,7 +109,7 @@ ri_shm_t* ri_shm_map(int fd)
   int r = fstat(shm->fd, &stat);
 
   if (r < 0) {
-    LOG_ERR("fstat for %s failed: %s", shm->path, strerror(errno));
+    LOG_ERR("fstat failed: %s", strerror(errno));
     goto fail_stat;
   }
 
@@ -124,11 +118,11 @@ ri_shm_t* ri_shm_map(int fd)
   shm->mem = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
 
   if (shm->mem == MAP_FAILED) {
-    LOG_ERR("mmap for %s with size=%zu failed: %s", shm->path, shm->size, strerror(errno));
+    LOG_ERR("mmap with size=%zu failed: %s", shm->size, strerror(errno));
     goto fail_map;
   }
 
-  LOG_INF("mapped shared memory name=%s size=%zu, on %p", shm->path, shm->size, shm->mem);
+  LOG_INF("mapped shared memory size=%zu, on %p", shm->size, shm->mem);
 
   return shm;
 
