@@ -5,7 +5,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdatomic.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +13,7 @@
 #include <sys/mman.h> // memfd_create
 #include <sys/stat.h> // fstat
 
+#include "mem_utils.h"
 #include "log.h"
 
 struct ri_shm
@@ -68,7 +68,7 @@ ri_shm_t* ri_shm_new(size_t size)
 
   snprintf(name, sizeof(name) - 1, "rtipc_%u", nr);
 
-  int fd = memfd_create(name, MFD_ALLOW_SEALING);
+  int fd = memfd_create(name, MFD_ALLOW_SEALING | MFD_CLOEXEC);
 
   if (fd < 0) {
     LOG_ERR("memfd_create failed for %s: %s", name, strerror(errno));

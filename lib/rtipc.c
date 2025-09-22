@@ -15,8 +15,6 @@
 #include "consumer.h"
 #include "producer.h"
 
-#define MAGIC 0x1f0c /* lock-free and zero-copy :) */
-#define HEADER_VERSION 1
 
 struct ri_rtipc
 {
@@ -27,33 +25,9 @@ struct ri_rtipc
   ri_producer_queue_t **producers;
 };
 
-typedef struct
-{
-  uint16_t magic;
-  uint16_t version;
-  uint16_t cacheline_size;
-  uint16_t atomic_size;
-  uint32_t num_channels[2]; /**< number of channels for producers / consumers */
-} shm_header_t;
 
 
-static size_t header_size(void)
-{
-  return (sizeof(shm_header_t));
-}
 
-static unsigned count_channels(const ri_channel_param_t channels[])
-{
-  if (!channels)
-    return 0;
-
-  unsigned i;
-
-  for (i = 0; channels[i].msg_size != 0; i++)
-    ;
-
-  return i;
-}
 
 static const ri_channel_param_t* shm_get_channel_size(void *shm_start, unsigned idx)
 {
@@ -70,45 +44,9 @@ static size_t get_channels_offset(unsigned num)
   return cacheline_aligned(size);
 }
 
-static int validate_header(const shm_header_t *header)
-{
-  if (header->magic != MAGIC) {
-    LOG_ERR("magic missmatch 0x%x != 0x%x", header->magic, MAGIC);
-    return -EINVAL;
-  }
-
-  if (header->version != HEADER_VERSION) {
-    LOG_ERR("verison missmatch %u != %u", header->version, HEADER_VERSION);
-    return -EINVAL;
-  }
 
 
-  if (header->cacheline_size != cacheline_size()) {
-    LOG_ERR("cacheline_size missmatch %u != %zu", header->cacheline_size, cacheline_size());
-    return -EINVAL;
-  }
-
-  if (header->atomic_size != sizeof(ri_atomic_index_t)) {
-    LOG_ERR("atomic size missmatch %u != %zu", header->atomic_size, sizeof(ri_atomic_index_t));
-    return -EINVAL;
-  }
-
-  return 0;
-}
-
-static void init_header(shm_header_t *header,
-                        uint32_t num_consumers,
-                        uint32_t num_producers)
-{
-  header->magic = MAGIC;
-  header->version = HEADER_VERSION;
-  header->cacheline_size = cacheline_size();
-  header->atomic_size = sizeof(ri_atomic_index_t);
-  header->num_channels[0] = num_consumers;
-  header->num_channels[1] = num_producers;
-}
-
-static ssize_t init_producers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_end, unsigned index_offset, bool shm_init)
+static ssize_t init_producers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_end, unsigned index_offset)
 {
   for (unsigned i = 0; i < rtipc->num_producers; i++) {
     const ri_channel_param_t *param = shm_get_channel_size(rtipc->shm->mem, index_offset + i);
@@ -117,7 +55,7 @@ static ssize_t init_producers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_
     if (addr + size > addr_end)
       return -1;
 
-    rtipc->producers[i] = ri_producer_queue_new(rtipc->shm, param, addr, shm_init);
+    rtipc->producers[i] = ri_producer_queue_new(rtipc->shm, param, addr);
     if (!rtipc->producers[i])
       return -1;
 
@@ -128,7 +66,7 @@ static ssize_t init_producers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_
 
 
 
-static ssize_t init_consumers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_end, unsigned index_offset, bool shm_init)
+static ssize_t init_consumers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_end, unsigned index_offset)
 {
   for (unsigned i = 0; i < rtipc->num_consumers; i++) {
     const ri_channel_param_t *param = shm_get_channel_size(rtipc->shm->mem, index_offset + i);
@@ -137,7 +75,7 @@ static ssize_t init_consumers(ri_rtipc_t *rtipc, uintptr_t addr, uintptr_t addr_
     if (addr + size > addr_end)
       return -1;
 
-    rtipc->consumers[i] = ri_consumer_queue_new(rtipc->shm, param, addr, shm_init);
+    rtipc->consumers[i] = ri_consumer_queue_new(rtipc->shm, param, addr);
     if (!rtipc->consumers[i])
       return -1;
 
@@ -210,23 +148,23 @@ ri_rtipc_t* ri_rtipc_new(ri_shm_t *shm, bool shm_init)
     goto fail_channels;
 
   if (shm->owner) {
-     ssize_t ret = init_consumers(rtipc, addr, addr_end, 0, shm_init);
+     ssize_t ret = init_consumers(rtipc, addr, addr_end, 0);
      if (ret < 0)
       goto fail_channels;
 
      addr = ret;
 
-     ret = init_producers(rtipc, addr, addr_end, rtipc->num_consumers, shm_init);
+     ret = init_producers(rtipc, addr, addr_end, rtipc->num_consumers);
      if (ret < 0)
        goto fail_channels;
   } else {
-    ssize_t ret = init_producers(rtipc, addr, addr_end, 0, shm_init);
+    ssize_t ret = init_producers(rtipc, addr, addr_end, 0);
     if (ret < 0)
       goto fail_channels;
 
     addr = ret;
 
-    ret = init_consumers(rtipc, addr, addr_end, rtipc->num_producers, shm_init);
+    ret = init_consumers(rtipc, addr, addr_end, rtipc->num_producers);
     if (ret < 0)
       goto fail_channels;
   }

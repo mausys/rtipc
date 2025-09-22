@@ -6,42 +6,50 @@
 
 #include "producer.h"
 #include "consumer.h"
+#include "param.h"
 
 
 struct ri_consumer {
   ri_consumer_queue_t *queue;
-  int fd;
-  size_t info_size;
-  void *info;
+  int eventfd;
+  struct {
+    size_t size;
+    void *data;
+  } info;
 };
 
 struct ri_producer {
   ri_producer_queue_t *queue;
-  int fd;
-  size_t info_size;
-  void *info;
+  int eventfd;
+  struct {
+    size_t size;
+    void *data;
+  } info;
 };
 
 
-ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, uintptr_t start, int fd)
+ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t  shm_offset, int eventfd)
 {
   ri_consumer_t *consumer = malloc(sizeof(ri_consumer_t));
 
   if (!consumer)
     goto fail_alloc;
 
-  *consumer = (ri_consumer_t) { .fd = fd };
+  *consumer = (ri_consumer_t) {
+    .eventfd = eventfd,
+    .info.size = param->info.size,
+  };
 
   if ((param->info.size > 0) && param->info.data) {
-    consumer->info = malloc(param->info.size);
+    consumer->info.data = malloc(param->info.size);
 
-    if (!consumer->info)
+    if (!consumer->info.data)
       goto fail_info;
 
-    memcpy(consumer->info, param->info.data, param->info.size);
+    memcpy(consumer->info.data, param->info.data, param->info.size);
   }
 
-  consumer->queue = ri_consumer_queue_new(param, shm, start);
+  consumer->queue = ri_consumer_queue_new(param, shm, shm_offset);
 
   if (!consumer->queue)
     goto fail_queue;
@@ -49,8 +57,8 @@ ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, u
   return consumer;
 
 fail_queue:
-  if (consumer->info)
-    free(consumer->info);
+  if (consumer->info.data)
+    free(consumer->info.data);
 fail_info:
   free(consumer);
 fail_alloc:
@@ -58,25 +66,28 @@ fail_alloc:
 }
 
 
-ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, uintptr_t start, int fd)
+ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset, int eventfd)
 {
   ri_producer_t *producer = malloc(sizeof(ri_producer_t));
 
   if (!producer)
     goto fail_alloc;
 
-   *producer = (ri_producer_t) { .fd = fd };
+  *producer = (ri_producer_t) {
+      .eventfd = eventfd,
+      .info.size = param->info.size,
+  };
 
   if ((param->info.size > 0) && param->info.data) {
-    producer->info = malloc(param->info.size);
+    producer->info.data = malloc(param->info.size);
 
-    if (!producer->info)
+    if (!producer->info.data)
       goto fail_info;
 
-    memcpy(producer->info, param->info.data, param->info.size);
+    memcpy(producer->info.data, param->info.data, param->info.size);
   }
 
-  producer->queue = ri_producer_queue_new(param, shm, start);
+  producer->queue = ri_producer_queue_new(param, shm, shm_offset);
 
   if (!producer->queue)
     goto fail_queue;
@@ -84,8 +95,8 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, u
   return producer;
 
 fail_queue:
-  if (producer->info)
-    free(producer->info);
+  if (producer->info.data)
+    free(producer->info.data);
 fail_info:
   free(producer);
 fail_alloc:
@@ -97,11 +108,11 @@ void ri_consumer_delete(ri_consumer_t *consumer)
 {
   ri_consumer_queue_delete(consumer->queue);
 
-  if (consumer->fd >= 0)
-    close(consumer->fd);
+  if (consumer->eventfd >= 0)
+    close(consumer->eventfd);
 
-  if (consumer->info)
-    free(consumer->info);
+  if (consumer->info.data)
+    free(consumer->info.data);
 
   free(consumer);
 }
@@ -111,11 +122,65 @@ void ri_producer_delete(ri_producer_t *producer)
 {
   ri_producer_queue_delete(producer->queue);
 
-  if (producer->fd >= 0)
-    close(producer->fd);
+  if (producer->eventfd >= 0)
+    close(producer->eventfd);
 
-  if (producer->info)
-    free(producer->info);
+  if (producer->info.data)
+    free(producer->info.data);
 
   free(producer);
+}
+
+
+unsigned ri_consumer_len(const ri_consumer_t *consumer)
+{
+  return ri_consumer_queue_len(consumer->queue);
+}
+
+
+size_t ri_consumer_msg_size(const ri_consumer_t *consumer)
+{
+  return ri_consumer_queue_msg_size(consumer->queue);
+}
+
+
+ri_info_t ri_consumer_info(const ri_consumer_t *consumer)
+{
+  return  (ri_info_t) {
+      .size = consumer->info.size,
+      .data = consumer->info.data,
+  };
+}
+
+
+
+int ri_consumer_eventfd(const ri_consumer_t *consumer)
+{
+  return consumer->eventfd;
+}
+
+
+unsigned ri_producer_len(const ri_producer_t *producer)
+{
+  return ri_producer_queue_len(producer->queue);
+}
+
+size_t ri_producer_msg_size(const ri_producer_t *producer)
+{
+  return ri_producer_queue_msg_size(producer->queue);
+}
+
+
+ri_info_t ri_producer_info(const ri_producer_t *producer)
+{
+  return  (ri_info_t) {
+    .size = producer->info.size,
+    .data = producer->info.data,
+  };
+}
+
+
+int ri_producer_eventfd(const ri_producer_t *producer)
+{
+  return producer->eventfd;
 }

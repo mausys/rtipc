@@ -15,6 +15,8 @@ set(RTIPC_SRCS
   param.h
   shm.c
   shm.h
+  event.c
+  event.h
   rtipc.c
   rtipc.h
   rtipc_factory.c
@@ -27,9 +29,20 @@ set(RTIPC_SRCS
   mem_utils.c
   mem_utils.h
   index.h
-  table.c
-  table.h
-  socket.c)
+  vector.c
+  vector.h
+  channel.c
+  channel.h
+  header.c
+  header.h
+  request.c
+  request.h
+  fd.c
+  fd.h
+  socket.c
+  protocol.c
+  protocol.h
+)
 
 
 set(RTIPC_INCLUDE_FILES rtipc.h

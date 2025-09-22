@@ -2,24 +2,22 @@
 #include "index.h"
 #include "mem_utils.h"
 
-static size_t ri_calc_data_size(const ri_channel_param_t *param)
+static size_t ri_calc_data_size(unsigned n_msgs, size_t msg_size)
 {
-  unsigned n = ri_calc_queue_len(param);
-
-  return n * cacheline_aligned(param->msg_size);
+  return n_msgs * cacheline_aligned(msg_size);
 }
 
 
-size_t ri_calc_queue_size(const ri_channel_param_t *param)
+size_t ri_calc_queue_size(unsigned n_msgs)
 {
-  unsigned n = ri_calc_queue_len(param);
-  n += 2; /* tail + head*/
+  unsigned  n = n_msgs + 2; /* tail + head*/
+
 
   return cacheline_aligned(n * sizeof(ri_atomic_index_t));
 }
 
-size_t ri_calc_channel_size(const ri_channel_param_t *param)
+size_t ri_calc_channel_size(unsigned n_msgs, size_t msg_size)
 {
   /* tail + head + queue*/
-  return ri_calc_queue_size(param) + ri_calc_data_size(param);
+  return ri_calc_queue_size(n_msgs) + ri_calc_data_size(n_msgs, msg_size);
 }

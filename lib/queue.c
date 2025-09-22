@@ -10,12 +10,12 @@ void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, void* shm
   ri_atomic_index_t *indices = (ri_atomic_index_t *) shm;
 
   *queue = (ri_queue_t) {
-      .n_msgs = ri_calc_queue_len(param),
+      .n_msgs = ri_param_queue_len(param),
       .msg_size = cacheline_aligned(param->msg_size),
       .tail = &indices[0],
       .head = &indices[1],
       .chain = &indices[2],
-      .msgs =  mem_offset(shm, ri_calc_queue_size(param)),
+      .msgs =  mem_offset(shm, ri_calc_queue_size(param->add_msgs)),
   };
 }
 

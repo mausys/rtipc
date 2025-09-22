@@ -12,6 +12,11 @@ struct ri_consumer_queue
 };
 
 
+unsigned ri_consumer_queue_len(const ri_consumer_queue_t *consumer)
+{
+  return consumer->queue.n_msgs;
+}
+
 size_t ri_consumer_queue_msg_size(const ri_consumer_queue_t *consumer)
 {
   return consumer->queue.msg_size;

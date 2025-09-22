@@ -17,6 +17,11 @@ extern "C" {
  */
 typedef struct ri_rtipc ri_rtipc_t;
 
+typedef struct ri_info {
+  size_t size;
+  const void *data;
+} ri_info_t;
+
 /**
  * @typedef ri_channel_size_t
  *
@@ -24,23 +29,29 @@ typedef struct ri_rtipc ri_rtipc_t;
  */
 typedef struct ri_channel_param
 {
-  uint32_t msg_size;
-  uint32_t add_msgs; /* additional messages to the minimum of 3 */
+  size_t msg_size;
+  unsigned add_msgs; /* additional messages to the minimum of 3 */
+  bool eventfd;
+  ri_info_t info;
 } ri_channel_param_t;
 
 /**
- * @typedef ri_producer_queue_t
- *
- * @brief writing to a shared memory channel
- */
-typedef struct ri_producer_queue ri_producer_queue_t;
-
-/**
- * @typedef ri_consumer_queue_t
+ * @typedef ri_consumer_t
  *
  * @brief reading from a shared memory channel
  */
-typedef struct ri_consumer_queue ri_consumer_queue_t;
+typedef struct ri_consumer ri_consumer_t;
+
+/**
+ * @typedef ri_producer_t
+ *
+ * @brief writing to a shared memory channel
+ */
+typedef struct ri_producer ri_producer_t;
+
+
+
+typedef struct ri_consumer ri_consumer_t;
 
 typedef void (*ri_log_fn)(int priority,
                           const char *file,
@@ -71,34 +82,6 @@ typedef enum ri_produce_result {
  */
 void ri_set_log_handler(ri_log_fn log_handler);
 
-size_t ri_calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_param_t producers[]);
-
-/**
- * @brief ri_anon_shm_new creates, maps and initializes anonymous shared memory
- *        file descriptor can be retrieved with ri_shm_get_fd and send to client over an unix socket
- *        caller is owner of the shared memory
- *
- * @param consumers (msg_size = 0) terminated list of of consumers (owner perspective) channels
- * @param producers (msg_size = 0) terminated list of of producers (owner perspective) channels
- * @return pointer to the new rtipc object; NULL on error
- */
-ri_rtipc_t* ri_rtipc_anon_shm_new(const ri_channel_param_t consumers[],
-                                  const ri_channel_param_t producers[]);
-
-/**
- * @brief ri_named_shm_new creates, maps and initializes named shared memory
- *        caller is owner of the shared memory
- *
- * @param consumers (msg_size = 0) terminated list of of consumers (owner perspective) channels
- * @param producers (msg_size = 0) terminated list of of producers (owner perspective) channels
- * @param name shared memory name (file system)
- * @param mode used by shm_open
- * @return pointer to the new shared memory object; NULL on error
- */
-ri_rtipc_t* ri_rtipc_named_shm_new(const ri_channel_param_t consumers[],
-                                   const ri_channel_param_t producers[],
-                                   const char *name,
-                                   mode_t mode);
 
 /**
  * @brief ri_rtipc_shm_map maps shared memory
@@ -143,7 +126,7 @@ unsigned ri_rtipc_num_producers(const ri_rtipc_t *rtipc);
  * @param index consumer channel index
  * @return pointer to consumer; NULL on error
  */
-ri_consumer_queue_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned index);
+ri_consumer_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned index);
 
 /**
  * @brief ri_rtipc_take_producer get a pointer to a producer
@@ -152,7 +135,7 @@ ri_consumer_queue_t* ri_rtipc_take_consumer(const ri_rtipc_t *rtipc, unsigned in
  * @param index producer channel index
  * @return pointer to producer; NULL on error
  */
-ri_producer_queue_t* ri_rtipc_take_producer(const ri_rtipc_t *rtipc, unsigned index);
+ri_producer_t* ri_rtipc_take_producer(const ri_rtipc_t *rtipc, unsigned index);
 
 
 /**
@@ -168,7 +151,7 @@ void ri_rtipc_dump(const ri_rtipc_t *rtipc);
  * @param consumer pointer to consumer
  * @return pointer to current message (always valid)
  */
-const void* ri_consumer_queue_msg(ri_consumer_queue_t *consumer);
+const void* ri_consumer_msg(ri_consumer_t *consumer);
 
 /**
  * @brief consumer_flush get message from the head, discarding all older messages
@@ -176,8 +159,8 @@ const void* ri_consumer_queue_msg(ri_consumer_queue_t *consumer);
  * @param consumer pointer to consumer
  * @return pointer to the latest message updated by the remote producer; NULL until remote producer updates it for the first time
  */
-ri_consume_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer);
-ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer);
+ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
+ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
 
 /**
  * @brief ri_producer_msg get pointer to current message
@@ -185,7 +168,7 @@ ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer);
  * @param producer pointer to producer
  * @return pointer to current message (always valid)
  */
-void* ri_producer_queue_msg(ri_producer_queue_t *producer);
+void* ri_producer_msg(ri_producer_t *producer);
 
 /**
  * @brief ri_producer_force_put submits current message and get a new message
@@ -193,7 +176,7 @@ void* ri_producer_queue_msg(ri_producer_queue_t *producer);
  * @param producer pointer to producer
  * @return 0 => success, 1 => success, but discarded last unused message
  */
-ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer);
+ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
 
 /**
  * @brief ri_producer_try_put submits current message and get a new message,
@@ -202,7 +185,7 @@ ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer);
  * @param producer pointer to producer
  * @return 0 => success, -1 => fail, because queue was full
  */
-ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer);
+ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 
 /**
  * @brief ri_consumer_get_buffer_size submits current buffer and get a new one for writing
@@ -210,12 +193,20 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer);
  * @param producer pointer to producer
  * @return size of buffer
  */
-size_t ri_consumer_queue_msg_size(const ri_consumer_queue_t *consumer);
+size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
 
-size_t ri_producer_queue_msg_size(const ri_producer_queue_t *producer);
+size_t ri_producer_msg_size(const ri_producer_t *producer);
 
-void ri_consumer_queue_delete(ri_consumer_queue_t *consumer);
-void ri_producer_queue_delete(ri_producer_queue_t* producer);
+void ri_consumer_delete(ri_consumer_t *consumer);
+void ri_producer_delete(ri_producer_t *producer);
+
+
+ri_info_t ri_consumer_info(const ri_consumer_t *consumer);
+ri_info_t ri_producer_info(const ri_producer_t *producer);
+
+
+void ri_consumer_free_info(ri_consumer_t *consumer);
+void ri_producer_free_info(ri_producer_t *producer);
 
 #ifdef __cplusplus
 }

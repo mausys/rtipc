@@ -30,10 +30,14 @@ static void chain_store(ri_producer_queue_t *producer, ri_index_t idx, ri_index_
 }
 
 
+unsigned ri_producer_queue_len(const ri_producer_queue_t *producer)
+{
+  return producer->queue.n_msgs;
+}
 
 ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset)
 {
-  unsigned queue_len = ri_calc_queue_len(param);
+  unsigned queue_len = ri_param_queue_len(param);
   size_t size = sizeof(ri_producer_queue_t) + queue_len * sizeof(ri_index_t);
 
   ri_producer_queue_t *producer =  malloc(size);
