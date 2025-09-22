@@ -2,14 +2,15 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 #include "rtipc.h"
 #include "param.h"
-#include "shm.h"
 #include "channel.h"
 #include "event.h"
-
-
+#include "request.h"
+#include "protocol.h"
 
 static unsigned count_channels(const ri_channel_param_t channels[])
 {
@@ -42,9 +43,9 @@ static size_t calc_shm_size(const ri_channel_param_t consumers[], const ri_chann
 }
 
 
-ri_channel_vector_t* ri_channel_vector_alloc(unsigned num_consumers, unsigned num_producers)
+ri_vector_t* ri_vector_alloc(unsigned num_consumers, unsigned num_producers)
 {
-  ri_channel_vector_t *vec = calloc(1, sizeof(ri_channel_vector_t));
+  ri_vector_t *vec = calloc(1, sizeof(ri_vector_t));
 
   if (!vec)
     goto fail_alloc;
@@ -79,7 +80,7 @@ fail_alloc:
 
 
 
-void ri_channel_vector_delete(ri_channel_vector_t* vec)
+void ri_vector_delete(ri_vector_t* vec)
 {
   if (vec->consumers) {
     for (unsigned i = 0; i < vec->num_consumers; i++) {
@@ -99,27 +100,30 @@ void ri_channel_vector_delete(ri_channel_vector_t* vec)
     free(vec->producers);
   }
 
+  if (vec->shm)
+    ri_shm_unref(vec->shm);
+
   free(vec);
 }
 
 
 
-ri_channel_vector_t * ri_channel_vector_new(const ri_channel_param_t consumers[],
-                                           const ri_channel_param_t producers[])
+ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
+                                           const ri_channel_param_t producers[], const ri_info_t *info)
 {
   unsigned num_consumers = count_channels(consumers);
   unsigned num_producers = count_channels(producers);
 
-  ri_channel_vector_t *vec = ri_channel_vector_alloc(num_consumers, num_producers);
+  ri_vector_t *vec = ri_vector_alloc(num_consumers, num_producers);
 
   if (!vec)
     goto fail_alloc;
 
   size_t shm_size = calc_shm_size(consumers, producers);
 
-  ri_shm_t* shm = ri_shm_new(shm_size);
+  vec->shm = ri_shm_new(shm_size);
 
-  if (!shm)
+  if (!vec->shm)
     goto fail_shm;
 
   size_t shm_offset = 0;
@@ -135,7 +139,7 @@ ri_channel_vector_t * ri_channel_vector_new(const ri_channel_param_t consumers[]
           goto fail_channel;
     }
 
-    vec->consumers[i] = ri_consumer_new(param, shm, shm_offset, fd);
+    vec->consumers[i] = ri_consumer_new(param, vec->shm, shm_offset, fd, true);
 
     if (!vec->consumers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -144,6 +148,7 @@ ri_channel_vector_t * ri_channel_vector_new(const ri_channel_param_t consumers[]
 
       goto fail_channel;
     }
+
 
     shm_offset += ri_param_channel_size(param);
   }
@@ -159,7 +164,7 @@ ri_channel_vector_t * ri_channel_vector_new(const ri_channel_param_t consumers[]
         goto fail_channel;
     }
 
-    vec->producers[i] = ri_producer_new(param, shm, shm_offset, fd);
+    vec->producers[i] = ri_producer_new(param, vec->shm, shm_offset, fd, true);
 
     if (!vec->producers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -172,14 +177,127 @@ ri_channel_vector_t * ri_channel_vector_new(const ri_channel_param_t consumers[]
     shm_offset += ri_param_channel_size(param);
   }
 
+  if (info && info->data) {
+    int r = ri_vector_set_info(vec, info);
+    if (r < 0)
+      goto fail_channel;
+  }
+
   return vec;
 
 fail_channel:
-  ri_shm_delete(shm);
 fail_shm:
-  ri_channel_vector_delete(vec);
+  ri_vector_delete(vec);
 fail_alloc:
   return NULL;
 }
 
+
+int ri_vector_set_info(ri_vector_t* vec, const ri_info_t *info)
+{
+  if (info->size == 0)
+    return -EINVAL;
+
+  if (vec->info.data) {
+    return -EEXIST;
+  }
+
+  vec->info.data = malloc(info->size);
+
+  if (!vec->info.data)
+    return -ENOMEM;
+
+  memcpy(vec->info.data, info->data, info->size);
+
+  vec->info.size = info->size;
+
+  return 0;
+}
+
+ri_info_t ri_vector_get_info(const ri_vector_t* vec)
+{
+  return (ri_info_t) {
+    .data = vec->info.data,
+    .size = vec->info.size,
+  };
+}
+
+void ri_vector_free_info(ri_vector_t* vec)
+{
+  if (vec->info.data) {
+    free(vec->info.data);
+    vec->info.data = NULL;
+    vec->info.size = 0;
+  }
+}
+
+
+
+ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index)
+{
+  if (!vec->connected)
+    return NULL;
+
+  if (index >= vec->num_producers)
+    return NULL;
+
+  ri_producer_t* producer = vec->producers[index];
+
+  vec->producers[index] = NULL;
+
+  return producer;
+}
+
+
+ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index)
+{
+  if (!vec->connected)
+    return NULL;
+
+  if (index >= vec->num_consumers)
+    return NULL;
+
+  ri_consumer_t* consumer = vec->consumers[index];
+
+  vec->consumers[index] = NULL;
+
+  return consumer;
+}
+
+
+ri_vector_t* ri_vector_receive(int socket)
+{
+  ri_request_t *req = ri_request_receive(socket);
+
+  if (!req)
+    return NULL;
+
+
+  ri_vector_t *vec = ri_channel_vector_from_request(req);
+
+  ri_request_delete(req);
+
+  if (vec)
+    vec->connected = true;
+
+  return vec;
+}
+
+
+int ri_vector_send(ri_vector_t *vec, int socket)
+{
+  ri_request_t *req = ri_request_from_channel_vector(vec);
+
+  if (!req)
+    return -1;
+
+  int r = ri_request_send(req, socket);
+
+  ri_request_delete(req);
+
+  if (r >= 0)
+    vec->connected = true;
+
+  return r;
+}
 

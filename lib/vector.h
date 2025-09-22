@@ -1,14 +1,28 @@
 #pragma once
 
 #include "rtipc.h"
+#include "shm.h"
 
-typedef struct ri_channel_vector {
+struct ri_vector {
   unsigned num_consumers;
   unsigned num_producers;
   ri_consumer_t **consumers;
   ri_producer_t **producers;
-} ri_channel_vector_t;
+  struct {
+    size_t size;
+    void *data;
+  } info;
+  ri_shm_t *shm;
+  bool connected;
+};
 
 
-ri_channel_vector_t* ri_channel_vector_alloc(unsigned num_consumers, unsigned num_producers);
-void ri_channel_vector_delete(ri_channel_vector_t* vec);
+ri_vector_t* ri_vector_alloc(unsigned num_consumers, unsigned num_producers);
+
+void ri_vector_delete(ri_vector_t* vec);
+
+int ri_vector_set_info(ri_vector_t* vec, const ri_info_t *info);
+
+ri_info_t ri_vector_get_info(const ri_vector_t* vec);
+
+void ri_vector_free_info(ri_vector_t* vec);

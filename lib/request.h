@@ -16,6 +16,5 @@ int ri_request_take_fd(ri_request_t *req, unsigned idx);
 
 int ri_request_add_fd(ri_request_t *req, int fd);
 
-int ri_request_send(ri_request_t *req, int socket);
-
-ri_request_t * ri_request_receive(int socket);
+int ri_request_send(const ri_request_t *req, int socket);
+ri_request_t* ri_request_receive(int socket);

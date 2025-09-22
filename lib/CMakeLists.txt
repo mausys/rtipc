@@ -17,9 +17,7 @@ set(RTIPC_SRCS
   shm.h
   event.c
   event.h
-  rtipc.c
   rtipc.h
-  rtipc_factory.c
   queue.c
   queue.h
   producer.c

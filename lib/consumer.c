@@ -52,6 +52,12 @@ fail_alloc:
 }
 
 
+void ri_consumer_queue_shm_init(ri_consumer_queue_t *consumer)
+{
+  ri_queue_shm_init(&consumer->queue);
+}
+
+
 void ri_consumer_queue_delete(ri_consumer_queue_t *consumer)
 {
   ri_shm_unref(consumer->shm);
@@ -137,7 +143,7 @@ ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer)
   }
 }
 
-const void* ri_consumer_queue_msg(ri_consumer_queue_t *consumer)
+const void* ri_consumer_queue_msg(const ri_consumer_queue_t *consumer)
 {
   if (consumer->current == RI_INDEX_INVALID)
     return NULL;

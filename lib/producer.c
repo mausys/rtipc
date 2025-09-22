@@ -75,6 +75,13 @@ fail_alloc:
   return NULL;
 }
 
+
+void ri_producer_queue_shm_init(ri_producer_queue_t *producer)
+{
+  ri_queue_shm_init(&producer->queue);
+}
+
+
 void ri_producer_queue_delete(ri_producer_queue_t* producer)
 {
   ri_shm_unref(producer->shm);
@@ -279,7 +286,7 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
   return RI_PRODUCE_RESULT_FAIL;
 }
 
-void* ri_producer_queue_msg(ri_producer_queue_t *producer)
+void* ri_producer_queue_msg(const ri_producer_queue_t *producer)
 {
   return ri_queue_get_msg(&producer->queue, producer->current);
 }

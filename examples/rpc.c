@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdatomic.h>
 
+#include <sys/socket.h>
+#include <sys/un.h>
+
 #include "../lib/rtipc.h"
 
 #define MAX_CYCLES 10000
@@ -118,93 +121,104 @@ static void dump_msg_event(const msg_event_t *msg)
   printf("\tnr=%u\n", msg->nr);
 }
 
-static client_t* client_new(int fd)
+
+static void client_delete(client_t *client)
+{
+  if (client->command)
+    ri_producer_delete(client->command);
+  if (client->response)
+    ri_consumer_delete(client->response);
+  if (client->event)
+    ri_consumer_delete(client->event);
+  free(client);
+}
+
+
+static client_t* client_new(int socket, const ri_channel_param_t *consumers, const ri_channel_param_t *producers)
 {
   client_t *client = calloc(1, sizeof(client_t));
 
   if (!client)
     goto fail_alloc;
 
-  ri_rtipc_t *rtipc = ri_rtipc_shm_map(fd);
+  ri_vector_t *vec = ri_vector_new(consumers, producers, NULL);
 
-  if (!rtipc)
-    goto fail_rtipc;
+  if (!vec)
+    goto fail_vec;
 
-  client->command = ri_rtipc_take_producer(rtipc, 0);
+  int r = ri_vector_send(vec, socket);
+
+  if (r < 0)
+    goto fail_send;
+
+  client->command = ri_vector_take_producer(vec, 0);
   if (!client->command)
     goto fail_channel;
 
-  client->response = ri_rtipc_take_consumer(rtipc, 0);
+  client->response = ri_vector_take_consumer(vec, 0);
   if (!client->response)
     goto fail_channel;
 
-  client->event = ri_rtipc_take_consumer(rtipc, 1);
+  client->event = ri_vector_take_consumer(vec, 1);
   if (!client->event)
     goto fail_channel;
 
-  ri_rtipc_delete(rtipc);
+  ri_vector_delete(vec);
   return client;
 
 fail_channel:
-  ri_rtipc_delete(rtipc);
-fail_rtipc:
-  free(client);
+fail_send:
+  ri_vector_delete(vec);
+fail_vec:
+  client_delete(client);
 fail_alloc:
   return NULL;
 }
 
+static void server_delete(server_t* server)
+{
+  if (server->command)
+    ri_consumer_delete(server->command);
+  if (server->response)
+    ri_producer_delete(server->response);
+  if (server->event)
+    ri_producer_delete(server->event);
+  free(server);
+}
 
-static server_t* server_new(const ri_channel_param_t *consumers, const ri_channel_param_t *producers)
+static server_t* server_new(int socket)
 {
   server_t *server = calloc(1, sizeof(server_t));
 
   if (!server)
     goto fail_alloc;
 
-  ri_rtipc_t *rtipc = ri_rtipc_anon_shm_new(consumers, producers);
+  ri_vector_t *vec = ri_vector_receive(socket);
 
-  if (!rtipc)
-    goto fail_rtipc;
+  if (!vec)
+    goto fail_recv;
 
-  server->command = ri_rtipc_take_consumer(rtipc, 0);
+  server->command = ri_vector_take_consumer(vec, 0);
   if (!server->command)
     goto fail_channel;
 
-  server->response = ri_rtipc_take_producer(rtipc, 0);
+  server->response = ri_vector_take_producer(vec, 0);
   if (!server->response)
     goto fail_channel;
 
-  server->event = ri_rtipc_take_producer(rtipc, 1);
+  server->event = ri_vector_take_producer(vec, 1);
   if (!server->event)
     goto fail_channel;
 
-  server->fd = ri_rtipc_get_shm_fd(rtipc);
-  ri_rtipc_delete(rtipc);
+  ri_vector_delete(vec);
   return server;
 
 fail_channel:
-  ri_rtipc_delete(rtipc);
-fail_rtipc:
-  free(server);
+  ri_vector_delete(vec);
+fail_recv:
+  server_delete(server);
 fail_alloc:
   return NULL;
-}
-
-
-static void server_delete(server_t *server)
-{
-  ri_consumer_delete(server->command);
-  ri_producer_delete(server->response);
-  ri_producer_delete(server->event);
-  free(server);
-}
-
-static void client_delete(client_t *client)
-{
-  ri_producer_delete(client->command);
-  ri_consumer_delete(client->response);
-  ri_consumer_delete(client->event);
-  free(client);
 }
 
 void client_run(client_t *client, const msg_command_t *cmds)
@@ -305,17 +319,16 @@ void server_run(server_t *server)
   }
 }
 
-static atomic_int g_fd = -1;
+static int sockets[2];
 
 int server_start(void* arg)
 {
-  server_t* server = server_new(client2server_channels, server2client_channels);
+
+  server_t* server = server_new(sockets[0]);
 
   if (!server) {
     return -1;
   }
-
-  atomic_store(&g_fd, server->fd);
 
   server_run(server);
 
@@ -329,15 +342,7 @@ int server_start(void* arg)
 
 int client_start(void* arg)
 {
-  int fd = -1;
-  for (;;) {
-    fd = atomic_load(&g_fd);
-    if (fd >= 0)
-      break;
-    usleep(10000);
-  }
-
-  client_t* client = client_new(fd);
+  client_t* client = client_new(sockets[1], server2client_channels, client2server_channels);
 
   if (!client) {
     return -1;
@@ -356,6 +361,7 @@ int client_start(void* arg)
 
 
 int main() {
+  socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets);
   thrd_t server_thread;
   thrd_t client_thread;
 

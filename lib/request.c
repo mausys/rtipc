@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include "protocol.h"
+
 /* from kernel/include/net/scm.h */
 #define SCM_MAX_FD     253
 
@@ -21,7 +23,7 @@ struct ri_request {
 };
 
 
-static int *get_fds(ri_request_t *req)
+static int* get_fds(ri_request_t *req)
 {
   struct cmsghdr *cmsghdr = (struct cmsghdr*) req->cmsg;
 
@@ -63,6 +65,7 @@ void ri_request_delete(ri_request_t *req)
       close(fds[i]);
     }
   }
+  free(req);
 }
 
 
@@ -75,6 +78,21 @@ size_t ri_request_size(const ri_request_t *req)
 void* ri_request_msg(const ri_request_t *req)
 {
   return req->msg;
+}
+
+
+int ri_request_add_fd(ri_request_t *req, int fd)
+{
+  if (req->n_fds >= SCM_MAX_FD - 1)
+    return -1;
+
+  int *fds = get_fds(req);
+
+  fds[req->n_fds] = fd;
+
+  req->n_fds++;
+
+  return 0;
 }
 
 
@@ -93,7 +111,7 @@ int ri_request_take_fd(ri_request_t *req, unsigned idx)
 }
 
 
-int ri_request_send(ri_request_t *req, int socket)
+int ri_request_send(const ri_request_t *req, int socket)
 {
   struct iovec iov = {
     .iov_base = req->msg,
@@ -103,7 +121,7 @@ int ri_request_send(ri_request_t *req, int socket)
   struct msghdr msghdr = {
       .msg_iov = &iov,
       .msg_iovlen = 1,
-      .msg_control = req->cmsg,
+      .msg_control = (void*)req->cmsg,
       .msg_controllen = CMSG_SPACE(req->n_fds * sizeof(int)),
   };
 
@@ -119,7 +137,7 @@ int ri_request_send(ri_request_t *req, int socket)
 }
 
 
-ri_request_t * ri_request_receive(int socket)
+ri_request_t* ri_request_receive(int socket)
 {
   struct msghdr msghdr = {
       .msg_iov = NULL,

@@ -80,7 +80,7 @@ ri_shm_t* ri_shm_new(size_t size)
   if (r < 0)
     goto fail_init;
 
-  ri_shm_t *shm = ri_shm_new(fd);
+  ri_shm_t *shm = ri_shm_map(fd);
 
   if (!shm)
     goto fail_map;
@@ -144,6 +144,7 @@ void ri_shm_ref(ri_shm_t *shm)
   atomic_fetch_add(&shm->ref_cnt, 1);
 }
 
+
 void ri_shm_unref(ri_shm_t *shm)
 {
   if (atomic_fetch_sub(&shm->ref_cnt, 1) == 1) {
@@ -166,3 +167,8 @@ size_t ri_shm_size(const ri_shm_t *shm)
   return shm->size;
 }
 
+
+int ri_shm_fd(const ri_shm_t *shm)
+{
+  return shm->fd;
+}
