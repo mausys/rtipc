@@ -57,8 +57,10 @@ static size_t calc_msg_size(const ri_vector_t *vec)
 
 int check_iter(const req_iter_t *iter, const ri_request_t *req)
 {
-  if (iter->info_offset > ri_request_size(req))
+  if (iter->info_offset > ri_request_size(req)) {
+    LOG_ERR("info exceeds message size");
     return -1;
+  }
 
   return 0;
 }
@@ -96,11 +98,15 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
   size_t offset = ri_request_header_size();
   offset = mem_align(offset, alignof(uint32_t));
 
-  if (offset + 3 * sizeof(uint32_t) > msg_size)
+  if (offset + 3 * sizeof(uint32_t) > msg_size) {
+    LOG_ERR("messsage too small (%zu)", msg_size);
     goto fail_verify;
+  }
 
-  if (ri_request_header_validate(msg) < 0)
+  if (ri_request_header_validate(msg) < 0) {
+    LOG_ERR("ri_request_header_validate failed");
     goto fail_verify;
+  }
 
   size_t vec_info_size = *(const uint32_t*)cmem_offset(msg, offset);
   offset += sizeof(uint32_t);
@@ -118,14 +124,17 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
 
   size_t info_offset = offset + num_channels * sizeof(entry_t);
 
-  if (info_offset + vec_info_size > msg_size)
+  if (info_offset + vec_info_size > msg_size) {
+     LOG_ERR("messsage too small (%zu)", msg_size);
      goto fail_verify;
+  }
 
   int memfd = ri_request_take_fd(req, 0);
 
   if (ri_fd_check(memfd, RI_FD_MEM) < 0) {
     if (memfd >= 0)
       close(memfd);
+    LOG_ERR("memfd check failed");
     goto fail_verify;
   }
 
@@ -177,6 +186,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       if (fd >= 0) {
         if (ri_fd_check(fd, RI_FD_EVENT) < 0) {
           close(fd);
+          LOG_ERR("eventfd check failed");
           goto fail_channel;
         }
       }
@@ -212,6 +222,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       if (fd >= 0) {
         if (ri_fd_check(fd, RI_FD_EVENT) < 0) {
           close(fd);
+          LOG_ERR("eventfd check failed");
           goto fail_channel;
         }
       }
