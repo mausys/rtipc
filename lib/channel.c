@@ -11,6 +11,7 @@
 
 struct ri_consumer {
   ri_consumer_queue_t *queue;
+  size_t shm_offset;
   int eventfd;
   struct {
     size_t size;
@@ -20,6 +21,7 @@ struct ri_consumer {
 
 struct ri_producer {
   ri_producer_queue_t *queue;
+  size_t shm_offset;
   int eventfd;
   struct {
     size_t size;
@@ -36,6 +38,7 @@ ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
     goto fail_alloc;
 
   *consumer = (ri_consumer_t) {
+    .shm_offset = shm_offset,
     .eventfd = eventfd,
     .info.size = param->info.size,
   };
@@ -79,8 +82,9 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
     goto fail_alloc;
 
   *producer = (ri_producer_t) {
-      .eventfd = eventfd,
-      .info.size = param->info.size,
+    .shm_offset = shm_offset,
+    .eventfd = eventfd,
+    .info.size = param->info.size,
   };
 
   if ((param->info.size > 0) && param->info.data) {
@@ -142,6 +146,12 @@ void ri_producer_delete(ri_producer_t *producer)
 }
 
 
+size_t ri_consumer_shm_offset(const ri_consumer_t *consumer)
+{
+  return consumer->shm_offset;
+}
+
+
 unsigned ri_consumer_len(const ri_consumer_t *consumer)
 {
   return ri_consumer_queue_len(consumer->queue);
@@ -197,6 +207,11 @@ int ri_consumer_eventfd(const ri_consumer_t *consumer)
   return consumer->eventfd;
 }
 
+
+size_t ri_prdoucer_shm_offset(const ri_producer_t *producer)
+{
+  return producer->shm_offset;
+}
 
 unsigned ri_producer_len(const ri_producer_t *producer)
 {

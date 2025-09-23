@@ -18,7 +18,7 @@ static void log_std(int priority,
                     const char *format,
                     va_list ap);
 
-static int m_log_min_level = LOG_LEVEL_INF;
+static int m_log_min_level = LOG_LEVEL_DBG;
 
 static ri_log_fn ri_log_handler = log_std;
 

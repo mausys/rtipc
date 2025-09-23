@@ -15,6 +15,7 @@
 typedef struct entry {
   uint32_t add_msgs;
   uint32_t msg_size;
+  uint32_t shm_offset;
   uint32_t eventfd;
   uint32_t info_size;
 } entry_t;
@@ -22,7 +23,6 @@ typedef struct entry {
 
 typedef struct req_iter {
   const entry_t *entry;
-  size_t shm_offset;
   size_t info_offset;
   unsigned fd_idx;
 } req_iter_t;
@@ -55,11 +55,8 @@ static size_t calc_msg_size(const ri_vector_t *vec)
 }
 
 
-int check_iter(const req_iter_t *iter, const ri_request_t *req, const ri_shm_t *shm)
+int check_iter(const req_iter_t *iter, const ri_request_t *req)
 {
-  if (iter->shm_offset > ri_shm_size(shm))
-    return -1;
-
   if (iter->info_offset > ri_request_size(req))
     return -1;
 
@@ -81,10 +78,7 @@ ri_channel_param_t to_param(const entry_t *entry, const ri_request_t *req, size_
 
 static void req_iter_next(req_iter_t *iter)
 {
-  unsigned n_msgs = RI_CHANNEL_MIN_MSGS + iter->entry->add_msgs;
-
   iter->info_offset += iter->entry->info_size;
-  iter->shm_offset += ri_calc_channel_size(n_msgs, iter->entry->msg_size);
 
   if (iter->entry->eventfd) {
     iter->fd_idx++;
@@ -120,7 +114,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
   unsigned num_channels = num_producers + num_consumers;
 
   offset = mem_align(offset, alignof(entry_t));
-  const entry_t *entry = cmem_offset(msg, offset);
+  const entry_t *entries = cmem_offset(msg, offset);
 
   size_t info_offset = offset + num_channels * sizeof(entry_t);
 
@@ -162,16 +156,18 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
   req_iter_t iter = {
       .info_offset = info_offset,
       .fd_idx = 1,
-      .entry = entry,
+      .entry = entries,
   };
 
   for (unsigned i = 0; i < num_consumers; i++) {
-    int r = check_iter(&iter, req, vec->shm);
+    int r = check_iter(&iter, req);
 
     if (r < 0)
       goto fail_channel;
 
-    ri_channel_param_t param = to_param(iter.entry, req, iter.info_offset);
+    const entry_t *entry = iter.entry;
+
+    ri_channel_param_t param = to_param(entry, req, iter.info_offset);
 
     int fd = - 1;
 
@@ -186,7 +182,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       }
     }
 
-    vec->consumers[i] = ri_consumer_new(&param, vec->shm, iter.shm_offset, fd, false);
+    vec->consumers[i] = ri_consumer_new(&param, vec->shm, entry->shm_offset, fd, false);
 
     if (!vec->consumers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -199,12 +195,14 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
   }
 
   for (unsigned i = 0; i < num_producers; i++) {
-    int r = check_iter(&iter, req, vec->shm);
+    int r = check_iter(&iter, req);
 
     if (r < 0)
       goto fail_channel;
 
-    ri_channel_param_t param = to_param(iter.entry, req, iter.info_offset);
+    const entry_t *entry = iter.entry;
+
+    ri_channel_param_t param = to_param(entry, req, iter.info_offset);
 
     int fd = - 1;
 
@@ -219,7 +217,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       }
     }
 
-    vec->producers[i] = ri_producer_new(&param, vec->shm, iter.shm_offset, fd, false);
+    vec->producers[i] = ri_producer_new(&param, vec->shm, entry->shm_offset, fd, false);
 
     if (!vec->producers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -291,6 +289,7 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
     *entry = (entry_t) {
       .add_msgs = ri_producer_len(producer) - RI_CHANNEL_MIN_MSGS,
       .msg_size = ri_producer_msg_size(producer),
+      .shm_offset = ri_prdoucer_shm_offset(producer),
       .info_size = info.size,
       .eventfd = eventfd > 0 ? 1 : 0,
     };
@@ -316,6 +315,7 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
     *entry = (entry_t) {
         .add_msgs = ri_consumer_len(consumer) - RI_CHANNEL_MIN_MSGS,
         .msg_size = ri_consumer_msg_size(consumer),
+        .shm_offset = ri_consumer_shm_offset(consumer),
         .info_size = info.size,
         .eventfd =  ri_consumer_eventfd(consumer) >= 0 ? 1 : 0,
     };
