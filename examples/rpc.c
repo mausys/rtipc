@@ -11,6 +11,10 @@
 
 #define MAX_CYCLES 10000
 
+#define COMMAND_INFO "rpc command"
+#define RESPONSE_INFO "rpc response"
+#define EVENT_INFO "rpc event"
+
 typedef enum  {
     CMDID_UNKNOWN = 0,
     CMDID_HELLO,
@@ -40,14 +44,14 @@ typedef struct msg_event {
 #define  COOKIE 0x13579bdf
 
 const ri_channel_param_t client2server_channels[] = {
-  (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_command_t), },
+    (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_command_t), .info = { .data = COMMAND_INFO, .size = sizeof(COMMAND_INFO) }},
   { 0 },
 };
 
 
 const ri_channel_param_t server2client_channels[] = {
-  (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_response_t), },
-  (ri_channel_param_t) { .add_msgs = 10, .msg_size = sizeof(msg_event_t), },
+  (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_response_t), .info = { .data = RESPONSE_INFO, .size = sizeof(RESPONSE_INFO) }},
+  (ri_channel_param_t) { .add_msgs = 10, .msg_size = sizeof(msg_event_t), .info = { .data = EVENT_INFO, .size = sizeof(EVENT_INFO) }},
   { 0 },
 };
 
@@ -186,6 +190,19 @@ static void server_delete(server_t* server)
   free(server);
 }
 
+static void server_print_info(const server_t *server)
+{
+  ri_info_t info = ri_consumer_info(server->command);
+  printf("command name = %s\n", (const char*)info.data);
+
+  info = ri_producer_info(server->response);
+  printf("response name = %s\n", (const char*)info.data);
+
+  info = ri_producer_info(server->event);
+  printf("event name = %s\n", (const char*)info.data);
+
+}
+
 static server_t* server_new(int socket)
 {
   server_t *server = calloc(1, sizeof(server_t));
@@ -211,6 +228,9 @@ static server_t* server_new(int socket)
     goto fail_channel;
 
   ri_vector_delete(vec);
+
+  server_print_info(server);
+
   return server;
 
 fail_channel:
