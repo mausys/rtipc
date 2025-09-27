@@ -127,6 +127,10 @@ int ri_request_send(const ri_request_t *req, int socket)
 
   struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msghdr);
 
+  /* can't happen because n_fds is at least 1 (memfd) */
+  if (!cmsg)
+    return -1;
+
   *cmsg = (struct cmsghdr) {
       .cmsg_level = SOL_SOCKET,
       .cmsg_type = SCM_RIGHTS,
