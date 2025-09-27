@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+
 
 static const char c_memfd_link[] = "/memfd:";
 static const char c_eventfd_link[] = "anon_inode:[eventfd";
@@ -30,3 +32,14 @@ int ri_fd_check(int fd, ri_fd_t expected)
 
   return r;
 }
+
+
+int ri_fd_set_nonblocking(int fd)
+{
+  int flags = fcntl(fd, F_GETFL, 0);
+  int r = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+  return r >= 0 ? r : -errno;
+}
+
+

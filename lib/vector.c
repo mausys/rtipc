@@ -34,10 +34,10 @@ static size_t calc_shm_size(const ri_channel_param_t consumers[], const ri_chann
   size_t size = 0;
 
   for (unsigned i = 0; i < num_consumers; i++)
-    size +=  ri_param_channel_size(&consumers[i]);
+    size +=  ri_param_channel_shm_size(&consumers[i]);
 
   for (unsigned i = 0; i < num_producers; i++)
-    size += ri_param_channel_size(&producers[i]);
+    size += ri_param_channel_shm_size(&producers[i]);
 
   return size;
 }
@@ -149,7 +149,7 @@ ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
       goto fail_channel;
     }
 
-    shm_offset += ri_param_channel_size(param);
+    shm_offset += ri_param_channel_shm_size(param);
   }
 
 
@@ -175,7 +175,7 @@ ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
     }
 
 
-    shm_offset += ri_param_channel_size(param);
+    shm_offset += ri_param_channel_shm_size(param);
   }
 
   if (info && info->data) {

@@ -8,3 +8,5 @@ typedef enum {
 
 
 int ri_fd_check(int fd, ri_fd_t expected);
+
+int ri_fd_set_nonblocking(int fd);

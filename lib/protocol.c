@@ -15,8 +15,7 @@
 typedef struct entry {
   uint32_t add_msgs;
   uint32_t msg_size;
-  uint32_t shm_offset;
-  uint32_t eventfd;
+  int32_t eventfd;
   uint32_t info_size;
 } entry_t;
 
@@ -162,6 +161,8 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
   if (!vec->shm)
     goto fail_shm;
 
+  size_t shm_offset = 0;
+
   req_iter_t iter = {
       .info_offset = info_offset,
       .fd_idx = 1,
@@ -192,7 +193,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       }
     }
 
-    vec->consumers[i] = ri_consumer_new(&param, vec->shm, entry->shm_offset, fd, false);
+    vec->consumers[i] = ri_consumer_new(&param, vec->shm, shm_offset, fd, false);
 
     if (!vec->consumers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -202,6 +203,8 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
     }
 
     req_iter_next(&iter);
+
+    shm_offset += ri_param_channel_shm_size(&param);
   }
 
   for (unsigned i = 0; i < num_producers; i++) {
@@ -228,7 +231,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       }
     }
 
-    vec->producers[i] = ri_producer_new(&param, vec->shm, entry->shm_offset, fd, false);
+    vec->producers[i] = ri_producer_new(&param, vec->shm, shm_offset, fd, false);
 
     if (!vec->producers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -238,6 +241,8 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
     }
 
     req_iter_next(&iter);
+
+    shm_offset += ri_param_channel_shm_size(&param);
   }
 
   return vec;
@@ -300,7 +305,6 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
     *entry = (entry_t) {
       .add_msgs = ri_producer_len(producer) - RI_CHANNEL_MIN_MSGS,
       .msg_size = ri_producer_msg_size(producer),
-      .shm_offset = ri_prdoucer_shm_offset(producer),
       .info_size = info.size,
       .eventfd = eventfd > 0 ? 1 : 0,
     };
@@ -326,7 +330,6 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
     *entry = (entry_t) {
         .add_msgs = ri_consumer_len(consumer) - RI_CHANNEL_MIN_MSGS,
         .msg_size = ri_consumer_msg_size(consumer),
-        .shm_offset = ri_consumer_shm_offset(consumer),
         .info_size = info.size,
         .eventfd =  ri_consumer_eventfd(consumer) >= 0 ? 1 : 0,
     };

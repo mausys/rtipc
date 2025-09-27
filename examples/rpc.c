@@ -44,7 +44,7 @@ typedef struct msg_event {
 #define  COOKIE 0x13579bdf
 
 const ri_channel_param_t client2server_channels[] = {
-    (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_command_t), .info = { .data = COMMAND_INFO, .size = sizeof(COMMAND_INFO) }},
+    (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_command_t), .eventfd = 1, .info = { .data = COMMAND_INFO, .size = sizeof(COMMAND_INFO) }},
   { 0 },
 };
 

@@ -7,6 +7,7 @@
 #include "producer.h"
 #include "consumer.h"
 #include "param.h"
+#include "fd.h"
 #include "log.h"
 
 struct ri_consumer {
@@ -23,6 +24,7 @@ struct ri_producer {
   ri_producer_queue_t *queue;
   size_t shm_offset;
   int eventfd;
+  bool notify;
   struct {
     size_t size;
     void *data;
@@ -103,6 +105,11 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
 
   if (shm_init)
     ri_producer_queue_shm_init(producer->queue);
+
+  if (producer->eventfd >= 0) {
+    int r = ri_fd_set_nonblocking(producer->eventfd);
+    LOG_WRN("ri_fd_set_nonblocking failed (%d)", r);
+  }
 
   LOG_DBG("producer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", param->add_msgs, param->msg_size, eventfd, shm_offset);
 
@@ -232,7 +239,14 @@ void* ri_producer_msg(const ri_producer_t *producer)
 
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
-  return ri_producer_queue_force_push(producer->queue);
+  ri_produce_result_t r = ri_producer_queue_force_push(producer->queue);
+
+  if (producer->notify && (r == RI_PRODUCE_RESULT_SUCCESS)) {
+    uint64_t v = 1;
+    write(producer->eventfd, &v, sizeof(v));
+  }
+
+  return r;
 }
 
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
