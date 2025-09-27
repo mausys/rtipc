@@ -54,7 +54,7 @@ static size_t calc_msg_size(const ri_vector_t *vec)
 }
 
 
-int check_iter(const req_iter_t *iter, const ri_request_t *req)
+static int check_iter(const req_iter_t *iter, const ri_request_t *req)
 {
   if (iter->info_offset > ri_request_size(req)) {
     LOG_ERR("info exceeds message size");
@@ -65,7 +65,7 @@ int check_iter(const req_iter_t *iter, const ri_request_t *req)
 }
 
 
-ri_channel_param_t to_param(const entry_t *entry, const ri_request_t *req, size_t info_offset)
+static ri_channel_param_t  to_param(const entry_t *entry, const ri_request_t *req, size_t info_offset)
 {
   return (ri_channel_param_t) {
       .add_msgs = entry->add_msgs,
@@ -272,9 +272,9 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
 
   unsigned num_channels = vec->num_producers + vec->num_consumers;
 
-   ri_info_t info = ri_vector_get_info(vec);
+   ri_info_t vector_info = ri_vector_get_info(vec);
 
-  *(uint32_t*)mem_offset(msg, offset) = info.size;
+  *(uint32_t*)mem_offset(msg, offset) = vector_info.size;
   offset += sizeof(uint32_t);
 
   *(uint32_t*)mem_offset(msg, offset) = vec->num_producers;
@@ -288,9 +288,9 @@ ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
 
    size_t info_offset = offset + num_channels * sizeof(entry_t);
 
-  if (info.data) {
-    memcpy(mem_offset(msg, info_offset), info.data, info.size);
-    info_offset += info.size;
+  if (vector_info.data) {
+    memcpy(mem_offset(msg, info_offset), vector_info.data, vector_info.size);
+    info_offset += vector_info.size;
   }
 
   ri_request_add_fd(req, ri_shm_fd(vec->shm));
