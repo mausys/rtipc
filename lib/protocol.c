@@ -130,7 +130,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
 
   int memfd = ri_request_take_fd(req, 0);
 
-  if (ri_fd_check(memfd, RI_FD_MEM) < 0) {
+  if (ri_check_memfd(memfd) < 0) {
     if (memfd >= 0)
       close(memfd);
     LOG_ERR("memfd check failed");
@@ -185,7 +185,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       fd = ri_request_take_fd(req, iter.fd_idx);
 
       if (fd >= 0) {
-        if (ri_fd_check(fd, RI_FD_EVENT) < 0) {
+        if (ri_check_eventfd(fd) < 0) {
           close(fd);
           LOG_ERR("eventfd check failed");
           goto fail_channel;
@@ -223,7 +223,7 @@ ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
       fd = ri_request_take_fd(req, iter.fd_idx);
 
       if (fd >= 0) {
-        if (ri_fd_check(fd, RI_FD_EVENT) < 0) {
+        if (ri_check_eventfd(fd) < 0) {
           close(fd);
           LOG_ERR("eventfd check failed");
           goto fail_channel;

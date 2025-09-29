@@ -8,30 +8,43 @@
 #include <fcntl.h>
 
 
-static const char c_memfd_link[] = "/memfd:";
-static const char c_eventfd_link[] = "anon_inode:[eventfd";
 
-int ri_fd_check(int fd, ri_fd_t expected)
+#define PROC_SELF_FORMAT "/proc/self/fd/%d"
+
+int ri_check_memfd(int fd)
 {
   char path[32];
   char link[32];
-  snprintf(path, sizeof(path), "/proc/self/fd/%d" , fd);
+  const char expected[] = "/memfd:";
+
+  snprintf(path, sizeof(path), PROC_SELF_FORMAT, fd);
+
   ssize_t r = readlink(path, link, sizeof(link));
 
-  if ((r < 0) || ((size_t)r >= sizeof(link) - 1))
+  if ((r < 0) || ((size_t)r < sizeof(expected)))
     return -1;
 
-  switch (expected) {
-    case RI_FD_EVENT:
-      r = strncmp(link, c_eventfd_link, sizeof(c_eventfd_link) - 1) == 0 ? 0 : -1;
-      break;
-    case RI_FD_MEM:
-      r = strncmp(link, c_memfd_link, sizeof(c_memfd_link) - 1) == 0 ? 0 : -1;
-      break;
-  }
-
-  return r;
+  return strncmp(link, expected, sizeof(expected) - 1) == 0 ? 0 : -1;
 }
+
+
+int ri_check_eventfd(int fd)
+{
+  char path[32];
+  char link[32];
+  const char expected[] = "anon_inode:[eventfd";
+
+  snprintf(path, sizeof(path), PROC_SELF_FORMAT, fd);
+
+  ssize_t r = readlink(path, link, sizeof(link));
+
+  if ((r < 0) || ((size_t)r < sizeof(expected)))
+    return -1;
+
+  return strncmp(link, expected, sizeof(expected) - 1) == 0 ? 0 : -1;
+}
+
+
 
 
 int ri_fd_set_nonblocking(int fd)
