@@ -87,7 +87,18 @@ typedef enum ri_produce_result {
  */
 void ri_set_log_handler(ri_log_fn log_handler);
 
-ri_server_t* ri_server_new(const char* path);
+
+/**
+ * @brief ri_server_new creates a server socket and starts listening
+ *
+ * @param path pathname of socket
+ * @param backlog argument for listen
+ *
+ */
+ri_server_t* ri_server_new(const char* path, int backlog);
+
+
+int ri_server_socket(const ri_server_t* server);
 
 ri_vector_t* ri_server_accept(const ri_server_t* server);
 

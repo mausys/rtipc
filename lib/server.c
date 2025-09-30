@@ -26,7 +26,7 @@ int ri_socket_pair(int sockets[2])
 }
 
 
-ri_server_t* ri_server_new(const char* path)
+ri_server_t* ri_server_new(const char* path, int backlog)
 {
   ri_server_t *server = malloc(sizeof(ri_server_t));
 
@@ -51,7 +51,7 @@ ri_server_t* ri_server_new(const char* path)
     goto fail_bind;
   }
 
-  r = listen(server->sockfd, 1);
+  r = listen(server->sockfd, backlog);
 
   if (r < 0) {
     LOG_ERR("listen (%s) failed errno=%u", path, errno);
@@ -69,11 +69,15 @@ fail_alloc:
 }
 
 
+int ri_server_socket(const ri_server_t* server)
+{
+  return server->sockfd;
+}
+
+
 ri_vector_t* ri_server_accept(const ri_server_t* server)
 {
-  struct sockaddr_un addr;
-  socklen_t socklen = sizeof(addr);
-  int cfd = accept(server->sockfd, (struct sockaddr*)&addr, &socklen);
+  int cfd = accept(server->sockfd, NULL, NULL);
 
   if (cfd < 0) {
     LOG_ERR("accept failed errno=%u", errno);

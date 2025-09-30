@@ -43,7 +43,7 @@ static void app_print_info(const app_t* app)
 static app_t* app_new(const char *path)
 {
 
-  ri_server_t *server = ri_server_new(path);
+  ri_server_t *server = ri_server_new(path, 1);
   if (!server)
     goto fail_server;
 
