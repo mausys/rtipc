@@ -149,6 +149,8 @@ const void* ri_consumer_msg(const ri_consumer_t *consumer);
  */
 ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
+\
+int ri_consumer_eventfd(const ri_consumer_t *consumer);
 
 /**
  * @brief ri_producer_msg get pointer to current message
@@ -174,6 +176,8 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
  * @return 0 => success, -1 => fail, because queue was full
  */
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
+
+int ri_producer_eventfd(const ri_producer_t *producer);
 
 /**
  * @brief ri_consumer_get_buffer_size submits current buffer and get a new one for writing
