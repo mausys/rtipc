@@ -24,7 +24,6 @@ struct ri_producer {
   ri_producer_queue_t *queue;
   size_t shm_offset;
   int eventfd;
-  bool notify;
   struct {
     size_t size;
     void *data;
@@ -107,7 +106,7 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
     ri_producer_queue_shm_init(producer->queue);
 
   if (producer->eventfd >= 0) {
-    int r = ri_fd_set_nonblocking(producer->eventfd);
+    int r = ri_set_nonblocking(producer->eventfd);
     LOG_WRN("ri_fd_set_nonblocking failed (%d)", r);
   }
 
@@ -173,13 +172,31 @@ const void* ri_consumer_msg(const ri_consumer_t *consumer)
 
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer)
 {
+  if (consumer->eventfd >= 0) {
+    uint64_t v;
+    int r = read(consumer->eventfd, &v, sizeof(v));
+
+    if (r < 0) {
+      return ri_consumer_queue_msg(consumer->queue)? RI_CONSUME_RESULT_NO_UPDATE : RI_CONSUME_RESULT_NO_MSG;
+    }
+  }
+
   return ri_consumer_queue_pop(consumer->queue);
 }
 
 
 ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
 {
-  return ri_consumer_queue_flush(consumer->queue);
+  ri_consume_result_t r;
+  if (consumer->eventfd >= 0) {
+    do {
+      r = ri_consumer_pop(consumer);
+    } while (r == RI_CONSUME_RESULT_SUCCESS);
+  } else {
+    r = ri_consumer_queue_flush(consumer->queue);
+  }
+
+  return r;
 }
 
 
@@ -241,7 +258,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
   ri_produce_result_t r = ri_producer_queue_force_push(producer->queue);
 
-  if (producer->notify && (r == RI_PRODUCE_RESULT_SUCCESS)) {
+  if ((producer->eventfd >= 0) && (r == RI_PRODUCE_RESULT_SUCCESS)) {
     uint64_t v = 1;
     write(producer->eventfd, &v, sizeof(v));
   }
@@ -251,7 +268,14 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 {
-  return ri_producer_queue_try_push(producer->queue);
+  ri_produce_result_t r = ri_producer_queue_try_push(producer->queue);
+
+  if ((producer->eventfd >= 0) && (r == RI_PRODUCE_RESULT_SUCCESS)) {
+    uint64_t v = 1;
+    write(producer->eventfd, &v, sizeof(v));
+  }
+
+  return r;
 }
 
 

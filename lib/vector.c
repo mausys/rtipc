@@ -8,7 +8,7 @@
 #include "rtipc.h"
 #include "param.h"
 #include "channel.h"
-#include "event.h"
+#include "fd.h"
 #include "request.h"
 #include "protocol.h"
 
@@ -133,7 +133,7 @@ ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
     int fd = - 1;
 
     if (param->eventfd) {
-      fd = ri_event_create();
+      fd = ri_eventfd();
 
       if (fd < 0)
         goto fail_channel;
@@ -158,7 +158,7 @@ ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
     int fd = - 1;
 
     if (param->eventfd) {
-      fd = ri_event_create();
+      fd = ri_eventfd();
 
       if (fd < 0)
           goto fail_channel;

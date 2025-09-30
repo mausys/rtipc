@@ -8,8 +8,20 @@
 #include <fcntl.h>
 
 
+#include <sys/eventfd.h>
+
 
 #define PROC_SELF_FORMAT "/proc/self/fd/%d"
+
+
+
+
+int ri_eventfd(void)
+{
+  return eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE | EFD_NONBLOCK);
+}
+
+
 
 int ri_check_memfd(int fd)
 {
@@ -47,7 +59,7 @@ int ri_check_eventfd(int fd)
 
 
 
-int ri_fd_set_nonblocking(int fd)
+int ri_set_nonblocking(int fd)
 {
   int flags = fcntl(fd, F_GETFL, 0);
   int r = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
