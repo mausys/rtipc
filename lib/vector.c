@@ -108,8 +108,8 @@ void ri_vector_delete(ri_vector_t* vec)
 
 
 
-ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
-                                           const ri_channel_param_t producers[], const ri_info_t *info)
+ri_vector_t* ri_vector_new( const ri_channel_param_t producers[], const ri_channel_param_t consumers[],
+                                          const ri_info_t *info)
 {
   unsigned num_consumers = count_channels(consumers);
   unsigned num_producers = count_channels(producers);
@@ -236,9 +236,6 @@ void ri_vector_free_info(ri_vector_t* vec)
 
 ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index)
 {
-  if (!vec->connected)
-    return NULL;
-
   if (index >= vec->num_producers)
     return NULL;
 
@@ -252,9 +249,6 @@ ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index)
 
 ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index)
 {
-  if (!vec->connected)
-    return NULL;
-
   if (index >= vec->num_consumers)
     return NULL;
 
@@ -266,39 +260,6 @@ ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index)
 }
 
 
-ri_vector_t* ri_vector_receive(int socket)
-{
-  ri_request_t *req = ri_request_receive(socket);
-
-  if (!req)
-    return NULL;
 
 
-  ri_vector_t *vec = ri_channel_vector_from_request(req);
-
-  ri_request_delete(req);
-
-  if (vec)
-    vec->connected = true;
-
-  return vec;
-}
-
-
-int ri_vector_send(ri_vector_t *vec, int socket)
-{
-  ri_request_t *req = ri_request_from_channel_vector(vec);
-
-  if (!req)
-    return -1;
-
-  int r = ri_request_send(req, socket);
-
-  ri_request_delete(req);
-
-  if (r >= 0)
-    vec->connected = true;
-
-  return r;
-}
 

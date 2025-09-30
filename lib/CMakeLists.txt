@@ -37,9 +37,10 @@ set(RTIPC_SRCS
   request.h
   fd.c
   fd.h
-  socket.c
   protocol.c
   protocol.h
+  server.c
+  client.c
 )
 
 
@@ -63,6 +64,5 @@ install(TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-#add_subdirectory(sample)
 
 

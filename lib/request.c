@@ -54,15 +54,17 @@ fail_alloc:
 }
 
 
-void ri_request_delete(ri_request_t *req)
+void ri_request_delete(ri_request_t *req, bool close_fds)
 {
   free(req->msg);
 
-  int *fds = get_fds(req);
+  if (close_fds) {
+    int *fds = get_fds(req);
 
-  for (unsigned i = 0; i < req->n_fds; i++) {
-    if (fds[i] > 0) {
-      close(fds[i]);
+    for (unsigned i = 0; i < req->n_fds; i++) {
+      if (fds[i] > 0) {
+        close(fds[i]);
+      }
     }
   }
   free(req);
@@ -193,7 +195,7 @@ ri_request_t* ri_request_receive(int socket)
   return req;
 
 fail_recv:
-  ri_request_delete(req);
+  ri_request_delete(req, false);
 fail_peek:
   return NULL;
 }

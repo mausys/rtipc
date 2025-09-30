@@ -89,7 +89,7 @@ static void req_iter_next(req_iter_t *iter)
 }
 
 
-ri_vector_t* ri_channel_vector_from_request(ri_request_t *req)
+ri_vector_t* ri_vector_from_request(ri_request_t *req)
 {
   const void *msg = ri_request_msg(req);
   size_t msg_size =  ri_request_size(req);
@@ -256,7 +256,7 @@ fail_verify:
 }
 
 
-ri_request_t* ri_request_from_channel_vector(const ri_vector_t* vec)
+ri_request_t* ri_request_from_vector(const ri_vector_t* vec)
 {
   size_t msg_size = calc_msg_size(vec);
 

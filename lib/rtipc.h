@@ -35,6 +35,14 @@ typedef struct ri_channel_param
   ri_info_t info; /* user defined info will be transmitted to the server */
 } ri_channel_param_t;
 
+
+/**
+ * @typedef ri_server_t
+ *
+ * @brief server for unix socket
+ */
+typedef struct ri_server ri_server_t;
+
 /**
  * @typedef ri_consumer_t
  *
@@ -79,10 +87,13 @@ typedef enum ri_produce_result {
  */
 void ri_set_log_handler(ri_log_fn log_handler);
 
+ri_server_t* ri_server_new(const char* path);
 
+ri_vector_t* ri_server_accept(const ri_server_t* server);
 
-ri_vector_t* ri_vector_new(const ri_channel_param_t consumers[],
-                           const ri_channel_param_t producers[], const ri_info_t *info);
+void ri_server_delete(ri_server_t* server);
+
+ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t producers[], const ri_channel_param_t consumers[], const ri_info_t *info);
 
 void ri_vector_delete(ri_vector_t *vec);
 
@@ -90,13 +101,6 @@ unsigned ri_vector_num_consumers(const ri_vector_t *vec);
 
 unsigned ri_vector_num_producers(const ri_vector_t *vec);
 
-
-
-
-ri_vector_t* ri_vector_receive(int socket);
-
-
-int ri_vector_send(ri_vector_t *vec, int socket);
 
 
 /**
