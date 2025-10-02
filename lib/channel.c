@@ -44,6 +44,10 @@ ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
     .info.size = param->info.size,
   };
 
+  if (consumer->eventfd >= 0) {
+    ri_set_nonblocking(consumer->eventfd);
+  }
+
   if ((param->info.size > 0) && param->info.data) {
     consumer->info.data = malloc(param->info.size);
 
@@ -106,8 +110,7 @@ ri_producer_t* ri_producer_new(const ri_channel_param_t *param, ri_shm_t *shm, s
     ri_producer_queue_shm_init(producer->queue);
 
   if (producer->eventfd >= 0) {
-    int r = ri_set_nonblocking(producer->eventfd);
-    LOG_WRN("ri_fd_set_nonblocking failed (%d)", r);
+    ri_set_nonblocking(producer->eventfd);
   }
 
   LOG_DBG("producer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", param->add_msgs, param->msg_size, eventfd, shm_offset);

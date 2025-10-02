@@ -7,8 +7,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-
 #include <sys/eventfd.h>
+
+#include "log.h"
 
 
 #define PROC_SELF_FORMAT "/proc/self/fd/%d"
@@ -64,7 +65,12 @@ int ri_set_nonblocking(int fd)
   int flags = fcntl(fd, F_GETFL, 0);
   int r = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
-  return r >= 0 ? r : -errno;
+  if (r < 0) {
+    r = -errno;
+    LOG_ERR("ri_set_nonblocking failed for %d errno-%d", fd , -r);
+  }
+
+  return r;
 }
 
 
