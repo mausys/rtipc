@@ -15,13 +15,13 @@ typedef enum  {
 } command_id_t;
 
 typedef struct msg_command {
-    command_id_t id;
+    uint32_t id;
     int32_t args[3];
 } msg_command_t;
 
 
 typedef struct msg_response {
-    command_id_t id;
+    uint32_t id;
     int32_t result;
     int32_t data;
 } msg_response_t;

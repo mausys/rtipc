@@ -97,11 +97,25 @@ void ri_set_log_handler(ri_log_fn log_handler);
  */
 ri_server_t* ri_server_new(const char* path, int backlog);
 
-
+/**
+ * @brief ri_server_socket
+ * @param server pointer to server
+ * @return sockfd
+ */
 int ri_server_socket(const ri_server_t* server);
 
+/**
+ * @brief ri_server_accept accepts a connection from client and builds a channel vector
+ * @param server
+ * @return channel vector
+ */
 ri_vector_t* ri_server_accept(const ri_server_t* server);
 
+
+/**
+ * @brief ri_server_delete delete server
+ * @param server
+ */
 void ri_server_delete(ri_server_t* server);
 
 ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t producers[], const ri_channel_param_t consumers[], const ri_info_t *info);
@@ -132,6 +146,11 @@ ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index);
  */
 ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index);
 
+/**
+ * @brief ri_consumer_delete deletes channel; if its the last channel of the vector, it will also delete the shared memory
+ * @param consumer pointer to consumer, invalid after call
+ */
+void ri_consumer_delete(ri_consumer_t *consumer);
 
 /**
  * @brief ri_consumer_msg get pointer to current message
@@ -142,15 +161,70 @@ ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index);
 const void* ri_consumer_msg(const ri_consumer_t *consumer);
 
 /**
- * @brief consumer_flush get message from the head, discarding all older messages
+ * @brief ri_consumer_flush get message from the head, discarding all older messages
  *
  * @param consumer pointer to consumer
- * @return pointer to the latest message updated by the remote producer; NULL until remote producer updates it for the first time
+ * @return result
  */
 ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
+
+
+/**
+ * @brief ri_consumer_pop take oldest message from the queue
+ *
+ * @param consumer pointer to consumer
+ * @return result
+ */
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
+
+
+
+/**
+ * @brief ri_consumer_msg_size get message size
+ *
+ * @param consumer pointer to consumer
+ * @return size of message
+ */
+size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
 \
+
+/**
+ * @brief ri_consumer_eventfd get eventfd, but consumer still uses eventfd and closes it on deleteion
+ *
+ * @param consumer pointer to consumer
+ * @return eventfd
+ */
 int ri_consumer_eventfd(const ri_consumer_t *consumer);
+
+
+/**
+ * @brief ri_consumer_eventfd take eventfd, consumer has no more access to eventfd
+ *
+ * @param consumer pointer to consumer
+ * @return eventfd
+ */
+int ri_consumer_take_eventfd(ri_consumer_t *consumer);
+
+
+/**
+ * @brief ri_consumer_info git channel info
+ * @param consumer pointr to consumer
+ * @return channel info
+ */
+ri_info_t ri_consumer_info(const ri_consumer_t *consumer);
+
+/**
+ * @brief ri_consumer_free_info deletes info
+ *
+ * @param consumer pointer to consumer
+ */
+void ri_consumer_free_info(ri_consumer_t *consumer);
+
+/**
+ * @brief ri_producer_delete deletes channel; if its the last channel of the vector, it will also delete the shared memory
+ * @param producer pointer to producer, invalid after call
+ */
+void ri_producer_delete(ri_producer_t *producer);
 
 /**
  * @brief ri_producer_msg get pointer to current message
@@ -164,7 +238,7 @@ void* ri_producer_msg(const ri_producer_t *producer);
  * @brief ri_producer_force_push submits current message and get a new message
  *
  * @param producer pointer to producer
- * @return 0 => success, 1 => success, but discarded last unused message
+ * @return result
  */
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
 
@@ -173,31 +247,46 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
  * if queue is not full
  *
  * @param producer pointer to producer
- * @return 0 => success, -1 => fail, because queue was full
+ * @return result
  */
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 
+
+/**
+ * @brief ri_producer_msg_size get message size
+ *
+ * @param producer pointer to producer
+ * @return size of message
+ */
+size_t ri_producer_msg_size(const ri_producer_t *producer);
+
+
+/**
+ * @brief ri_producer_eventfd get eventfd, but producer still uses eventfd and closes it on deleteion
+ *
+ * @param producer pointer to producer
+ * @return eventfd
+ */
 int ri_producer_eventfd(const ri_producer_t *producer);
 
 /**
- * @brief ri_consumer_get_buffer_size submits current buffer and get a new one for writing
- *
+ * @brief ri_producer_take_eventfd take eventfd, producer has no more access to eventfd
  * @param producer pointer to producer
- * @return size of buffer
+ * @return eventfd
  */
-size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
+int ri_producer_take_eventfd(ri_producer_t *producer);
 
-size_t ri_producer_msg_size(const ri_producer_t *producer);
-
-void ri_consumer_delete(ri_consumer_t *consumer);
-void ri_producer_delete(ri_producer_t *producer);
-
-
-ri_info_t ri_consumer_info(const ri_consumer_t *consumer);
+/**
+ * @brief ri_producer_info get channel info
+ * @param producer pointer to producer
+ * @return channel info
+ */
 ri_info_t ri_producer_info(const ri_producer_t *producer);
 
-
-void ri_consumer_free_info(ri_consumer_t *consumer);
+/**
+ * @brief ri_producer_free_info deletes info
+ * @param producer pointer to producer
+ */
 void ri_producer_free_info(ri_producer_t *producer);
 
 #ifdef __cplusplus

@@ -90,6 +90,7 @@ fail_server:
 static int32_t server_send_events(ri_producer_t *producer, uint32_t id, unsigned num, bool force)
 {
   for (unsigned i = 0; i < num; i++) {
+    printf("server send events:%u %u %b\n", id, i, force);
     msg_event_t *event = ri_producer_msg(producer);
     event->id = id;
     event->nr = i;

@@ -155,9 +155,15 @@ void ri_producer_delete(ri_producer_t *producer)
 }
 
 
-size_t ri_consumer_shm_offset(const ri_consumer_t *consumer)
+const void* ri_consumer_msg(const ri_consumer_t *consumer)
 {
-  return consumer->shm_offset;
+  return ri_consumer_queue_msg(consumer->queue);
+}
+
+
+void* ri_producer_msg(const ri_producer_t *producer)
+{
+  return ri_producer_queue_msg(producer->queue);
 }
 
 
@@ -167,9 +173,99 @@ unsigned ri_consumer_len(const ri_consumer_t *consumer)
 }
 
 
-const void* ri_consumer_msg(const ri_consumer_t *consumer)
+unsigned ri_producer_len(const ri_producer_t *producer)
 {
-  return ri_consumer_queue_msg(consumer->queue);
+  return ri_producer_queue_len(producer->queue);
+}
+
+
+size_t ri_consumer_msg_size(const ri_consumer_t *consumer)
+{
+  return ri_consumer_queue_msg_size(consumer->queue);
+}
+
+
+size_t ri_producer_msg_size(const ri_producer_t *producer)
+{
+  return ri_producer_queue_msg_size(producer->queue);
+}
+
+
+size_t ri_consumer_shm_offset(const ri_consumer_t *consumer)
+{
+  return consumer->shm_offset;
+}
+
+
+size_t ri_prdoucer_shm_offset(const ri_producer_t *producer)
+{
+  return producer->shm_offset;
+}
+
+
+int ri_consumer_eventfd(const ri_consumer_t *consumer)
+{
+  return consumer->eventfd;
+}
+
+
+int ri_producer_eventfd(const ri_producer_t *producer)
+{
+  return producer->eventfd;
+}
+
+
+int ri_consumer_take_eventfd(ri_consumer_t *consumer)
+{
+  int fd = consumer->eventfd;
+  consumer->eventfd = -1;
+  return fd;
+}
+
+
+int ri_producer_take_eventfd(ri_producer_t *producer)
+{
+  int fd = producer->eventfd;
+  producer->eventfd = -1;
+  return fd;
+}
+
+
+ri_info_t ri_consumer_info(const ri_consumer_t *consumer)
+{
+  return  (ri_info_t) {
+      .size = consumer->info.size,
+      .data = consumer->info.data,
+  };
+}
+
+
+ri_info_t ri_producer_info(const ri_producer_t *producer)
+{
+  return  (ri_info_t) {
+      .size = producer->info.size,
+      .data = producer->info.data,
+  };
+}
+
+
+void ri_consumer_free_info(ri_consumer_t *consumer)
+{
+  if (consumer->info.data) {
+    free(consumer->info.data);
+    consumer->info.data = NULL;
+    consumer->info.size = 0;
+  }
+}
+
+
+void ri_producer_free_info(ri_producer_t *producer)
+{
+  if (producer->info.data) {
+    free(producer->info.data);
+    producer->info.data = NULL;
+    producer->info.size = 0;
+  }
 }
 
 
@@ -203,60 +299,6 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
 }
 
 
-
-size_t ri_consumer_msg_size(const ri_consumer_t *consumer)
-{
-  return ri_consumer_queue_msg_size(consumer->queue);
-}
-
-
-ri_info_t ri_consumer_info(const ri_consumer_t *consumer)
-{
-  return  (ri_info_t) {
-      .size = consumer->info.size,
-      .data = consumer->info.data,
-  };
-}
-
-
-void ri_consumer_free_info(ri_consumer_t *consumer)
-{
-  if (consumer->info.data) {
-    free(consumer->info.data);
-    consumer->info.data = NULL;
-    consumer->info.size = 0;
-  }
-}
-
-
-int ri_consumer_eventfd(const ri_consumer_t *consumer)
-{
-  return consumer->eventfd;
-}
-
-
-size_t ri_prdoucer_shm_offset(const ri_producer_t *producer)
-{
-  return producer->shm_offset;
-}
-
-unsigned ri_producer_len(const ri_producer_t *producer)
-{
-  return ri_producer_queue_len(producer->queue);
-}
-
-size_t ri_producer_msg_size(const ri_producer_t *producer)
-{
-  return ri_producer_queue_msg_size(producer->queue);
-}
-
-
-void* ri_producer_msg(const ri_producer_t *producer)
-{
-  return ri_producer_queue_msg(producer->queue);
-}
-
-
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
   ri_produce_result_t r = ri_producer_queue_force_push(producer->queue);
@@ -269,6 +311,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
   return r;
 }
 
+
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 {
   ri_produce_result_t r = ri_producer_queue_try_push(producer->queue);
@@ -279,29 +322,4 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
   }
 
   return r;
-}
-
-
-void ri_producer_free_info(ri_producer_t *producer)
-{
-  if (producer->info.data) {
-    free(producer->info.data);
-    producer->info.data = NULL;
-    producer->info.size = 0;
-  }
-}
-
-
-ri_info_t ri_producer_info(const ri_producer_t *producer)
-{
-  return  (ri_info_t) {
-    .size = producer->info.size,
-    .data = producer->info.data,
-  };
-}
-
-
-int ri_producer_eventfd(const ri_producer_t *producer)
-{
-  return producer->eventfd;
 }

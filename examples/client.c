@@ -13,8 +13,8 @@ const ri_channel_param_t client2server_channels[] = {
 
 
 const ri_channel_param_t server2client_channels[] = {
-  (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_response_t), .info = { .data = RESPONSE_INFO, .size = sizeof(RESPONSE_INFO) }},
-  (ri_channel_param_t) { .add_msgs = 10, .msg_size = sizeof(msg_event_t), .info = { .data = EVENT_INFO, .size = sizeof(EVENT_INFO) }},
+  (ri_channel_param_t) { .add_msgs = 0, .msg_size = sizeof(msg_response_t), .eventfd = 1, .info = { .data = RESPONSE_INFO, .size = sizeof(RESPONSE_INFO) }},
+  (ri_channel_param_t) { .add_msgs = 10, .msg_size = sizeof(msg_event_t), .eventfd = 1, .info = { .data = EVENT_INFO, .size = sizeof(EVENT_INFO) }},
   { 0 },
 };
 
