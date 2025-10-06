@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <errno.h>
+#include <stdatomic.h>
+#include <threads.h>
+#include <poll.h>
 
 #include "rtipc.h"
 #include "messages.h"
@@ -24,6 +28,8 @@ typedef struct app {
     ri_producer_t *command;
     ri_consumer_t *response;
     ri_consumer_t *event;
+    thrd_t listener;
+    atomic_bool run;
 } app_t;
 
 
@@ -70,9 +76,42 @@ static void app_delete(app_t *app)
   free(app);
 }
 
+int event_listen(void *arg)
+{
+  app_t *app = arg;
+
+  int eventfd = ri_consumer_eventfd(app->event);
+
+  if (eventfd < 0)
+    return eventfd;
+
+  struct pollfd pollfd = {.fd = eventfd, .events = POLLIN, };
+
+  while (atomic_load(&app->run)) {
+    int r = poll(&pollfd, 1, 10);
+
+    if (r < 0) {
+      return -errno;
+    }
+
+    if (pollfd.revents & POLLIN) {
+      ri_consume_result_t r = ri_consumer_pop(app->event);
+
+      if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+         printf("message queue empty");
+      }
+
+      msg_event_print(ri_consumer_msg(app->event));
+    }
+
+  }
+
+  return 0;
+}
 
 static app_t* app_new(const char *path, const ri_channel_param_t *producers, const ri_channel_param_t *consumers, ri_info_t *info)
 {
+
 
   ri_vector_t *vec =  ri_client_connect(path, producers, consumers, info);
 
@@ -96,10 +135,20 @@ static app_t* app_new(const char *path, const ri_channel_param_t *producers, con
   if (!app->event)
     goto fail_channel;
 
+  atomic_store(&app->run, true);
+
+  int r = thrd_create(&app->listener, event_listen, app);
+
+  if (r != thrd_success) {
+    goto fail_thread;
+  }
+
+
   ri_vector_delete(vec);
 
   return app;
 
+fail_thread:
 fail_channel:
   app_delete(app);
 fail_alloc:
@@ -113,36 +162,31 @@ fail_connect:
 void app_run(app_t *app, const msg_command_t *cmds)
 {
   const msg_command_t *cmd = cmds;
-  *(msg_command_t*)ri_producer_msg(app->command) = *cmd;
-  ri_producer_force_push(app->command);
 
   for (;;) {
-    usleep(10000);
-    for (;;) {
-      ri_consume_result_t r = ri_consumer_pop(app->response);
+    if (cmd->id == CMDID_UNKNOWN)
+      return;
 
-      if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE))
-        break;
+    *(msg_command_t*)ri_producer_msg(app->command) = *cmd;
+    ri_producer_force_push(app->command);
 
-      printf("client received:\n");
-      msg_response_print(ri_consumer_msg(app->response));
-      if (cmd->id == CMDID_UNKNOWN)
-        return;
-      *(msg_command_t*)ri_producer_msg(app->command) = *cmd;
-      ri_producer_force_push(app->command);
-      cmd++;
+    ri_consume_result_t r = ri_consumer_pop(app->response);
+
+    if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+      usleep(1000);
+      continue;
     }
 
-    for (;;) {
-      ri_consume_result_t r = ri_consumer_pop(app->event);
-
-      if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE))
-        break;
-
-      printf("client received:\n");
-      msg_event_print(ri_consumer_msg(app->event));
-    }
+    printf("client received:\n");
+    msg_response_print(ri_consumer_msg(app->response));
+    cmd++;
   }
+
+  usleep(10000);
+
+  atomic_store(&app->run, false);
+
+  thrd_join(app->listener, NULL);
 }
 
 
