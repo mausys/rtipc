@@ -170,11 +170,18 @@ void app_run(app_t *app, const msg_command_t *cmds)
     *(msg_command_t*)ri_producer_msg(app->command) = *cmd;
     ri_producer_force_push(app->command);
 
-    ri_consume_result_t r = ri_consumer_pop(app->response);
+    for (;;) {
+      ri_consume_result_t r = ri_consumer_pop(app->response);
 
-    if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
-      usleep(1000);
-      continue;
+      if (r == RI_CONSUME_RESULT_ERROR) {
+        printf("ri_consumer_pop receive error\n");
+        return;
+      } else if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+        usleep(1000);
+        continue;
+      } else {
+        break;
+      }
     }
 
     printf("client received:\n");

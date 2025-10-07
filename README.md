@@ -1,29 +1,24 @@
 ## RTIPC
 
-**RTIPC** is a zero-copy, wait-free inter-process communication C-library suited for real-time systems.
+**RTIPC** is a a zero-copy, wait-free inter-process communication (IPC) library optimized for real-time systems.
 
 ### Features
-- Extremely fast: no data-copying and no syscalls are used for a data transfer.
-- Deterministic: data updates don't affect the runtime of the remote process.
-- Simple: No external dependency
-- Optimized for SMP-systems: data buffers are cacheline aligned to avoid unneeded cache coherence transactions.
-- Support for anonymous and named shared memory
-- Multithreading support: multiple threads can communicate over different channels with each other.
+- **Zero-copy & syscall-free:** Extremely fast data transfer with no memory copying or system calls.
+- **Deterministic behavior:** Data updates do not impact the runtime of the receiving process.
+- **Real-time message handling:** Producers can send messages even when the queue is full—automatically discarding the oldest message to make room for the new one. This guarantees that the most recent data is always available.
+- **SMP-optimized:** Messages are cacheline-aligned to minimize unnecessary cache coherence traffic in multi-core systems.
+- **Event notification:** Optional *eventfd* support for integration with *select*, *poll*, and *epoll* event loops.
+- **Multithreading:** Multiple threads can communicate concurrently over separate channels.
+
+### Limitations
+- **Fixed-size messages and queues:** Both the size of each message and the number of messages in a queue are fixed at creation time.
 
 ### Design
-The shared memory is divided into different channels. The core of the library is a single consumer single producer wait-free zero-copy circular message queue, that allows the producer to replace its oldest message with a new one.
+At its core, RTIPC uses a wait-free, zero-copy, single-producer single-consumer (SPSC) circular message queue. This queue allows a producer to overwrite the oldest message if the queue is full, ensuring real-time safety without blocking or performance degradation.
 
-#### Shared Memory Layout
-|                 |
-| --------------- |
-| Header          |
-|                 |
-| Table           |
-|                 |
-| Channels        |
+### How It Works
 
-- Header: fixed size. Describes the memory layout. Written by the server during initization.
-- Table: Each channel has a table entry. An entry contains the size and offset of the channel buffers. The table is written by the server during initialization.
-- Channels: Each channel has at leas three equally sized data buffers plus the atomic variables for the exchange. For performance reasons 
-The buffers are cacheline aligned.
-
+1. The client initializes a channel vector based on desired parameters.
+2. This channel vector contains one or more producer/consumer channels, all mapped onto a shared memory region.
+3. The client shares the memory region and configuration (including optional metadata) with the server via a Unix socket.
+4. The server then constructs its own matching channel vector, enabling seamless inter-process communication.

@@ -90,7 +90,6 @@ fail_server:
 static int32_t server_send_events(ri_producer_t *producer, uint32_t id, unsigned num, bool force)
 {
   for (unsigned i = 0; i < num; i++) {
-    printf("server send events:%u %u %b\n", id, i, force);
     msg_event_t *event = ri_producer_msg(producer);
     event->id = id;
     event->nr = i;
@@ -120,12 +119,14 @@ void app_run(app_t *app)
 {
 
   for (int i = 0; i < MAX_CYCLES; i++) {
-    usleep(10000);
+
     bool run = true;
     ri_consume_result_t r = ri_consumer_pop(app->command);
 
-    if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE))
+    if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+      usleep(1000);
       continue;
+    }
 
     const msg_command_t *cmd = ri_consumer_msg(app->command);
     printf("server received:\n");
