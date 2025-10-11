@@ -28,7 +28,14 @@ struct ri_producer {
     size_t size;
     void *data;
   } info;
+  void *cache;
 };
+
+static void producer_cache_write(const ri_producer_t *producer) {
+  size_t msg_size = ri_producer_queue_msg_size(producer->queue);
+  void *msg = ri_producer_queue_msg(producer->queue);
+  memcpy(msg, producer->cache, msg_size);
+}
 
 
 ri_consumer_t* ri_consumer_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset, int eventfd, bool shm_init)
@@ -163,7 +170,7 @@ const void* ri_consumer_msg(const ri_consumer_t *consumer)
 
 void* ri_producer_msg(const ri_producer_t *producer)
 {
-  return ri_producer_queue_msg(producer->queue);
+  return producer->cache ? producer->cache : ri_producer_queue_msg(producer->queue);
 }
 
 
@@ -301,6 +308,10 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
 
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 {
+  if (producer->cache) {
+    producer_cache_write(producer);
+  }
+
   ri_produce_result_t r = ri_producer_queue_force_push(producer->queue);
 
   if ((producer->eventfd >= 0) && (r == RI_PRODUCE_RESULT_SUCCESS)) {
@@ -314,6 +325,13 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
 {
+  if (producer->cache) {
+    if (ri_producer_queue_full(producer->queue))
+      return RI_PRODUCE_RESULT_FAIL;
+
+    producer_cache_write(producer);
+  }
+
   ri_produce_result_t r = ri_producer_queue_try_push(producer->queue);
 
   if ((producer->eventfd >= 0) && (r == RI_PRODUCE_RESULT_SUCCESS)) {
