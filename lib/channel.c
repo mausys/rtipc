@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include "producer.h"
 #include "consumer.h"
@@ -340,4 +341,39 @@ ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
   }
 
   return r;
+}
+
+
+int ri_producer_cache_enable(ri_producer_t *producer)
+{
+  if (producer->cache)
+    return 0;
+
+  size_t msg_size = ri_producer_queue_msg_size(producer->queue);
+
+  producer->cache = malloc(msg_size);
+
+  if (!producer->cache)
+    return -ENOMEM;
+
+  void *msg = ri_producer_queue_msg(producer->queue);
+
+  memcpy(producer->cache, msg, msg_size);
+
+  return 0;
+}
+
+
+void ri_producer_cache_disable(ri_producer_t *producer)
+{
+  if (!producer->cache)
+    return;
+
+  size_t msg_size = ri_producer_queue_msg_size(producer->queue);
+  void *msg = ri_producer_queue_msg(producer->queue);
+
+  memcpy(msg, producer->cache, msg_size);
+
+  free(producer->cache);
+  producer->cache = NULL;
 }

@@ -277,6 +277,22 @@ int ri_producer_eventfd(const ri_producer_t *producer);
 int ri_producer_take_eventfd(ri_producer_t *producer);
 
 /**
+ * @brief ri_producer_cache_enable enables message cache and copies current message to cache.
+ *  ri_producer_msg will always return pointer to cache. Cache is written back with push
+ * @param producer pointer to producer
+ * @return 0 on success
+ */
+int ri_producer_cache_enable(ri_producer_t *producer);
+
+/**
+ * @brief ri_producer_cache_disable if cache was enabled, copies message cache to current message
+ * and deletes message cache.
+ * ri_producer_msg will return pointer to current message (zero copy)
+ * @param producer pointer to producer
+ */
+void ri_producer_cache_disable(ri_producer_t *producer);
+
+/**
  * @brief ri_producer_info get channel info
  * @param producer pointer to producer
  * @return channel info
