@@ -183,8 +183,6 @@ ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer)
 
   bool consumed = !!(tail & RI_CONSUMED_FLAG);
 
-  bool full = (next == (tail & RI_INDEX_MASK));
-
   if (producer->overrun != RI_INDEX_INVALID) {
     /* we overran the consumer and moved the tail, use overran message as
         * soon as the consumer releases it */
@@ -211,6 +209,7 @@ ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer)
       }
     }
   } else {
+    bool full = (next == (tail & RI_INDEX_MASK));
     /* no previous overrun, use next or after next message */
     if (!full) {
       /* message queue not full, simply use next */
@@ -255,11 +254,9 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
   if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK))
     return RI_PRODUCE_RESULT_ERROR;
 
-  bool consumed = !!(tail & RI_CONSUMED_FLAG);
-
-  bool full = (next == (tail & RI_INDEX_MASK));
-
   if (producer->overrun != RI_INDEX_INVALID) {
+    bool consumed = !!(tail & RI_CONSUMED_FLAG);
+
     if (consumed) {
       /* consumer released overrun message, so we can use it */
       /* requeue overrun */
@@ -273,6 +270,8 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
       return RI_PRODUCE_RESULT_SUCCESS;
     }
   } else {
+    bool full = (next == (tail & RI_INDEX_MASK));
+
     /* no previous overrun, use next or after next message */
     if (!full) {
       enqueue_msg(producer);
@@ -285,6 +284,36 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
 
   return RI_PRODUCE_RESULT_FAIL;
 }
+
+
+bool ri_producer_queue_full(const ri_producer_queue_t *producer) {
+  if (producer->head == RI_INDEX_INVALID) {
+    // queue is empty
+    return false;
+  }
+
+  const ri_queue_t *queue = &producer->queue;
+
+  ri_index_t tail = ri_queue_tail_load(queue);
+
+  if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK)) {
+    // ERROR, queue is in invalid state, let producer move on and handle error on push
+    return false;
+  }
+
+  if ((producer->overrun != RI_INDEX_INVALID)) {
+    bool consumed = !!(tail & RI_CONSUMED_FLAG);
+    /* overrun mean the producer forced_push a message on a full queue
+     queue has space if consumer moved on */
+    return !consumed;
+  } else {
+    ri_index_t next = producer->chain[producer->current];
+    bool full = (next == (tail & RI_INDEX_MASK));
+
+    return !full;
+  }
+}
+
 
 void* ri_producer_queue_msg(const ri_producer_queue_t *producer)
 {
