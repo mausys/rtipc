@@ -122,6 +122,13 @@ ri_shm_t* ri_shm_map(int fd)
     goto fail_map;
   }
 
+  r = mlock(shm->mem, shm->size);
+
+  if (r < 0) {
+    LOG_ERR("mlock failed: %s", strerror(errno));
+    goto fail_map;
+  }
+
   LOG_INF("mapped shared memory size=%zu, on %p", shm->size, shm->mem);
 
   return shm;
