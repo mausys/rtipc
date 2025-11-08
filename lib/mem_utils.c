@@ -7,6 +7,15 @@
 
 #include "log.h"
 
+#ifdef RI_CACHELINE_SIZE
+
+size_t cacheline_size(void)
+{
+  return RI_CACHELINE_SIZE;
+}
+
+#else
+
 #define MAX_SANE_CACHE_LINE_SIZE 0x1000
 
 #define FMT_SYS_CPU_CACHE_ATTR  "/sys/devices/system/cpu/cpu%d/cache/index%d/%s"
@@ -152,3 +161,5 @@ size_t cacheline_size(void)
 
   return cls;
 }
+
+#endif /* RI_CACHELINE_SIZE */
