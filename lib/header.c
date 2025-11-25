@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 #include <errno.h>
+#include <string.h>
+
 
 #include "index.h"
 #include "log.h"
@@ -27,25 +29,27 @@ size_t ri_request_header_size()
 
 int ri_request_header_validate(const void *request)
 {
-  const request_header_t *header = request;
-  if (header->magic != MAGIC) {
-    LOG_ERR("magic missmatch 0x%x != 0x%x", header->magic, MAGIC);
+  request_header_t header;
+  memcpy(&header, request, sizeof(header));
+
+  if (header.magic != MAGIC) {
+    LOG_ERR("magic missmatch 0x%x != 0x%x", header.magic, MAGIC);
     return -EINVAL;
   }
 
-  if (header->version != HEADER_VERSION) {
-    LOG_ERR("verison missmatch %u != %u", header->version, HEADER_VERSION);
+  if (header.version != HEADER_VERSION) {
+    LOG_ERR("verison missmatch %u != %u", header.version, HEADER_VERSION);
     return -EINVAL;
   }
 
 
-  if (header->cacheline_size != cacheline_size()) {
-    LOG_ERR("cacheline_size missmatch %u != %zu", header->cacheline_size, cacheline_size());
+  if (header.cacheline_size != cacheline_size()) {
+    LOG_ERR("cacheline_size missmatch %u != %zu", header.cacheline_size, cacheline_size());
     return -EINVAL;
   }
 
-  if (header->atomic_size != sizeof(ri_atomic_index_t)) {
-    LOG_ERR("atomic size missmatch %u != %zu", header->atomic_size, sizeof(ri_atomic_index_t));
+  if (header.atomic_size != sizeof(ri_atomic_index_t)) {
+    LOG_ERR("atomic size missmatch %u != %zu", header.atomic_size, sizeof(ri_atomic_index_t));
     return -EINVAL;
   }
 
