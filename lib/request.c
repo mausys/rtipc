@@ -4,10 +4,12 @@
 #include <stdint.h>
 #include <stdalign.h>
 #include <unistd.h>
+#include <string.h>
 
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include "mem_utils.h"
 
 #include "protocol.h"
 
@@ -19,6 +21,7 @@ struct ri_request {
   void *msg;
   size_t size;
   unsigned n_fds;
+  unsigned index;
   alignas(struct cmsghdr) uint8_t cmsg[CMSG_SPACE(SCM_MAX_FD * sizeof(int))];
 };
 
@@ -37,13 +40,14 @@ ri_request_t* ri_request_new(size_t size)
   if (!req)
     goto fail_alloc;
 
+  *req = (ri_request_t) {
+    .size = size,
+  };
+
   req->msg = malloc(size);
 
   if (!req->msg)
     goto fail_msg;
-
-  req->size = size;
-  req->n_fds = 0;
 
   return req;
 
@@ -77,13 +81,45 @@ size_t ri_request_size(const ri_request_t *req)
 }
 
 
-void* ri_request_msg(const ri_request_t *req)
+void* ri_request_ptr(const ri_request_t *req, size_t offset, size_t size)
 {
-  return req->msg;
+  if (offset + size > req->size)
+    return NULL;
+
+  return mem_offset(req->msg, offset);
 }
 
 
-int ri_request_add_fd(ri_request_t *req, int fd)
+int ri_request_write(const ri_request_t *req, size_t *offset, const void *src, size_t size)
+{
+  void *ptr = ri_request_ptr(req, *offset, size);
+
+  if (!ptr)
+    return -1;
+
+  memcpy(ptr, src, size);
+
+  *offset += size;
+
+  return 0;
+}
+
+
+int ri_request_read(const ri_request_t *req, size_t *offset, void *dst, size_t size)
+{
+  const void *ptr = ri_request_ptr(req, *offset, size);
+
+  if (!ptr)
+    return -1;
+
+  memcpy(dst, ptr, size);
+
+  *offset += size;
+
+  return 0;
+}
+
+int ri_request_push_fd(ri_request_t *req, int fd)
 {
   if (req->n_fds >= SCM_MAX_FD - 1)
     return -1;
@@ -98,16 +134,18 @@ int ri_request_add_fd(ri_request_t *req, int fd)
 }
 
 
-int ri_request_take_fd(ri_request_t *req, unsigned idx)
+int ri_request_pop_fd(ri_request_t *req)
 {
-  if (idx >= req->n_fds)
+  if (req->index >= req->n_fds)
     return -1;
 
   int *fds = get_fds(req);
 
-  int fd = fds[idx];
+  int fd = fds[req->index];
 
-  fds[idx] = -1;
+  fds[req->index] = -1;
+
+  req->index++;
 
   return fd;
 }
