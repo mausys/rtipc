@@ -356,3 +356,35 @@ fail_alloc:
   return NULL;
 }
 
+ri_uxmsg_t* ri_response_create(int32_t result)
+{
+  ri_uxmsg_t *response = ri_uxmsg_new(sizeof(result));
+
+  if (!response)
+    goto fail_alloc;
+
+  size_t offset = 0;
+
+  int r = ri_uxmsg_write(response, &offset, &result, sizeof(result));
+
+  if (r < 0)
+    goto fail_write;
+
+  return response;
+
+fail_write:
+  ri_uxmsg_delete(response, false);
+fail_alloc:
+  return NULL;
+}
+
+
+int32_t ri_response_parse(ri_uxmsg_t* response)
+{
+  int32_t result = -1;
+  size_t offset = 0;
+
+  ri_uxmsg_read(response, &offset, &result, sizeof(result));
+
+  return result;
+}

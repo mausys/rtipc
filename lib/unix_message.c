@@ -11,8 +11,6 @@
 #include <sys/socket.h>
 #include "mem_utils.h"
 
-#include "protocol.h"
-
 /* from kernel/include/net/scm.h */
 #define SCM_MAX_FD     253
 

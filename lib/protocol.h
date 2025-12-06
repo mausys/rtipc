@@ -5,3 +5,7 @@
 
 ri_vector_t* ri_request_parse(ri_uxmsg_t *req);
 ri_uxmsg_t* ri_request_create(const ri_vector_t* vec);
+
+int32_t ri_response_parse(ri_uxmsg_t* response);
+ri_uxmsg_t* ri_response_create(int32_t result);
+
