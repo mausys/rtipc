@@ -8,7 +8,7 @@
 #include <sys/un.h>
 
 #include "log.h"
-#include "request.h"
+#include "unix_message.h"
 #include "protocol.h"
 
 
@@ -24,7 +24,7 @@ ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t produc
     goto fail_vec;
   }
 
-  ri_request_t *req = ri_request_from_vector(vec);
+  ri_uxmsg_t *req = ri_request_create(vec);
 
   if (!req) {
     LOG_ERR("ri_request_from_vector failed");
@@ -49,20 +49,20 @@ ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t produc
     goto fail_socket;
   }
 
-  r = ri_request_send(req, sockfd);
+  r = ri_uxmsg_send(req, sockfd);
 
   if (r < 0) {
     LOG_ERR("ri_request_send failed r=%d", r);
     goto fail_send;
   }
 
-  ri_request_delete(req, false);
+  ri_uxmsg_delete(req, false);
 
   return vec;
 
 fail_send:
 fail_socket:
-  ri_request_delete(req, false);
+  ri_uxmsg_delete(req, false);
 fail_req:
   ri_vector_delete(vec);
 fail_vec:

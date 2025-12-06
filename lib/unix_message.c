@@ -1,4 +1,4 @@
-#include "request.h"
+#include "unix_message.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -17,7 +17,7 @@
 #define SCM_MAX_FD     253
 
 
-struct ri_request {
+struct ri_uxmsg {
   void *msg;
   size_t size;
   unsigned n_fds;
@@ -26,7 +26,7 @@ struct ri_request {
 };
 
 
-static int* get_fds(ri_request_t *req)
+static int* get_fds(ri_uxmsg_t *req)
 {
   struct cmsghdr *cmsghdr = (struct cmsghdr*) req->cmsg;
 
@@ -34,13 +34,13 @@ static int* get_fds(ri_request_t *req)
 }
 
 
-ri_request_t* ri_request_new(size_t size)
+ri_uxmsg_t* ri_uxmsg_new(size_t size)
 {
-  ri_request_t *req = malloc(sizeof(ri_request_t));
+  ri_uxmsg_t *req = malloc(sizeof(ri_uxmsg_t));
   if (!req)
     goto fail_alloc;
 
-  *req = (ri_request_t) {
+  *req = (ri_uxmsg_t) {
     .size = size,
   };
 
@@ -58,7 +58,7 @@ fail_alloc:
 }
 
 
-void ri_request_delete(ri_request_t *req, bool close_fds)
+void ri_uxmsg_delete(ri_uxmsg_t *req, bool close_fds)
 {
   free(req->msg);
 
@@ -75,13 +75,13 @@ void ri_request_delete(ri_request_t *req, bool close_fds)
 }
 
 
-size_t ri_request_size(const ri_request_t *req)
+size_t ri_uxmsg_size(const ri_uxmsg_t *req)
 {
   return req->size;
 }
 
 
-void* ri_request_ptr(const ri_request_t *req, size_t offset, size_t size)
+void* ri_uxmsg_ptr(const ri_uxmsg_t *req, size_t offset, size_t size)
 {
   if (offset + size > req->size)
     return NULL;
@@ -90,9 +90,9 @@ void* ri_request_ptr(const ri_request_t *req, size_t offset, size_t size)
 }
 
 
-int ri_request_write(const ri_request_t *req, size_t *offset, const void *src, size_t size)
+int ri_uxmsg_write(const ri_uxmsg_t *req, size_t *offset, const void *src, size_t size)
 {
-  void *ptr = ri_request_ptr(req, *offset, size);
+  void *ptr = ri_uxmsg_ptr(req, *offset, size);
 
   if (!ptr)
     return -1;
@@ -105,9 +105,9 @@ int ri_request_write(const ri_request_t *req, size_t *offset, const void *src, s
 }
 
 
-int ri_request_read(const ri_request_t *req, size_t *offset, void *dst, size_t size)
+int ri_uxmsg_read(const ri_uxmsg_t *req, size_t *offset, void *dst, size_t size)
 {
-  const void *ptr = ri_request_ptr(req, *offset, size);
+  const void *ptr = ri_uxmsg_ptr(req, *offset, size);
 
   if (!ptr)
     return -1;
@@ -119,7 +119,7 @@ int ri_request_read(const ri_request_t *req, size_t *offset, void *dst, size_t s
   return 0;
 }
 
-int ri_request_push_fd(ri_request_t *req, int fd)
+int ri_uxmsg_push_fd(ri_uxmsg_t *req, int fd)
 {
   if (req->n_fds >= SCM_MAX_FD - 1)
     return -1;
@@ -134,7 +134,7 @@ int ri_request_push_fd(ri_request_t *req, int fd)
 }
 
 
-int ri_request_pop_fd(ri_request_t *req)
+int ri_uxmsg_pop_fd(ri_uxmsg_t *req)
 {
   if (req->index >= req->n_fds)
     return -1;
@@ -151,7 +151,7 @@ int ri_request_pop_fd(ri_request_t *req)
 }
 
 
-int ri_request_send(const ri_request_t *req, int socket)
+int ri_uxmsg_send(const ri_uxmsg_t *req, int socket)
 {
   struct iovec iov = {
     .iov_base = req->msg,
@@ -161,27 +161,29 @@ int ri_request_send(const ri_request_t *req, int socket)
   struct msghdr msghdr = {
       .msg_iov = &iov,
       .msg_iovlen = 1,
-      .msg_control = (void*)req->cmsg,
-      .msg_controllen = CMSG_SPACE(req->n_fds * sizeof(int)),
+      .msg_control = req->n_fds > 0 ? (void*)req->cmsg : NULL,
+      .msg_controllen = req->n_fds > 0 ? CMSG_SPACE(req->n_fds * sizeof(int)) : 0,
   };
 
-  struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msghdr);
+  if (msghdr.msg_controllen > 0) {
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msghdr);
 
-  /* can't happen because n_fds is at least 1 (memfd) */
-  if (!cmsg)
-    return -1;
+    /* can't happen because n_fds is at least 1 (memfd) */
+    if (!cmsg)
+      return -1;
 
-  *cmsg = (struct cmsghdr) {
-      .cmsg_level = SOL_SOCKET,
-      .cmsg_type = SCM_RIGHTS,
-      .cmsg_len = CMSG_LEN(req->n_fds * sizeof(int)),
-  };
+    *cmsg = (struct cmsghdr) {
+        .cmsg_level = SOL_SOCKET,
+        .cmsg_type = SCM_RIGHTS,
+        .cmsg_len = CMSG_LEN(req->n_fds * sizeof(int)),
+    };
+  }
 
   return sendmsg(socket, &msghdr, 0);
 }
 
 
-ri_request_t* ri_request_receive(int socket)
+ri_uxmsg_t* ri_uxmsg_receive(int socket)
 {
   struct msghdr msghdr = {
       .msg_iov = NULL,
@@ -195,7 +197,7 @@ ri_request_t* ri_request_receive(int socket)
   if (r <= 0)
     goto fail_peek;
 
-  ri_request_t* req = ri_request_new(r);
+  ri_uxmsg_t* req = ri_uxmsg_new(r);
 
   if (!req)
     goto fail_peek;
@@ -233,7 +235,7 @@ ri_request_t* ri_request_receive(int socket)
   return req;
 
 fail_recv:
-  ri_request_delete(req, false);
+  ri_uxmsg_delete(req, false);
 fail_peek:
   return NULL;
 }

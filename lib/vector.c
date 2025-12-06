@@ -9,7 +9,7 @@
 #include "param.h"
 #include "channel.h"
 #include "fd.h"
-#include "request.h"
+#include "unix_message.h"
 #include "protocol.h"
 
 static unsigned count_channels(const ri_channel_param_t channels[])

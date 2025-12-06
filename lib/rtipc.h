@@ -17,6 +17,9 @@ extern "C" {
  */
 typedef struct ri_vector ri_vector_t;
 
+typedef bool (*ri_filter_fn)(const ri_vector_t* vec, void *user_data);
+
+
 typedef struct ri_info {
   size_t size;
   const void *data;
@@ -107,9 +110,12 @@ int ri_server_socket(const ri_server_t* server);
 /**
  * @brief ri_server_accept accepts a connection from client and builds a channel vector
  * @param server
+ * @param filter user function for accepting (return true) or rejecting (return false) request
+ *  NULL for accepting all
+ * @param userdata passed to filter
  * @return channel vector
  */
-ri_vector_t* ri_server_accept(const ri_server_t* server);
+ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data);
 
 
 /**

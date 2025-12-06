@@ -47,7 +47,7 @@ static app_t* app_new(const char *path)
   if (!server)
     goto fail_server;
 
-  ri_vector_t *vec = ri_server_accept(server);
+  ri_vector_t *vec = ri_server_accept(server, NULL, NULL);
 
   ri_server_delete(server);
   if (!vec)

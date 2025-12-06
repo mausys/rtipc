@@ -10,7 +10,7 @@
 
 #include "rtipc.h"
 #include "log.h"
-#include "request.h"
+#include "unix_message.h"
 #include "protocol.h"
 
 typedef struct ri_server ri_server_t;
@@ -75,7 +75,7 @@ int ri_server_socket(const ri_server_t* server)
 }
 
 
-ri_vector_t* ri_server_accept(const ri_server_t* server)
+ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data)
 {
   int cfd = accept(server->sockfd, NULL, NULL);
 
@@ -84,19 +84,25 @@ ri_vector_t* ri_server_accept(const ri_server_t* server)
     goto fail;
   }
 
-  ri_request_t *req = ri_request_receive(cfd);
+  ri_uxmsg_t *req = ri_uxmsg_receive(cfd);
 
   close(cfd);
 
   if (!req)
     goto fail;
 
-  ri_vector_t *vec = ri_vector_from_request(req);
+  ri_vector_t *vec = ri_request_parse(req);
 
-  ri_request_delete(req, true);
+  ri_uxmsg_delete(req, true);
 
   if (!vec) {
     goto fail;
+  }
+
+  if (filter) {
+    if (!filter(vec, user_data)) {
+      goto fail;
+    }
   }
 
   return vec;

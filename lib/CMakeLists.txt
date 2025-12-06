@@ -33,8 +33,8 @@ set(RTIPC_SRCS
   channel.h
   header.c
   header.h
-  request.c
-  request.h
+  unix_message.c
+  unix_message.h
   fd.c
   fd.h
   protocol.c
