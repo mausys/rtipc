@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -14,6 +15,71 @@
 
 
 
+static int client_send_vector(const char *path, const ri_vector_t *vec)
+{
+  int r = -1;
+
+  ri_uxmsg_t *req = ri_request_create(vec);
+
+  if (!req) {
+    r = -1;
+    LOG_ERR("ri_request_from_vector failed");
+    goto fail_req;
+  }
+
+  int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+
+  if (sockfd < 0) {
+    r = -errno;
+    LOG_ERR("socket failed errno=%u", errno);
+    goto fail_socket;
+  }
+
+  struct sockaddr_un addr;
+  addr.sun_family = AF_UNIX;
+  snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
+
+  r = connect(sockfd, (struct sockaddr*)&addr, sizeof(addr));
+
+  if (r < 0) {
+    r = -errno;
+    LOG_ERR("connect failed errno=%u", errno);
+    goto fail_connect;
+  }
+
+  r = ri_uxmsg_send(req, sockfd);
+
+  if (r < 0) {
+    LOG_ERR("ri_request_send failed r=%d", r);
+    goto fail_send;
+  }
+
+  ri_uxmsg_t *response = ri_uxmsg_receive(sockfd);
+
+  if (!response) {
+    r = -1;
+    goto fail_receive;
+  }
+
+  int32_t result = ri_response_parse(response);
+
+  ri_uxmsg_delete(response, false);
+  ri_uxmsg_delete(req, false);
+  close(sockfd);
+
+  return result;
+
+fail_receive:
+fail_send:
+fail_connect:
+  close(sockfd);
+fail_socket:
+  ri_uxmsg_delete(req, false);
+fail_req:
+  return r;
+}
+
+
 ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t producers[], const ri_channel_param_t consumers[], const ri_info_t *info)
 {
 
@@ -24,46 +90,16 @@ ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t produc
     goto fail_vec;
   }
 
-  ri_uxmsg_t *req = ri_request_create(vec);
-
-  if (!req) {
-    LOG_ERR("ri_request_from_vector failed");
-    goto fail_req;
-  }
-
-  int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
-
-  if (sockfd < 0) {
-    LOG_ERR("socket failed errno=%u", errno);
-    goto fail_socket;
-  }
-
-  struct sockaddr_un addr;
-  addr.sun_family = AF_UNIX;
-  snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
-
-  int r = connect(sockfd, (struct sockaddr*)&addr, sizeof(addr));
+  int r = client_send_vector(path, vec);
 
   if (r < 0) {
-    LOG_ERR("connect failed errno=%u", errno);
-    goto fail_socket;
-  }
-
-  r = ri_uxmsg_send(req, sockfd);
-
-  if (r < 0) {
-    LOG_ERR("ri_request_send failed r=%d", r);
+    LOG_ERR("client_send_vector failed");
     goto fail_send;
   }
-
-  ri_uxmsg_delete(req, false);
 
   return vec;
 
 fail_send:
-fail_socket:
-  ri_uxmsg_delete(req, false);
-fail_req:
   ri_vector_delete(vec);
 fail_vec:
   return NULL;

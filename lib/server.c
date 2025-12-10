@@ -75,39 +75,64 @@ int ri_server_socket(const ri_server_t* server)
 }
 
 
+static int server_send_response(int result, int socket)
+{
+  ri_uxmsg_t *response = ri_response_create(result);
+
+  if (!response)
+    return -1;
+
+  int r = ri_uxmsg_send(response, socket);
+
+  ri_uxmsg_delete(response, false);
+
+  return r;
+}
+
+
 ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data)
 {
   int cfd = accept(server->sockfd, NULL, NULL);
 
   if (cfd < 0) {
     LOG_ERR("accept failed errno=%u", errno);
-    goto fail;
+    goto fail_accept;
   }
 
   ri_uxmsg_t *req = ri_uxmsg_receive(cfd);
 
-  close(cfd);
-
-  if (!req)
-    goto fail;
+  if (!req) {
+     LOG_ERR("ri_uxmsg_receive failed");
+    goto fail_receive;
+  }
 
   ri_vector_t *vec = ri_request_parse(req);
 
   ri_uxmsg_delete(req, true);
 
   if (!vec) {
+    LOG_ERR("ri_request_parse failed");
     goto fail;
   }
 
   if (filter) {
     if (!filter(vec, user_data)) {
+      LOG_INF("server rejected request");
       goto fail;
     }
   }
 
+  server_send_response(0, cfd);
+
+  close(cfd);
+
   return vec;
 
 fail:
+  server_send_response(-1, cfd);
+fail_receive:
+  close(cfd);
+fail_accept:
   return NULL;
 }
 
