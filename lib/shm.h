@@ -19,4 +19,4 @@ void *ri_shm_ptr(const ri_shm_t *shm, size_t offset);
 
 size_t ri_shm_size(const ri_shm_t *shm);
 
-int ri_shm_fd(const ri_shm_t *shm);
+int ri_shm_get_fd(const ri_shm_t *shm);

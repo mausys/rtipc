@@ -4,8 +4,8 @@
 #include "shm.h"
 
 struct ri_vector {
-  unsigned num_consumers;
-  unsigned num_producers;
+  unsigned n_consumers;
+  unsigned n_producers;
   ri_consumer_t **consumers;
   ri_producer_t **producers;
   struct {
@@ -16,10 +16,7 @@ struct ri_vector {
 };
 
 
-ri_vector_t* ri_vector_alloc(unsigned num_consumers, unsigned num_producers);
-
-ri_vector_t* ri_vector_new( const ri_channel_param_t producers[], const ri_channel_param_t consumers[],
-                           const ri_info_t *info);
+ri_vector_t* ri_vector_alloc(unsigned n_consumers, unsigned n_producers);
 
 void ri_vector_delete(ri_vector_t* vec);
 

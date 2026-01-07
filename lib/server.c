@@ -75,18 +75,59 @@ int ri_server_socket(const ri_server_t* server)
 }
 
 
-static int server_send_response(int result, int socket)
+static int server_send_response(int socket, int32_t result)
 {
-  ri_uxmsg_t *response = ri_response_create(result);
 
-  if (!response)
-    return -1;
+  return ri_uxsocket_send(socket, &result, sizeof(result));
+}
 
-  int r = ri_uxmsg_send(response, socket);
 
-  ri_uxmsg_delete(response, false);
+static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
+{
 
-  return r;
+  size_t size;
+  const void *data = ri_uxmsg_data(req, &size);
+  ri_vector_map_t *vmap = ri_request_parse(data, size);
+
+  if (!vmap) {
+    LOG_ERR("ri_request_parse failed");
+    goto fail_map;
+  }
+
+  unsigned fd_index = 0;
+
+  vmap->shmfd = ri_uxmsg_take_fd(req, fd_index++);
+
+  for (ri_channel_param_t *param = vmap->consumers; param->msg_size != 0; param++) {
+    if (param->eventfd <= 0)
+      continue;
+
+    param->eventfd = ri_uxmsg_take_fd(req, fd_index++);
+
+    if (param->eventfd <= 0)
+      goto fail_eventfd;
+  }
+
+  for (ri_channel_param_t *param = vmap->producers; param->msg_size != 0; param++) {
+    if (param->eventfd <= 0)
+      continue;
+
+    param->eventfd = ri_uxmsg_take_fd(req, fd_index++);
+
+    if (param->eventfd <= 0)
+      goto fail_eventfd;
+  }
+
+  ri_vector_t *vec = ri_vector_map(vmap);
+
+  ri_vector_map_delete(vmap);
+
+  return vec;
+
+fail_eventfd:
+  ri_vector_map_delete(vmap);
+fail_map:
+  return NULL;
 }
 
 
@@ -106,31 +147,31 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
     goto fail_receive;
   }
 
-  ri_vector_t *vec = ri_request_parse(req);
+  ri_vector_t *vec = request_to_vector(req);
 
-  ri_uxmsg_delete(req, true);
+   ri_uxmsg_delete(req, true);
 
-  if (!vec) {
-    LOG_ERR("ri_request_parse failed");
-    goto fail;
-  }
+  if (!vec)
+    goto fail_vector;
 
   if (filter) {
     if (!filter(vec, user_data)) {
       LOG_INF("server rejected request");
-      goto fail;
+      goto fail_rejected;
     }
   }
 
-  server_send_response(0, cfd);
+  server_send_response(cfd, 0);
 
   close(cfd);
 
   return vec;
 
-fail:
-  server_send_response(-1, cfd);
+fail_rejected:
+  ri_vector_delete(vec);
+fail_vector:
 fail_receive:
+  server_send_response(cfd, -1);
   close(cfd);
 fail_accept:
   return NULL;

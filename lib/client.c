@@ -15,18 +15,9 @@
 
 
 
-static int client_send_vector(const char *path, const ri_vector_t *vec)
+static int client_transmit_request(const char *path, ri_uxmsg_t *req)
 {
   int r = -1;
-
-  ri_uxmsg_t *req = ri_request_create(vec);
-
-  if (!req) {
-    r = -1;
-    LOG_ERR("ri_request_from_vector failed");
-    goto fail_req;
-  }
-
   int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 
   if (sockfd < 0) {
@@ -54,52 +45,115 @@ static int client_send_vector(const char *path, const ri_vector_t *vec)
     goto fail_send;
   }
 
-  ri_uxmsg_t *response = ri_uxmsg_receive(sockfd);
+  size_t response_size;
+  void *response = ri_uxsocket_receive(sockfd, &response_size);
 
   if (!response) {
     r = -1;
+    LOG_ERR("ri_uxsocket_receive failed");
     goto fail_receive;
   }
 
-  int32_t result = ri_response_parse(response);
+  int32_t result;
 
-  ri_uxmsg_delete(response, false);
-  ri_uxmsg_delete(req, false);
+  if (response_size != sizeof(result)) {
+    LOG_ERR("ri_uxsocket_receive failed");
+    goto fail_response;
+
+  }
+
+  memcpy(&result, response, sizeof(result));
+
+  free(response);
   close(sockfd);
 
   return result;
 
+fail_response:
+  free(response);
 fail_receive:
 fail_send:
 fail_connect:
   close(sockfd);
 fail_socket:
-  ri_uxmsg_delete(req, false);
-fail_req:
   return r;
 }
 
 
-ri_vector_t* ri_client_connect(const char *path, const ri_channel_param_t producers[], const ri_channel_param_t consumers[], const ri_info_t *info)
+ri_vector_t* ri_client_connect(const char *path, const ri_vector_param_t *vparam)
 {
-
-  ri_vector_t *vec = ri_vector_new(producers, consumers, info);
+  ri_vector_t *vec = ri_vector_new(vparam);
 
   if (!vec) {
     LOG_ERR("ri_vector_new failed");
     goto fail_vec;
   }
 
-  int r = client_send_vector(path, vec);
+  size_t req_size = ri_request_calc_size(vparam);
+
+  ri_uxmsg_t *req = ri_uxmsg_new(req_size);
+
+  if (!req)
+    goto fail_req_alloc;
+
+  void *req_data = ri_uxmsg_data(req, &req_size);
+
+  int r = ri_request_write(vparam, req_data, req_size);
+
+  if (r < 0)
+    goto fail_req_init;
+
+  r = ri_uxmsg_add_fd(req, ri_vector_get_shmfd(vec));
+
+  if (r < 0)
+    goto fail_req_init;
+
+
+  for (unsigned i =  0; i < ri_vector_num_producers(vec); i++) {
+    const ri_producer_t *producer = ri_vector_get_producer(vec, i);
+    if (!producer)
+      goto fail_req_init;
+
+    int fd = ri_producer_eventfd(producer);
+
+    if (fd > 0) {
+      r = ri_uxmsg_add_fd(req, fd);
+
+      if (r < 0)
+        goto fail_req_init;
+    }
+  }
+
+  for (unsigned i =  0; i < ri_vector_num_consumers(vec); i++) {
+    const ri_consumer_t *consumer = ri_vector_get_consumer(vec, i);
+    if (!consumer)
+      goto fail_req_init;
+
+    int fd = ri_consumer_eventfd(consumer);
+
+    if (fd > 0) {
+      r = ri_uxmsg_add_fd(req, fd);
+
+      if (r < 0)
+        goto fail_req_init;
+    }
+  }
+
+  r = client_transmit_request(path, req);
 
   if (r < 0) {
     LOG_ERR("client_send_vector failed");
-    goto fail_send;
+    goto fail_transmit;
   }
+
+  ri_uxmsg_delete(req, false);
 
   return vec;
 
-fail_send:
+fail_transmit:
+fail_req_init:
+  ri_uxmsg_delete(req, false);
+fail_req_alloc:
   ri_vector_delete(vec);
 fail_vec:
   return NULL;

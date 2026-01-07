@@ -169,7 +169,7 @@ size_t ri_shm_size(const ri_shm_t *shm)
 }
 
 
-int ri_shm_fd(const ri_shm_t *shm)
+int ri_shm_get_fd(const ri_shm_t *shm)
 {
   return shm->fd;
 }

@@ -163,6 +163,28 @@ void ri_producer_delete(ri_producer_t *producer)
 }
 
 
+ri_channel_param_t ri_consumer_param(const ri_consumer_t *consumer)
+{
+  return (ri_channel_param_t) {
+      .add_msgs = ri_consumer_len(consumer) - 3,
+      .msg_size = ri_consumer_msg_size(consumer),
+      .info =  ri_consumer_info(consumer),
+      .eventfd = ri_consumer_eventfd(consumer),
+  };
+}
+
+
+ri_channel_param_t ri_producer_param(const ri_producer_t *producer)
+{
+  return (ri_channel_param_t) {
+      .add_msgs = ri_producer_len(producer) - 3,
+      .msg_size = ri_producer_msg_size(producer),
+      .info =  ri_producer_info(producer),
+      .eventfd = ri_producer_eventfd(producer),
+  };
+}
+
+
 const void* ri_consumer_msg(const ri_consumer_t *consumer)
 {
   return ri_consumer_queue_msg(consumer->queue);
