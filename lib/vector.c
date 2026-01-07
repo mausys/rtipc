@@ -279,11 +279,8 @@ unsigned ri_vector_num_consumers(const ri_vector_t *vec)
 
 int ri_vector_set_info(ri_vector_t* vec, const ri_info_t *info)
 {
-  if (info->size == 0)
-    return -EINVAL;
-
-  if (vec->info.data)
-    return -EEXIST;
+  if (info->size == 0 || !vec->info.data)
+    return 0;
 
   vec->info.data = malloc(info->size);
 
