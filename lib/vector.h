@@ -15,9 +15,6 @@ struct ri_vector {
   ri_shm_t *shm;
 };
 
-
-ri_vector_t* ri_vector_alloc(unsigned n_consumers, unsigned n_producers);
-
 void ri_vector_delete(ri_vector_t* vec);
 
 int ri_vector_set_info(ri_vector_t* vec, const ri_info_t *info);
