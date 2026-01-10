@@ -80,16 +80,16 @@ fail_socket:
 }
 
 
-ri_vector_t* ri_client_connect(const char *path, const ri_vector_param_t *vparam)
+ri_vector_t* ri_client_connect(const char *path, const ri_vector_config_t *vconfig)
 {
-  ri_vector_t *vec = ri_vector_new(vparam);
+  ri_vector_t *vec = ri_vector_new(vconfig);
 
   if (!vec) {
     LOG_ERR("ri_vector_new failed");
     goto fail_vec;
   }
 
-  size_t req_size = ri_request_calc_size(vparam);
+  size_t req_size = ri_request_calc_size(vconfig);
 
   ri_uxmsg_t *req = ri_uxmsg_new(req_size);
 
@@ -98,7 +98,7 @@ ri_vector_t* ri_client_connect(const char *path, const ri_vector_param_t *vparam
 
   void *req_data = ri_uxmsg_data(req, &req_size);
 
-  int r = ri_request_write(vparam, req_data, req_size);
+  int r = ri_request_write(vconfig, req_data, req_size);
 
   if (r < 0)
     goto fail_req_init;

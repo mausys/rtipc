@@ -87,45 +87,45 @@ static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
 
   size_t size;
   const void *data = ri_uxmsg_data(req, &size);
-  ri_vector_map_t *vmap = ri_request_parse(data, size);
+  ri_vector_transfer_t *vxfer = ri_request_parse(data, size);
 
-  if (!vmap) {
+  if (!vxfer) {
     LOG_ERR("ri_request_parse failed");
     goto fail_map;
   }
 
   unsigned fd_index = 0;
 
-  vmap->shmfd = ri_uxmsg_take_fd(req, fd_index++);
+  vxfer->shmfd = ri_uxmsg_take_fd(req, fd_index++);
 
-  for (ri_channel_param_t *param = vmap->consumers; param->msg_size != 0; param++) {
-    if (param->eventfd <= 0)
+  for (ri_channel_config_t *config = vxfer->consumers; config->msg_size != 0; config++) {
+    if (config->eventfd <= 0)
       continue;
 
-    param->eventfd = ri_uxmsg_take_fd(req, fd_index++);
+    config->eventfd = ri_uxmsg_take_fd(req, fd_index++);
 
-    if (param->eventfd <= 0)
+    if (config->eventfd <= 0)
       goto fail_eventfd;
   }
 
-  for (ri_channel_param_t *param = vmap->producers; param->msg_size != 0; param++) {
-    if (param->eventfd <= 0)
+  for (ri_channel_config_t *config = vxfer->producers; config->msg_size != 0; config++) {
+    if (config->eventfd <= 0)
       continue;
 
-    param->eventfd = ri_uxmsg_take_fd(req, fd_index++);
+    config->eventfd = ri_uxmsg_take_fd(req, fd_index++);
 
-    if (param->eventfd <= 0)
+    if (config->eventfd <= 0)
       goto fail_eventfd;
   }
 
-  ri_vector_t *vec = ri_vector_map(vmap);
+  ri_vector_t *vec = ri_vector_map(vxfer);
 
-  ri_vector_map_delete(vmap);
+  ri_vector_transfer_delete(vxfer);
 
   return vec;
 
 fail_eventfd:
-  ri_vector_map_delete(vmap);
+  ri_vector_transfer_delete(vxfer);
 fail_map:
   return NULL;
 }

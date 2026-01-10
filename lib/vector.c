@@ -11,32 +11,20 @@
 #include "channel.h"
 #include "fd.h"
 
-static unsigned count_channels(const ri_channel_param_t channels[])
+
+
+static size_t calc_shm_size(const ri_channel_config_t consumers[], const ri_channel_config_t producers[])
 {
-  if (!channels)
-    return 0;
-
-  unsigned i;
-
-  for (i = 0; channels[i].msg_size != 0; i++)
-    ;
-
-  return i;
-}
-
-
-static size_t calc_shm_size(const ri_channel_param_t consumers[], const ri_channel_param_t producers[])
-{
-  unsigned n_consumers = count_channels(consumers);
-  unsigned n_producers = count_channels(producers);
+  unsigned n_consumers = ri_count_channels(consumers);
+  unsigned n_producers = ri_count_channels(producers);
 
   size_t size = 0;
 
   for (unsigned i = 0; i < n_consumers; i++)
-    size +=  ri_param_channel_shm_size(&consumers[i]);
+    size +=  ri_channel_shm_size(&consumers[i]);
 
   for (unsigned i = 0; i < n_producers; i++)
-    size += ri_param_channel_shm_size(&producers[i]);
+    size += ri_channel_shm_size(&producers[i]);
 
   return size;
 }
@@ -106,17 +94,17 @@ void ri_vector_delete(ri_vector_t* vec)
 }
 
 
-ri_vector_t* ri_vector_new(const ri_vector_param_t *vparam)
+ri_vector_t* ri_vector_new(const ri_vector_config_t *vconfig)
 {
-  unsigned n_consumers = count_channels(vparam->consumers);
-  unsigned n_producers = count_channels(vparam->producers);
+  unsigned n_consumers = ri_count_channels(vconfig->consumers);
+  unsigned n_producers = ri_count_channels(vconfig->producers);
 
   ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers);
 
   if (!vec)
     goto fail_alloc;
 
-  size_t shm_size = calc_shm_size(vparam->consumers, vparam->producers);
+  size_t shm_size = calc_shm_size(vconfig->consumers, vconfig->producers);
 
   vec->shm = ri_shm_new(shm_size);
 
@@ -126,17 +114,17 @@ ri_vector_t* ri_vector_new(const ri_vector_param_t *vparam)
   size_t shm_offset = 0;
 
   for (unsigned i = 0; i < n_producers; i++) {
-    const ri_channel_param_t *param = &vparam->producers[i];
+    const ri_channel_config_t *config = &vconfig->producers[i];
     int fd = -1;
 
-    if (param->eventfd) {
+    if (config->eventfd) {
       fd = ri_eventfd();
 
       if (fd < 0)
         goto fail_channel;
     }
 
-    vec->producers[i] = ri_producer_new(param, vec->shm, shm_offset, fd, true);
+    vec->producers[i] = ri_producer_new(config, vec->shm, shm_offset, fd, true);
 
     if (!vec->producers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -146,21 +134,21 @@ ri_vector_t* ri_vector_new(const ri_vector_param_t *vparam)
       goto fail_channel;
     }
 
-    shm_offset += ri_param_channel_shm_size(param);
+    shm_offset += ri_channel_shm_size(config);
   }
 
   for (unsigned i = 0; i < n_consumers; i++) {
-    const ri_channel_param_t *param = &vparam->consumers[i];
+    const ri_channel_config_t *config = &vconfig->consumers[i];
     int fd = -1;
 
-    if (param->eventfd) {
+    if (config->eventfd) {
       fd = ri_eventfd();
 
       if (fd < 0)
           goto fail_channel;
     }
 
-    vec->consumers[i] = ri_consumer_new(param, vec->shm, shm_offset, fd, true);
+    vec->consumers[i] = ri_consumer_new(config, vec->shm, shm_offset, fd, true);
 
     if (!vec->consumers[i]) {
       /* if channel creation fails, fd has no owner */
@@ -170,10 +158,10 @@ ri_vector_t* ri_vector_new(const ri_vector_param_t *vparam)
       goto fail_channel;
     }
 
-    shm_offset += ri_param_channel_shm_size(param);
+    shm_offset += ri_channel_shm_size(config);
   }
 
-  int r = ri_vector_set_info(vec, &vparam->info);
+  int r = ri_vector_set_info(vec, &vconfig->info);
     if (r < 0)
       goto fail_channel;
 
@@ -187,71 +175,71 @@ fail_alloc:
 }
 
 
-ri_vector_t* ri_vector_map(ri_vector_map_t *vmap)
+ri_vector_t* ri_vector_map(ri_vector_transfer_t *vxfer)
 {
-  unsigned n_consumers = count_channels(vmap->consumers);
-  unsigned n_producers = count_channels(vmap->producers);
+  unsigned n_consumers = ri_count_channels(vxfer->consumers);
+  unsigned n_producers = ri_count_channels(vxfer->producers);
 
   ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers);
 
   if (!vec)
     goto fail_alloc;
 
-  int r = ri_check_memfd(vmap->shmfd);
+  int r = ri_check_memfd(vxfer->shmfd);
 
   if (r < 0) {
     LOG_ERR("memfd check failed");
     goto fail_shm;
   }
 
-  vec->shm = ri_shm_map(vmap->shmfd);
+  vec->shm = ri_shm_map(vxfer->shmfd);
 
   if (!vec->shm)
     goto fail_shm;
 
-  vmap->shmfd = -1;
+  vxfer->shmfd = -1;
 
   size_t shm_offset = 0;
 
   for (unsigned i = 0; i < n_consumers; i++) {
-    ri_channel_param_t *param = &vmap->consumers[i];
+    ri_channel_config_t *config = &vxfer->consumers[i];
 
-    if (param->eventfd > 0) {
-      if (ri_check_eventfd(param->eventfd) < 0) {
+    if (config->eventfd > 0) {
+      if (ri_check_eventfd(config->eventfd) < 0) {
         LOG_ERR("eventfd check failed");
         goto fail_channel;
       }
     }
 
-    vec->consumers[i] = ri_consumer_new(param, vec->shm, shm_offset, param->eventfd, false);
+    vec->consumers[i] = ri_consumer_new(config, vec->shm, shm_offset, config->eventfd, false);
 
     if (!vec->consumers[i])
       goto fail_channel;
 
-    param->eventfd = -1;
-    shm_offset += ri_param_channel_shm_size(param);
+    config->eventfd = -1;
+    shm_offset += ri_channel_shm_size(config);
   }
 
   for (unsigned i = 0; i < n_producers; i++) {
-    ri_channel_param_t *param = &vmap->producers[i];
+    ri_channel_config_t *config = &vxfer->producers[i];
 
-    if (param->eventfd > 0) {
-      if (ri_check_eventfd(param->eventfd) < 0) {
+    if (config->eventfd > 0) {
+      if (ri_check_eventfd(config->eventfd) < 0) {
         LOG_ERR("eventfd check failed");
         goto fail_channel;
       }
     }
 
-    vec->producers[i] = ri_producer_new(param, vec->shm, shm_offset, param->eventfd, false);
+    vec->producers[i] = ri_producer_new(config, vec->shm, shm_offset, config->eventfd, false);
 
     if (!vec->producers[i])
       goto fail_channel;
 
-    param->eventfd = -1;
-    shm_offset += ri_param_channel_shm_size(param);
+    config->eventfd = -1;
+    shm_offset += ri_channel_shm_size(config);
   }
 
-  r = ri_vector_set_info(vec, &vmap->info);
+  r = ri_vector_set_info(vec, &vxfer->info);
   if (r < 0)
     goto fail_channel;
 

@@ -26,40 +26,40 @@ typedef struct ri_info {
 } ri_info_t;
 
 /**
- * @typedef ri_channel_param_t
+ * @typedef ri_channel_config_t
  *
  * @brief all paramteters needed for creating a channel
  */
-typedef struct ri_channel_param {
+typedef struct ri_channel_config {
   size_t msg_size;
   unsigned add_msgs; /* additional messages to the minimum length of 3 */
   int eventfd; /* eventfd for notifying the consumer when the producer added a message */
   ri_info_t info; /* user defined info will be transmitted to the server */
-} ri_channel_param_t;
+} ri_channel_config_t;
 
 /**
- * @typedef ri_vector_param_t
+ * @typedef ri_vector_config_t
  *
  * @brief all paramteters needed for creating a vector
  */
-typedef struct ri_vector_param {
-  const ri_channel_param_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
-  const ri_channel_param_t *producers; /* 0 terminated (msg_size = 0) list of producers */
+typedef struct ri_vector_config {
+  const ri_channel_config_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
+  const ri_channel_config_t *producers; /* 0 terminated (msg_size = 0) list of producers */
   ri_info_t info;
-} ri_vector_param_t;
+} ri_vector_config_t;
 
 
 /**
- * @typedef ri_vector_param_t
+ * @typedef ri_vector_transfer_t
  *
  * @brief all paramteters needed for creating a vector
  */
-typedef struct ri_vector_map {
-  ri_channel_param_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
-  ri_channel_param_t *producers; /* 0 terminated (msg_size = 0) list of producers */
+typedef struct ri_vector_transfer {
+  ri_channel_config_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
+  ri_channel_config_t *producers; /* 0 terminated (msg_size = 0) list of producers */
   ri_info_t info;
   int shmfd;
-} ri_vector_map_t;
+} ri_vector_transfer_t;
 
 /**
  * @typedef ri_server_t
@@ -146,11 +146,11 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
  */
 void ri_server_delete(ri_server_t* server);
 
-ri_vector_t* ri_client_connect(const char *path, const ri_vector_param_t *vparam);
-ri_vector_map_t* ri_vector_map_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
-void ri_vector_map_delete(ri_vector_map_t* vmap);
-ri_vector_t* ri_vector_new(const ri_vector_param_t *vparam);
-ri_vector_t* ri_vector_map(ri_vector_map_t *vmap);
+ri_vector_t* ri_client_connect(const char *path, const ri_vector_config_t *vconfig);
+ri_vector_transfer_t* ri_vector_transfer_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
+void ri_vector_transfer_delete(ri_vector_transfer_t* vxfer);
+ri_vector_t* ri_vector_new(const ri_vector_config_t *vconfig);
+ri_vector_t* ri_vector_map(ri_vector_transfer_t *vxfer);
 void ri_vector_delete(ri_vector_t *vec);
 
 unsigned ri_vector_num_consumers(const ri_vector_t *vec);
@@ -208,7 +208,7 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
  */
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
 
-ri_channel_param_t ri_consumer_param(const ri_consumer_t *consumer);
+ri_channel_config_t ri_consumer_config(const ri_consumer_t *consumer);
 
 
 /**
@@ -284,7 +284,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 
 
-ri_channel_param_t ri_producer_param(const ri_producer_t *producer);
+ri_channel_config_t ri_producer_config(const ri_producer_t *producer);
 
 /**
  * @brief ri_producer_msg_size get message size
@@ -340,8 +340,8 @@ ri_info_t ri_producer_info(const ri_producer_t *producer);
 void ri_producer_free_info(ri_producer_t *producer);
 
 
-ri_vector_map_t* ri_vector_map_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
-void ri_vector_map_delete(ri_vector_map_t *vmap);
+ri_vector_transfer_t* ri_vector_transfer_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
+void ri_vector_transfer_delete(ri_vector_transfer_t *vxfer);
 
 
 ri_info_t ri_vector_info(const ri_vector_t *vec);
@@ -352,9 +352,9 @@ const ri_producer_t* ri_vector_get_producer(const ri_vector_t *vec, unsigned ind
 const ri_consumer_t* ri_vector_get_consumer(const ri_vector_t *vec, unsigned index);
 
 
-size_t ri_request_calc_size(const ri_vector_param_t *vparam);
-ri_vector_map_t* ri_request_parse(const void *req, size_t size);
-int ri_request_write(const ri_vector_param_t* vparam, void *req, size_t size);
+size_t ri_request_calc_size(const ri_vector_config_t *vconfig);
+ri_vector_transfer_t* ri_request_parse(const void *req, size_t size);
+int ri_request_write(const ri_vector_config_t* vconfig, void *req, size_t size);
 int ri_vector_get_shmfd(const ri_vector_t *vec);
 
 #ifdef __cplusplus

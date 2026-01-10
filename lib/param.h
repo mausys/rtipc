@@ -9,34 +9,34 @@ size_t ri_calc_queue_size(unsigned n_msgs);
 size_t ri_calc_channel_shm_size(unsigned n_msgs, size_t msg_size);
 
 
-static inline unsigned ri_count_params(const ri_channel_param_t params[])
+static inline unsigned ri_count_channels(const ri_channel_config_t channels[])
 {
-  if (!params)
+  if (!channels)
     return 0;
 
   unsigned i;
 
-  for (i = 0; params[i].msg_size != 0; i++)
+  for (i = 0; channels[i].msg_size != 0; i++)
     ;
 
   return i;
 }
 
 
-static inline unsigned ri_param_queue_len(const ri_channel_param_t *param)
+static inline unsigned ri_channel_queue_len(const ri_channel_config_t *channel)
 {
-  return RI_CHANNEL_MIN_MSGS + param->add_msgs;
+  return RI_CHANNEL_MIN_MSGS + channel->add_msgs;
 }
 
 
-static inline size_t ri_param_queue_size(const ri_channel_param_t *param)
+static inline size_t ri_channel_queue_size(const ri_channel_config_t *channel)
 {
-  return ri_calc_queue_size(ri_param_queue_len(param));
+  return ri_calc_queue_size(ri_channel_queue_len(channel));
 }
 
 
-static inline size_t ri_param_channel_shm_size(const ri_channel_param_t *param)
+static inline size_t ri_channel_shm_size(const ri_channel_config_t *channel)
 {
-  return ri_calc_channel_shm_size(ri_param_queue_len(param), param->msg_size);
+  return ri_calc_channel_shm_size(ri_channel_queue_len(channel), channel->msg_size);
 }
 

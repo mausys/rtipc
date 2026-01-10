@@ -36,7 +36,7 @@ typedef struct ri_queue
 
 void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx);
 
-void ri_queue_init(ri_queue_t *queue, const ri_channel_param_t *param, void* shm);
+void ri_queue_init(ri_queue_t *queue, const ri_channel_config_t *config, void* shm);
 
 void ri_queue_shm_init(ri_queue_t *queue);
 

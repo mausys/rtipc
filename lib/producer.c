@@ -35,9 +35,9 @@ unsigned ri_producer_queue_len(const ri_producer_queue_t *producer)
   return producer->queue.n_msgs;
 }
 
-ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_shm_t *shm, size_t shm_offset)
+ri_producer_queue_t* ri_producer_queue_new(const ri_channel_config_t *config, ri_shm_t *shm, size_t shm_offset)
 {
-  unsigned queue_len = ri_param_queue_len(param);
+  unsigned queue_len = ri_channel_queue_len(config);
   size_t size = sizeof(ri_producer_queue_t) + queue_len * sizeof(ri_index_t);
 
   ri_producer_queue_t *producer =  malloc(size);
@@ -57,7 +57,7 @@ ri_producer_queue_t* ri_producer_queue_new(const ri_channel_param_t *param, ri_s
   if (!ptr)
     goto fail_shm;
 
-  ri_queue_init(&producer->queue, param, ptr);
+  ri_queue_init(&producer->queue, config, ptr);
 
   for (unsigned i = 0; i < queue_len - 1; i++) {
     chain_store(producer, i, i + 1);
