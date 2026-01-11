@@ -5,18 +5,18 @@
 
 
 
-void ri_queue_init(ri_queue_t *queue, const ri_channel_config_t *config, void* shm)
+void ri_queue_init(ri_queue_t *queue, const ri_channel_t *channel, void* shm)
 {
   ri_atomic_index_t *indices = (ri_atomic_index_t *) shm;
 
   *queue = (ri_queue_t) {
-      .n_msgs = ri_channel_queue_len(config),
-      .msg_size = config->msg_size,
-      .msg_size_aligned = cacheline_aligned(config->msg_size),
+      .n_msgs = ri_channel_queue_len(channel),
+      .msg_size = channel->msg_size,
+      .msg_size_aligned = cacheline_aligned(channel->msg_size),
       .tail = &indices[0],
       .head = &indices[1],
       .chain = &indices[2],
-      .msgs =  mem_offset(shm, ri_calc_queue_size(config->add_msgs)),
+      .msgs =  mem_offset(shm, ri_calc_queue_size(channel->add_msgs)),
   };
 }
 

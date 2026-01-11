@@ -5,8 +5,8 @@
 #include "shm.h"
 
 
-ri_consumer_t* ri_consumer_new(const ri_channel_config_t *config, ri_shm_t *shm, size_t shm_offset, int fd, bool shm_init);
-ri_producer_t* ri_producer_new(const ri_channel_config_t *config, ri_shm_t *shm, size_t shm_offset, int fd, bool shm_init);
+ri_consumer_t* ri_consumer_new(const ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset, int fd, bool shm_init);
+ri_producer_t* ri_producer_new(const ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset, int fd, bool shm_init);
 
 void ri_consumer_delete(ri_consumer_t *consumer);
 void ri_producer_delete(ri_producer_t *producer);

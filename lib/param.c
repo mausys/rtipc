@@ -15,29 +15,29 @@ ri_vector_transfer_t* ri_vector_transfer_new(unsigned n_consumers, unsigned n_pr
     goto fail_alloc;
 
   /* consumers and producers are terminated list add 2 elemets for termination */
-  ri_channel_config_t *configs = calloc(n_consumers + n_producers + 2, sizeof(ri_channel_config_t));
+  ri_channel_t *channels = calloc(n_consumers + n_producers + 2, sizeof(ri_channel_t));
 
-  if (!configs) {
-    goto fail_configs;
+  if (!channels) {
+    goto fail_channels;
   }
 
 
   *vxfer = (ri_vector_transfer_t) {
-    .consumers = configs,
-    .producers = &configs[n_consumers + 1],
+    .consumers = channels,
+    .producers = &channels[n_consumers + 1],
     .info = *info,
     .shmfd = -1,
   };
 
-  for (ri_channel_config_t *config = vxfer->consumers; config->msg_size != 0; config++)
-    config->eventfd = -1;
+  for (ri_channel_t *channel = vxfer->consumers; channel->msg_size != 0; channel++)
+    channel->eventfd = -1;
 
-  for (ri_channel_config_t *config = vxfer->producers; config->msg_size != 0; config++)
-    config->eventfd = -1;
+  for (ri_channel_t *channel = vxfer->producers; channel->msg_size != 0; channel++)
+    channel->eventfd = -1;
 
   return vxfer;
 
-fail_configs:
+fail_channels:
   free(vxfer);
 fail_alloc:
   return NULL;
@@ -49,15 +49,15 @@ void ri_vector_transfer_delete(ri_vector_transfer_t *vxfer)
   if (vxfer->shmfd > 0)
     close(vxfer->shmfd);
 
-  for (ri_channel_config_t *config = vxfer->consumers; config->msg_size != 0; config++) {
-    if (config->eventfd > 0) {
-      close(config->eventfd);
+  for (ri_channel_t *channel = vxfer->consumers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd > 0) {
+      close(channel->eventfd);
     }
   }
 
-  for (ri_channel_config_t *config = vxfer->producers; config->msg_size != 0; config++) {
-    if (config->eventfd > 0) {
-      close(config->eventfd);
+  for (ri_channel_t *channel = vxfer->producers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd > 0) {
+      close(channel->eventfd);
     }
   }
 

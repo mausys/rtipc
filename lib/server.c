@@ -98,23 +98,23 @@ static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
 
   vxfer->shmfd = ri_uxmsg_take_fd(req, fd_index++);
 
-  for (ri_channel_config_t *config = vxfer->consumers; config->msg_size != 0; config++) {
-    if (config->eventfd <= 0)
+  for (ri_channel_t *channel = vxfer->consumers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd <= 0)
       continue;
 
-    config->eventfd = ri_uxmsg_take_fd(req, fd_index++);
+    channel->eventfd = ri_uxmsg_take_fd(req, fd_index++);
 
-    if (config->eventfd <= 0)
+    if (channel->eventfd <= 0)
       goto fail_eventfd;
   }
 
-  for (ri_channel_config_t *config = vxfer->producers; config->msg_size != 0; config++) {
-    if (config->eventfd <= 0)
+  for (ri_channel_t *channel = vxfer->producers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd <= 0)
       continue;
 
-    config->eventfd = ri_uxmsg_take_fd(req, fd_index++);
+    channel->eventfd = ri_uxmsg_take_fd(req, fd_index++);
 
-    if (config->eventfd <= 0)
+    if (channel->eventfd <= 0)
       goto fail_eventfd;
   }
 

@@ -26,16 +26,16 @@ typedef struct ri_info {
 } ri_info_t;
 
 /**
- * @typedef ri_channel_config_t
+ * @typedef ri_channel_t
  *
  * @brief all paramteters needed for creating a channel
  */
-typedef struct ri_channel_config {
+typedef struct ri_channel {
   size_t msg_size;
   unsigned add_msgs; /* additional messages to the minimum length of 3 */
   int eventfd; /* eventfd for notifying the consumer when the producer added a message */
   ri_info_t info; /* user defined info will be transmitted to the server */
-} ri_channel_config_t;
+} ri_channel_t;
 
 /**
  * @typedef ri_vector_config_t
@@ -43,8 +43,8 @@ typedef struct ri_channel_config {
  * @brief all paramteters needed for creating a vector
  */
 typedef struct ri_vector_config {
-  const ri_channel_config_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
-  const ri_channel_config_t *producers; /* 0 terminated (msg_size = 0) list of producers */
+  const ri_channel_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
+  const ri_channel_t *producers; /* 0 terminated (msg_size = 0) list of producers */
   ri_info_t info;
 } ri_vector_config_t;
 
@@ -55,8 +55,8 @@ typedef struct ri_vector_config {
  * @brief all paramteters needed for creating a vector
  */
 typedef struct ri_vector_transfer {
-  ri_channel_config_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
-  ri_channel_config_t *producers; /* 0 terminated (msg_size = 0) list of producers */
+  ri_channel_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
+  ri_channel_t *producers; /* 0 terminated (msg_size = 0) list of producers */
   ri_info_t info;
   int shmfd;
 } ri_vector_transfer_t;
@@ -208,7 +208,7 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
  */
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
 
-ri_channel_config_t ri_consumer_config(const ri_consumer_t *consumer);
+ri_channel_t ri_consumer_config(const ri_consumer_t *consumer);
 
 
 /**
@@ -284,7 +284,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
 ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
 
 
-ri_channel_config_t ri_producer_config(const ri_producer_t *producer);
+ri_channel_t ri_producer_config(const ri_producer_t *producer);
 
 /**
  * @brief ri_producer_msg_size get message size

@@ -95,13 +95,13 @@ static const void* request_get_info(request_reader_t *reader, size_t size)
 }
 
 
-static int request_write_channel(request_writer_t *writer, const ri_channel_config_t *config)
+static int request_write_channel(request_writer_t *writer, const ri_channel_t *channel)
 {
   entry_t entry = {
-      .add_msgs = config->add_msgs,
-      .msg_size = config->msg_size,
-      .info_size = config->info.size,
-      .eventfd = config->eventfd > 0 ? 1 : 0,
+      .add_msgs = channel->add_msgs,
+      .msg_size = channel->msg_size,
+      .info_size = channel->info.size,
+      .eventfd = channel->eventfd > 0 ? 1 : 0,
   };
 
   int r = request_write(writer, &entry, sizeof(entry));
@@ -109,8 +109,8 @@ static int request_write_channel(request_writer_t *writer, const ri_channel_conf
   if (r < 0)
     return r;
 
-  if (config->info.data) {
-    r = request_write_info(writer, &config->info);
+  if (channel->info.data) {
+    r = request_write_info(writer, &channel->info);
 
     if (r < 0)
       return r;
@@ -120,7 +120,7 @@ static int request_write_channel(request_writer_t *writer, const ri_channel_conf
 }
 
 
-static int request_read_channel(request_reader_t *reader, ri_channel_config_t *config)
+static int request_read_channel(request_reader_t *reader, ri_channel_t *channel)
 {
   entry_t entry;
   int r = request_read(reader, &entry, sizeof(entry));
@@ -137,7 +137,7 @@ static int request_read_channel(request_reader_t *reader, ri_channel_config_t *c
       return -1;
   }
 
-  *config = (ri_channel_config_t) {
+  *channel = (ri_channel_t) {
       .add_msgs = entry.add_msgs,
       .msg_size = entry.msg_size,
       .info = info,
@@ -153,8 +153,8 @@ size_t ri_request_calc_size(const ri_vector_config_t *vconf)
   unsigned n_consumers = ri_count_channels(vconf->consumers);
   unsigned n_producers = ri_count_channels(vconf->producers);
 
-  const ri_channel_config_t *consumers = vconf->consumers;
-  const ri_channel_config_t *producers = vconf->producers;
+  const ri_channel_t *consumers = vconf->consumers;
+  const ri_channel_t *producers = vconf->producers;
 
   size_t size = sizeof(ri_request_header_t);
 
@@ -248,16 +248,16 @@ ri_vector_transfer_t* ri_request_parse(const void *req, size_t size)
     goto fail_vmap;
 
   for (unsigned i = 0; i < n_consumers; i++) {
-    ri_channel_config_t *config = &vxfer->consumers[i];
-    r = request_read_channel(&reader, config);
+    ri_channel_t *channel = &vxfer->consumers[i];
+    r = request_read_channel(&reader, channel);
 
     if (r < 0)
       goto fail_channel;
   }
 
   for (unsigned i = 0; i < n_producers; i++) {
-    ri_channel_config_t *config = &vxfer->producers[i];
-    r = request_read_channel(&reader, config);
+    ri_channel_t *channel = &vxfer->producers[i];
+    r = request_read_channel(&reader, channel);
 
     if (r < 0)
       goto fail_channel;
@@ -318,16 +318,16 @@ int ri_request_write(const ri_vector_config_t* vconfig, void *req, size_t size)
     goto fail;
 
   for (unsigned i = 0 ; i < n_producers; i++) {
-    const ri_channel_config_t *config = &vconfig->producers[i];
-    r = request_write_channel(&writer, config);
+    const ri_channel_t *channel = &vconfig->producers[i];
+    r = request_write_channel(&writer, channel);
 
     if (r < 0)
       goto fail;
   }
 
   for (unsigned i = 0 ; i < n_consumers; i++) {
-    const ri_channel_config_t *config = &vconfig->consumers[i];
-    r = request_write_channel(&writer, config);
+    const ri_channel_t *channel = &vconfig->consumers[i];
+    r = request_write_channel(&writer, channel);
 
     if (r < 0)
       goto fail;

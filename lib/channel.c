@@ -39,7 +39,7 @@ static void producer_cache_write(const ri_producer_t *producer) {
 }
 
 
-ri_consumer_t* ri_consumer_new(const ri_channel_config_t *config, ri_shm_t *shm, size_t shm_offset, int eventfd, bool shm_init)
+ri_consumer_t* ri_consumer_new(const ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset, int eventfd, bool shm_init)
 {
   ri_consumer_t *consumer = malloc(sizeof(ri_consumer_t));
 
@@ -49,23 +49,23 @@ ri_consumer_t* ri_consumer_new(const ri_channel_config_t *config, ri_shm_t *shm,
   *consumer = (ri_consumer_t) {
     .shm_offset = shm_offset,
     .eventfd = eventfd,
-    .info.size = config->info.size,
+    .info.size = channel->info.size,
   };
 
   if (consumer->eventfd >= 0) {
     ri_set_nonblocking(consumer->eventfd);
   }
 
-  if ((config->info.size > 0) && config->info.data) {
-    consumer->info.data = malloc(config->info.size);
+  if ((channel->info.size > 0) && channel->info.data) {
+    consumer->info.data = malloc(channel->info.size);
 
     if (!consumer->info.data)
       goto fail_info;
 
-    memcpy(consumer->info.data, config->info.data, config->info.size);
+    memcpy(consumer->info.data, channel->info.data, channel->info.size);
   }
 
-  consumer->queue = ri_consumer_queue_new(config, shm, shm_offset);
+  consumer->queue = ri_consumer_queue_new(channel, shm, shm_offset);
 
   if (!consumer->queue)
     goto fail_queue;
@@ -73,7 +73,7 @@ ri_consumer_t* ri_consumer_new(const ri_channel_config_t *config, ri_shm_t *shm,
   if (shm_init)
     ri_consumer_queue_shm_init(consumer->queue);
 
-  LOG_DBG("consumer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", config->add_msgs, config->msg_size, eventfd, shm_offset);
+  LOG_DBG("consumer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", channel->add_msgs, channel->msg_size, eventfd, shm_offset);
 
   return consumer;
 
@@ -87,7 +87,7 @@ fail_alloc:
 }
 
 
-ri_producer_t* ri_producer_new(const ri_channel_config_t *config, ri_shm_t *shm, size_t shm_offset, int eventfd, bool shm_init)
+ri_producer_t* ri_producer_new(const ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset, int eventfd, bool shm_init)
 {
   ri_producer_t *producer = malloc(sizeof(ri_producer_t));
 
@@ -97,19 +97,19 @@ ri_producer_t* ri_producer_new(const ri_channel_config_t *config, ri_shm_t *shm,
   *producer = (ri_producer_t) {
     .shm_offset = shm_offset,
     .eventfd = eventfd,
-    .info.size = config->info.size,
+    .info.size = channel->info.size,
   };
 
-  if ((config->info.size > 0) && config->info.data) {
-    producer->info.data = malloc(config->info.size);
+  if ((channel->info.size > 0) && channel->info.data) {
+    producer->info.data = malloc(channel->info.size);
 
     if (!producer->info.data)
       goto fail_info;
 
-    memcpy(producer->info.data, config->info.data, config->info.size);
+    memcpy(producer->info.data, channel->info.data, channel->info.size);
   }
 
-  producer->queue = ri_producer_queue_new(config, shm, shm_offset);
+  producer->queue = ri_producer_queue_new(channel, shm, shm_offset);
 
   if (!producer->queue)
     goto fail_queue;
@@ -121,7 +121,7 @@ ri_producer_t* ri_producer_new(const ri_channel_config_t *config, ri_shm_t *shm,
     ri_set_nonblocking(producer->eventfd);
   }
 
-  LOG_DBG("producer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", config->add_msgs, config->msg_size, eventfd, shm_offset);
+  LOG_DBG("producer created add_msg=%u msg_size=%zu, eventfd=%d shm_offset=%zu", channel->add_msgs, channel->msg_size, eventfd, shm_offset);
 
   return producer;
 
@@ -163,9 +163,9 @@ void ri_producer_delete(ri_producer_t *producer)
 }
 
 
-ri_channel_config_t ri_consumer_config(const ri_consumer_t *consumer)
+ri_channel_t ri_consumer_config(const ri_consumer_t *consumer)
 {
-  return (ri_channel_config_t) {
+  return (ri_channel_t) {
       .add_msgs = ri_consumer_len(consumer) - 3,
       .msg_size = ri_consumer_msg_size(consumer),
       .info =  ri_consumer_info(consumer),
@@ -174,9 +174,9 @@ ri_channel_config_t ri_consumer_config(const ri_consumer_t *consumer)
 }
 
 
-ri_channel_config_t ri_producer_config(const ri_producer_t *producer)
+ri_channel_t ri_producer_config(const ri_producer_t *producer)
 {
-  return (ri_channel_config_t) {
+  return (ri_channel_t) {
       .add_msgs = ri_producer_len(producer) - 3,
       .msg_size = ri_producer_msg_size(producer),
       .info =  ri_producer_info(producer),
