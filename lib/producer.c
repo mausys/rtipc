@@ -5,7 +5,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include "param.h"
+
+#include "channel.h"
 #include "queue.h"
 
 #include "log.h"
@@ -76,9 +77,9 @@ fail_alloc:
 }
 
 
-void ri_producer_queue_shm_init(ri_producer_queue_t *producer)
+void ri_producer_queue_init_shm(const ri_producer_queue_t *producer)
 {
-  ri_queue_shm_init(&producer->queue);
+  ri_queue_init_shm(&producer->queue);
 }
 
 

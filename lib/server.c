@@ -10,8 +10,7 @@
 
 #include "rtipc.h"
 #include "log.h"
-#include "unix_message.h"
-#include "protocol.h"
+#include "unix.h"
 
 typedef struct ri_server ri_server_t;
 
@@ -82,23 +81,22 @@ static int server_send_response(int socket, int32_t result)
 }
 
 
-static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
+static ri_transfer_t* request_to_transfer(ri_uxmsg_t *req)
 {
-
   size_t size;
   const void *data = ri_uxmsg_data(req, &size);
-  ri_vector_transfer_t *vxfer = ri_request_parse(data, size);
+  ri_transfer_t *xfer = ri_request_parse(data, size);
 
-  if (!vxfer) {
+  if (!xfer) {
     LOG_ERR("ri_request_parse failed");
     goto fail_map;
   }
 
   unsigned fd_index = 0;
 
-  vxfer->shmfd = ri_uxmsg_take_fd(req, fd_index++);
+  xfer->shmfd = ri_uxmsg_take_fd(req, fd_index++);
 
-  for (ri_channel_t *channel = vxfer->consumers; channel->msg_size != 0; channel++) {
+  for (ri_channel_t *channel = xfer->consumers; channel->msg_size != 0; channel++) {
     if (channel->eventfd <= 0)
       continue;
 
@@ -108,7 +106,7 @@ static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
       goto fail_eventfd;
   }
 
-  for (ri_channel_t *channel = vxfer->producers; channel->msg_size != 0; channel++) {
+  for (ri_channel_t *channel = xfer->producers; channel->msg_size != 0; channel++) {
     if (channel->eventfd <= 0)
       continue;
 
@@ -118,14 +116,10 @@ static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
       goto fail_eventfd;
   }
 
-  ri_vector_t *vec = ri_vector_map(vxfer);
-
-  ri_vector_transfer_delete(vxfer);
-
-  return vec;
+  return xfer;
 
 fail_eventfd:
-  ri_vector_transfer_delete(vxfer);
+  ri_transfer_delete(xfer);
 fail_map:
   return NULL;
 }
@@ -147,29 +141,38 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
     goto fail_receive;
   }
 
-  ri_vector_t *vec = request_to_vector(req);
+  ri_transfer_t *xfer = request_to_transfer(req);
 
-   ri_uxmsg_delete(req, true);
-
-  if (!vec)
-    goto fail_vector;
+  if (!xfer)
+    goto fail_transfer;
 
   if (filter) {
-    if (!filter(vec, user_data)) {
+    if (!filter(xfer, user_data)) {
       LOG_INF("server rejected request");
       goto fail_rejected;
     }
   }
 
+  ri_vector_t *vec = ri_vector_new(xfer, true);
+
+  if (!vec) {
+    goto fail_rejected;
+  }
+
+  ri_vector_init_shm(vec);
+
   server_send_response(cfd, 0);
+
+  ri_uxmsg_delete(req, true);
 
   close(cfd);
 
   return vec;
 
 fail_rejected:
-  ri_vector_delete(vec);
-fail_vector:
+  ri_transfer_delete(xfer);
+fail_transfer:
+  ri_uxmsg_delete(req, true);
 fail_receive:
   server_send_response(cfd, -1);
   close(cfd);

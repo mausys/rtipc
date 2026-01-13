@@ -3,18 +3,20 @@
 #include "shm.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdatomic.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
-#include <sys/mman.h> // memfd_create
+
 #include <sys/stat.h> // fstat
+#include <sys/mman.h>
+
 
 #include "mem_utils.h"
 #include "log.h"
+#include "unix.h"
 
 struct ri_shm
 {
@@ -25,26 +27,8 @@ struct ri_shm
   bool owner;
 };
 
-static int shm_init(int fd, size_t size, bool sealing)
-{
-  int r = ftruncate(fd, size);
 
-  if (r < 0) {
-    LOG_ERR("ftruncate to size=%zu failed: %s", size, strerror(errno));
-    return r;
-  }
 
-  if (sealing) {
-    r = fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
-
-    if (r < 0) {
-      LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
-      return r;
-    }
-  }
-
-  return 0;
-}
 
 static void shm_delete(ri_shm_t *shm)
 {
@@ -53,44 +37,6 @@ static void shm_delete(ri_shm_t *shm)
   free(shm);
 }
 
-ri_shm_t* ri_shm_new(size_t size)
-{
-  static atomic_uint anr = 0;
-
-  unsigned nr = atomic_fetch_add_explicit(&anr, 1, memory_order_relaxed);
-  char name[64];
-
-  snprintf(name, sizeof(name) - 1, "rtipc_%u", nr);
-
-  int fd = memfd_create(name, MFD_ALLOW_SEALING | MFD_CLOEXEC);
-
-  if (fd < 0) {
-    LOG_ERR("memfd_create failed for %s: %s", name, strerror(errno));
-    goto fail_create;
-  }
-
-  int r = shm_init(fd, size, true);
-
-  if (r < 0)
-    goto fail_init;
-
-  ri_shm_t *shm = ri_shm_map(fd);
-
-  if (!shm)
-    goto fail_map;
-
-  shm->owner = true;
-
-  LOG_INF("mmapped shared memory size=%zu, fd=%d on %p", shm->size, shm->fd, shm->mem);
-
-  return shm;
-
-fail_init:
-fail_map:
-  close(fd);
-fail_create:
-  return NULL;
-}
 
 
 ri_shm_t* ri_shm_map(int fd)

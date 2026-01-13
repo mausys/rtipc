@@ -52,17 +52,18 @@ fail_alloc:
 }
 
 
-void ri_consumer_queue_shm_init(ri_consumer_queue_t *consumer)
-{
-  ri_queue_shm_init(&consumer->queue);
-}
-
-
 void ri_consumer_queue_delete(ri_consumer_queue_t *consumer)
 {
   ri_shm_unref(consumer->shm);
   free(consumer);
 }
+
+
+void ri_consumer_queue_init_shm(const ri_consumer_queue_t *consumer)
+{
+  ri_queue_init_shm(&consumer->queue);
+}
+
 
 ri_consume_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
 {

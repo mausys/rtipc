@@ -5,6 +5,16 @@
 
 typedef struct ri_uxmsg ri_uxmsg_t;
 
+int ri_shmfd_create(size_t size);
+
+int ri_eventfd(void);
+
+int ri_check_memfd(int fd);
+
+int ri_check_eventfd(int fd);
+
+int ri_set_nonblocking(int fd);
+
 ri_uxmsg_t* ri_uxmsg_new(size_t size);
 
 void ri_uxmsg_delete(ri_uxmsg_t *msg, bool close_fds);

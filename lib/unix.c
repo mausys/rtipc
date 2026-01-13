@@ -1,18 +1,29 @@
-#include "unix_message.h"
+#define _GNU_SOURCE
 
-#include <errno.h>
+#include "unix.h"
+
 #include <stdint.h>
 #include <stdalign.h>
-#include <unistd.h>
+#include <stdatomic.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+#include <sys/eventfd.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "mem_utils.h"
+#include <sys/mman.h> // memfd_create
+
+#include "log.h"
 
 /* from kernel/include/net/scm.h */
 #define SCM_MAX_FD     253
+
+#define PROC_SELF_FORMAT "/proc/self/fd/%d"
+
 
 
 
@@ -22,6 +33,114 @@ struct ri_uxmsg {
   unsigned n_fds;
   alignas(struct cmsghdr) uint8_t cmsg[CMSG_SPACE(SCM_MAX_FD * sizeof(int))];
 };
+
+
+static int shm_init(int fd, size_t size, bool sealing)
+{
+  int r = ftruncate(fd, size);
+
+  if (r < 0) {
+    LOG_ERR("ftruncate to size=%zu failed: %s", size, strerror(errno));
+    return r;
+  }
+
+  if (sealing) {
+    r = fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
+
+    if (r < 0) {
+      LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
+      return r;
+    }
+  }
+
+  return 0;
+}
+
+int ri_shmfd_create(size_t size)
+{
+  int r = -1;
+  static atomic_uint anr = 0;
+
+  unsigned nr = atomic_fetch_add_explicit(&anr, 1, memory_order_relaxed);
+  char name[64];
+
+  snprintf(name, sizeof(name) - 1, "rtipc_%u", nr);
+
+  int fd = memfd_create(name, MFD_ALLOW_SEALING | MFD_CLOEXEC);
+
+  if (fd < 0) {
+    r = -errno;
+    LOG_ERR("memfd_create failed for %s: %s", name, strerror(errno));
+    goto fail_create;
+  }
+
+  r = shm_init(fd, size, true);
+
+  if (r < 0)
+    goto fail_init;
+
+  return fd;
+
+fail_init:
+  close(fd);
+fail_create:
+  return r;
+}
+
+
+int ri_eventfd(void)
+{
+  return eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE | EFD_NONBLOCK);
+}
+
+
+
+int ri_check_memfd(int fd)
+{
+  char path[32];
+  char link[32];
+  const char expected[] = "/memfd:";
+
+  snprintf(path, sizeof(path), PROC_SELF_FORMAT, fd);
+
+  ssize_t r = readlink(path, link, sizeof(link));
+
+  if ((r < 0) || ((size_t)r < sizeof(expected)))
+    return -1;
+
+  return strncmp(link, expected, sizeof(expected) - 1) == 0 ? 0 : -1;
+}
+
+
+int ri_check_eventfd(int fd)
+{
+  char path[32];
+  char link[32];
+  const char expected[] = "anon_inode:[eventfd";
+
+  snprintf(path, sizeof(path), PROC_SELF_FORMAT, fd);
+
+  ssize_t r = readlink(path, link, sizeof(link));
+
+  if ((r < 0) || ((size_t)r < sizeof(expected)))
+    return -1;
+
+  return strncmp(link, expected, sizeof(expected) - 1) == 0 ? 0 : -1;
+}
+
+
+int ri_set_nonblocking(int fd)
+{
+  int flags = fcntl(fd, F_GETFL, 0);
+  int r = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+  if (r < 0) {
+    r = -errno;
+    LOG_ERR("ri_set_nonblocking failed for %d errno-%d", fd , -r);
+  }
+
+  return r;
+}
 
 
 ri_uxmsg_t* ri_uxmsg_new(size_t size)

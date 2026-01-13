@@ -1,7 +1,6 @@
 #pragma once
 
 #include "rtipc.h"
-#include "shm.h"
 
 struct ri_vector {
   unsigned n_consumers;
@@ -12,7 +11,6 @@ struct ri_vector {
     size_t size;
     void *data;
   } info;
-  ri_shm_t *shm;
 };
 
 void ri_vector_delete(ri_vector_t* vec);

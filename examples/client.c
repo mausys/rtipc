@@ -109,10 +109,10 @@ int event_listen(void *arg)
   return 0;
 }
 
-static app_t* app_new(const char *path, const ri_vector_config_t *vparam)
+static app_t* app_new(const char *path, const ri_config_t *config)
 {
 
-  ri_vector_t *vec =  ri_client_connect(path, vparam);
+  ri_vector_t *vec =  ri_client_connect(path, config);
 
   if (!vec)
     goto fail_connect;
@@ -199,11 +199,11 @@ void app_run(app_t *app, const msg_command_t *cmds)
 
 int main()
 {
-  const ri_vector_config_t vparam = {
+  const ri_config_t config = {
     .consumers = server2client_channels,
     .producers = client2server_channels,
   };
-  app_t *app = app_new("rtipc.sock", &vparam);
+  app_t *app = app_new("rtipc.sock", &config);
 
   if (!app) {
     return -1;

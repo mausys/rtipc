@@ -9,9 +9,7 @@
 #include <sys/un.h>
 
 #include "log.h"
-#include "unix_message.h"
-#include "protocol.h"
-
+#include "unix.h"
 
 
 
@@ -80,16 +78,16 @@ fail_socket:
 }
 
 
-ri_vector_t* ri_client_connect(const char *path, const ri_vector_config_t *vconfig)
+ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
 {
-  ri_vector_t *vec = ri_vector_new(vconfig);
+  ri_transfer_t *xfer = ri_transfer_new(config);
 
-  if (!vec) {
-    LOG_ERR("ri_vector_new failed");
-    goto fail_vec;
+  if (!xfer) {
+    LOG_ERR("ri_transfer_new failed");
+    goto fail_xfer;
   }
 
-  size_t req_size = ri_request_calc_size(vconfig);
+  size_t req_size = ri_request_calc_size(xfer);
 
   ri_uxmsg_t *req = ri_uxmsg_new(req_size);
 
@@ -98,41 +96,28 @@ ri_vector_t* ri_client_connect(const char *path, const ri_vector_config_t *vconf
 
   void *req_data = ri_uxmsg_data(req, &req_size);
 
-  int r = ri_request_write(vconfig, req_data, req_size);
+  int r = ri_request_write(xfer, req_data, req_size);
 
   if (r < 0)
     goto fail_req_init;
 
-  r = ri_uxmsg_add_fd(req, ri_vector_get_shmfd(vec));
+  r = ri_uxmsg_add_fd(req, xfer->shmfd);
 
   if (r < 0)
     goto fail_req_init;
 
-
-  for (unsigned i =  0; i < ri_vector_num_producers(vec); i++) {
-    const ri_producer_t *producer = ri_vector_get_producer(vec, i);
-    if (!producer)
-      goto fail_req_init;
-
-    int fd = ri_producer_eventfd(producer);
-
-    if (fd > 0) {
-      r = ri_uxmsg_add_fd(req, fd);
+  for (const ri_channel_t *channel = xfer->producers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd > 0) {
+      r = ri_uxmsg_add_fd(req, channel->eventfd);
 
       if (r < 0)
         goto fail_req_init;
     }
   }
 
-  for (unsigned i =  0; i < ri_vector_num_consumers(vec); i++) {
-    const ri_consumer_t *consumer = ri_vector_get_consumer(vec, i);
-    if (!consumer)
-      goto fail_req_init;
-
-    int fd = ri_consumer_eventfd(consumer);
-
-    if (fd > 0) {
-      r = ri_uxmsg_add_fd(req, fd);
+  for (const ri_channel_t *channel = xfer->consumers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd > 0) {
+      r = ri_uxmsg_add_fd(req, channel->eventfd);
 
       if (r < 0)
         goto fail_req_init;
@@ -143,18 +128,24 @@ ri_vector_t* ri_client_connect(const char *path, const ri_vector_config_t *vconf
 
   if (r < 0) {
     LOG_ERR("client_send_vector failed");
-    goto fail_transmit;
+    goto fail_req_init;
   }
 
+   ri_vector_t *vec = ri_vector_new(xfer, false);
+
+   if (!vec)
+     goto fail_vec;
+
   ri_uxmsg_delete(req, false);
+  ri_transfer_delete(xfer);
 
   return vec;
 
-fail_transmit:
+fail_vec:
 fail_req_init:
   ri_uxmsg_delete(req, false);
 fail_req_alloc:
-  ri_vector_delete(vec);
-fail_vec:
+  ri_transfer_delete(xfer);
+fail_xfer:
   return NULL;
 }

@@ -11,12 +11,10 @@ include(GNUInstallDirs)
 set(RTIPC_SRCS
   log.c
   log.h
-  param.c
-  param.h
+  transfer.c
+  transfer.h
   shm.c
   shm.h
-  event.c
-  event.h
   rtipc.h
   queue.c
   queue.h
@@ -33,12 +31,9 @@ set(RTIPC_SRCS
   channel.h
   header.c
   header.h
-  unix_message.c
-  unix_message.h
-  fd.c
-  fd.h
+  unix.c
+  unix.h
   protocol.c
-  protocol.h
   server.c
   client.c
 )

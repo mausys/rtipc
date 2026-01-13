@@ -2,7 +2,15 @@
 
 #include "log.h"
 #include "mem_utils.h"
+#include "channel.h"
 
+size_t ri_calc_queue_size(unsigned n_msgs)
+{
+  unsigned  n = n_msgs + 2; /* tail + head*/
+
+
+  return cacheline_aligned(n * sizeof(ri_atomic_index_t));
+}
 
 
 void ri_queue_init(ri_queue_t *queue, const ri_channel_t *channel, void* shm)
@@ -21,7 +29,7 @@ void ri_queue_init(ri_queue_t *queue, const ri_channel_t *channel, void* shm)
 }
 
 
-void ri_queue_shm_init(ri_queue_t *queue)
+void ri_queue_init_shm(const ri_queue_t *queue)
 {
   atomic_store(queue->tail, RI_INDEX_INVALID);
   atomic_store(queue->head, RI_INDEX_INVALID);

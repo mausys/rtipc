@@ -5,8 +5,6 @@
 
 #include "rtipc.h"
 
-#include "param.h"
-
 #include "index.h"
 
 
@@ -38,7 +36,7 @@ void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx);
 
 void ri_queue_init(ri_queue_t *queue, const ri_channel_t *channel, void* shm);
 
-void ri_queue_shm_init(ri_queue_t *queue);
+void ri_queue_init_shm(const ri_queue_t *queue);
 
 void ri_queue_dump(ri_queue_t *queue);
 
