@@ -81,22 +81,22 @@ static int server_send_response(int socket, int32_t result)
 }
 
 
-static ri_transfer_t* request_to_transfer(ri_uxmsg_t *req)
+static ri_resources_t* request_to_resources(ri_uxmsg_t *req)
 {
   size_t size;
   const void *data = ri_uxmsg_data(req, &size);
-  ri_transfer_t *xfer = ri_request_parse(data, size);
+  ri_resources_t *rsc = ri_request_parse(data, size);
 
-  if (!xfer) {
+  if (!rsc) {
     LOG_ERR("ri_request_parse failed");
     goto fail_map;
   }
 
   unsigned fd_index = 0;
 
-  xfer->shmfd = ri_uxmsg_take_fd(req, fd_index++);
+  rsc->shmfd = ri_uxmsg_take_fd(req, fd_index++);
 
-  for (ri_channel_t *channel = xfer->consumers; channel->msg_size != 0; channel++) {
+  for (ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
     if (channel->eventfd <= 0)
       continue;
 
@@ -106,7 +106,7 @@ static ri_transfer_t* request_to_transfer(ri_uxmsg_t *req)
       goto fail_eventfd;
   }
 
-  for (ri_channel_t *channel = xfer->producers; channel->msg_size != 0; channel++) {
+  for (ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
     if (channel->eventfd <= 0)
       continue;
 
@@ -116,10 +116,10 @@ static ri_transfer_t* request_to_transfer(ri_uxmsg_t *req)
       goto fail_eventfd;
   }
 
-  return xfer;
+  return rsc;
 
 fail_eventfd:
-  ri_transfer_delete(xfer);
+  ri_resources_delete(rsc);
 fail_map:
   return NULL;
 }
@@ -141,19 +141,19 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
     goto fail_receive;
   }
 
-  ri_transfer_t *xfer = request_to_transfer(req);
+  ri_resources_t *rsc = request_to_resources(req);
 
-  if (!xfer)
+  if (!rsc)
     goto fail_transfer;
 
   if (filter) {
-    if (!filter(xfer, user_data)) {
+    if (!filter(rsc, user_data)) {
       LOG_INF("server rejected request");
       goto fail_rejected;
     }
   }
 
-  ri_vector_t *vec = ri_vector_new(xfer, true);
+  ri_vector_t *vec = ri_vector_new(rsc, true);
 
   if (!vec) {
     goto fail_rejected;
@@ -170,7 +170,7 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
   return vec;
 
 fail_rejected:
-  ri_transfer_delete(xfer);
+  ri_resources_delete(rsc);
 fail_transfer:
   ri_uxmsg_delete(req, true);
 fail_receive:

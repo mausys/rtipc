@@ -74,10 +74,10 @@ void ri_vector_delete(ri_vector_t* vec)
   free(vec);
 }
 
-static int init_producers(ri_vector_t *vec, ri_transfer_t *xfer, ri_shm_t *shm, size_t *shm_offset)
+static int init_producers(ri_vector_t *vec, ri_resources_t *rsc, ri_shm_t *shm, size_t *shm_offset)
 {
   for (unsigned i = 0; i < vec->n_producers; i++) {
-    ri_channel_t *channel = &xfer->producers[i];
+    ri_channel_t *channel = &rsc->producers[i];
 
     vec->producers[i] = ri_producer_new(channel, shm, *shm_offset);
 
@@ -91,10 +91,10 @@ static int init_producers(ri_vector_t *vec, ri_transfer_t *xfer, ri_shm_t *shm, 
 }
 
 
-static int init_consumers(ri_vector_t *vec, ri_transfer_t *xfer, ri_shm_t *shm, size_t *shm_offset)
+static int init_consumers(ri_vector_t *vec, ri_resources_t *rsc, ri_shm_t *shm, size_t *shm_offset)
 {
   for (unsigned i = 0; i < vec->n_consumers; i++) {
-    ri_channel_t *channel = &xfer->consumers[i];
+    ri_channel_t *channel = &rsc->consumers[i];
 
     vec->consumers[i] = ri_consumer_new(channel, shm, *shm_offset);
 
@@ -108,17 +108,17 @@ static int init_consumers(ri_vector_t *vec, ri_transfer_t *xfer, ri_shm_t *shm, 
 }
 
 
-ri_vector_t* ri_vector_new(ri_transfer_t *xfer, bool server)
+ri_vector_t* ri_vector_new(ri_resources_t *rsc, bool server)
 {
-  unsigned n_consumers = ri_count_channels(xfer->consumers);
-  unsigned n_producers = ri_count_channels(xfer->producers);
+  unsigned n_consumers = ri_count_channels(rsc->consumers);
+  unsigned n_producers = ri_count_channels(rsc->producers);
 
   ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers);
 
   if (!vec)
     goto fail_alloc;
 
-  ri_shm_t *shm = ri_shm_map(xfer->shmfd);
+  ri_shm_t *shm = ri_shm_map(rsc->shmfd);
 
   if (!shm)
     goto fail_shm;
@@ -126,28 +126,28 @@ ri_vector_t* ri_vector_new(ri_transfer_t *xfer, bool server)
   size_t shm_offset = 0;
 
   if (server) {
-    int r = init_consumers(vec, xfer, shm, &shm_offset);
+    int r = init_consumers(vec, rsc, shm, &shm_offset);
 
     if (r < 0)
       goto fail_channel;
 
-    r = init_producers(vec, xfer, shm, &shm_offset);
+    r = init_producers(vec, rsc, shm, &shm_offset);
 
     if (r < 0)
       goto fail_channel;
   } else {
-    int r = init_producers(vec, xfer, shm, &shm_offset);
+    int r = init_producers(vec, rsc, shm, &shm_offset);
 
     if (r < 0)
       goto fail_channel;
 
-    r = init_consumers(vec, xfer, shm, &shm_offset);
+    r = init_consumers(vec, rsc, shm, &shm_offset);
 
     if (r < 0)
       goto fail_channel;
   }
 
-  int r = ri_vector_set_info(vec, &xfer->info);
+  int r = ri_vector_set_info(vec, &rsc->info);
     if (r < 0)
       goto fail_channel;
 

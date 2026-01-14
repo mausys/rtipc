@@ -22,11 +22,11 @@ size_t ri_calc_channel_shm_size(unsigned n_msgs, size_t msg_size)
 }
 
 
-ri_transfer_t* ri_transfer_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
+ri_resources_t* ri_resources_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
 {
-  ri_transfer_t *xfer = malloc(sizeof(ri_transfer_t));
+  ri_resources_t *rsc = malloc(sizeof(ri_resources_t));
 
-  if (!xfer)
+  if (!rsc)
     goto fail_alloc;
 
   /* consumers and producers are terminated list add 2 elemets for termination */
@@ -37,95 +37,95 @@ ri_transfer_t* ri_transfer_alloc(unsigned n_consumers, unsigned n_producers, con
   }
 
 
-  *xfer = (ri_transfer_t) {
+  *rsc = (ri_resources_t) {
     .consumers = channels,
     .producers = &channels[n_consumers + 1],
     .info = *info,
     .shmfd = -1,
   };
 
-  for (ri_channel_t *channel = xfer->consumers; channel->msg_size != 0; channel++)
+  for (ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++)
     channel->eventfd = -1;
 
-  for (ri_channel_t *channel = xfer->producers; channel->msg_size != 0; channel++)
+  for (ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++)
     channel->eventfd = -1;
 
-  return xfer;
+  return rsc;
 
 fail_channels:
-  free(xfer);
+  free(rsc);
 fail_alloc:
   return NULL;
 }
 
 
-ri_transfer_t* ri_transfer_new(const ri_config_t *config)
+ri_resources_t* ri_resources_new(const ri_config_t *config)
 {
   unsigned n_consumers = ri_count_channels(config->consumers);
   unsigned n_producers = ri_count_channels(config->producers);
 
-  ri_transfer_t *xfer = ri_transfer_alloc(n_consumers, n_producers, &config->info);
+  ri_resources_t *rsc = ri_resources_alloc(n_consumers, n_producers, &config->info);
 
-  if (!xfer)
+  if (!rsc)
     goto fail_alloc;
 
   size_t shm_size = ri_calc_shm_size(config->consumers, config->producers);
 
-  xfer->shmfd = ri_shmfd_create(shm_size);
+  rsc->shmfd = ri_shmfd_create(shm_size);
 
-  if (xfer->shmfd < 0)
+  if (rsc->shmfd < 0)
     goto fail_init;
 
   for (unsigned i = 0; i < n_consumers; i++) {
-    xfer->consumers[i] = config->consumers[i];
+    rsc->consumers[i] = config->consumers[i];
 
     if (config->consumers[i].eventfd > 0) {
-      xfer->consumers[i].eventfd = ri_eventfd();
-      if (xfer->consumers[i].eventfd < 0)
+      rsc->consumers[i].eventfd = ri_eventfd();
+      if (rsc->consumers[i].eventfd < 0)
         goto fail_init;
     }
   }
 
   for (unsigned i = 0; i < n_producers; i++) {
-    xfer->producers[i] = config->producers[i];
+    rsc->producers[i] = config->producers[i];
 
     if (config->producers[i].eventfd > 0) {
-      xfer->producers[i].eventfd = ri_eventfd();
-      if (xfer->producers[i].eventfd < 0)
+      rsc->producers[i].eventfd = ri_eventfd();
+      if (rsc->producers[i].eventfd < 0)
         goto fail_init;
     }
   }
 
-  return xfer;
+  return rsc;
 
 fail_init:
-  ri_transfer_delete(xfer);
+  ri_resources_delete(rsc);
 fail_alloc:
   return NULL;
 }
 
 
-void ri_transfer_delete(ri_transfer_t *xfer)
+void ri_resources_delete(ri_resources_t *rsc)
 {
-  if (xfer->shmfd > 0)
-    close(xfer->shmfd);
+  if (rsc->shmfd > 0)
+    close(rsc->shmfd);
 
-  for (ri_channel_t *channel = xfer->consumers; channel->msg_size != 0; channel++) {
+  for (ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
     if (channel->eventfd > 0) {
       close(channel->eventfd);
     }
   }
 
-  for (ri_channel_t *channel = xfer->producers; channel->msg_size != 0; channel++) {
+  for (ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
     if (channel->eventfd > 0) {
       close(channel->eventfd);
     }
   }
 
-  if (xfer->consumers)
-    free(xfer->consumers);
+  if (rsc->consumers)
+    free(rsc->consumers);
 
-  free(xfer);
+  free(rsc);
 }
 
 

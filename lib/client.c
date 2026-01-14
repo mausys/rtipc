@@ -80,14 +80,14 @@ fail_socket:
 
 ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
 {
-  ri_transfer_t *xfer = ri_transfer_new(config);
+  ri_resources_t *rsc = ri_resources_new(config);
 
-  if (!xfer) {
+  if (!rsc) {
     LOG_ERR("ri_transfer_new failed");
-    goto fail_xfer;
+    goto fail_rsc;
   }
 
-  size_t req_size = ri_request_calc_size(xfer);
+  size_t req_size = ri_request_calc_size(rsc);
 
   ri_uxmsg_t *req = ri_uxmsg_new(req_size);
 
@@ -96,17 +96,17 @@ ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
 
   void *req_data = ri_uxmsg_data(req, &req_size);
 
-  int r = ri_request_write(xfer, req_data, req_size);
+  int r = ri_request_write(rsc, req_data, req_size);
 
   if (r < 0)
     goto fail_req_init;
 
-  r = ri_uxmsg_add_fd(req, xfer->shmfd);
+  r = ri_uxmsg_add_fd(req, rsc->shmfd);
 
   if (r < 0)
     goto fail_req_init;
 
-  for (const ri_channel_t *channel = xfer->producers; channel->msg_size != 0; channel++) {
+  for (const ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
     if (channel->eventfd > 0) {
       r = ri_uxmsg_add_fd(req, channel->eventfd);
 
@@ -115,7 +115,7 @@ ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
     }
   }
 
-  for (const ri_channel_t *channel = xfer->consumers; channel->msg_size != 0; channel++) {
+  for (const ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
     if (channel->eventfd > 0) {
       r = ri_uxmsg_add_fd(req, channel->eventfd);
 
@@ -131,13 +131,13 @@ ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
     goto fail_req_init;
   }
 
-   ri_vector_t *vec = ri_vector_new(xfer, false);
+   ri_vector_t *vec = ri_vector_new(rsc, false);
 
    if (!vec)
      goto fail_vec;
 
   ri_uxmsg_delete(req, false);
-  ri_transfer_delete(xfer);
+  ri_resources_delete(rsc);
 
   return vec;
 
@@ -145,7 +145,7 @@ fail_vec:
 fail_req_init:
   ri_uxmsg_delete(req, false);
 fail_req_alloc:
-  ri_transfer_delete(xfer);
-fail_xfer:
+  ri_resources_delete(rsc);
+fail_rsc:
   return NULL;
 }

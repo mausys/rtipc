@@ -147,13 +147,13 @@ static int request_read_channel(request_reader_t *reader, ri_channel_t *channel)
 }
 
 
-size_t ri_request_calc_size(const ri_transfer_t *xfer)
+size_t ri_request_calc_size(const ri_resources_t *rsc)
 {
-  unsigned n_consumers = ri_count_channels(xfer->consumers);
-  unsigned n_producers = ri_count_channels(xfer->producers);
+  unsigned n_consumers = ri_count_channels(rsc->consumers);
+  unsigned n_producers = ri_count_channels(rsc->producers);
 
-  const ri_channel_t *consumers = xfer->consumers;
-  const ri_channel_t *producers = xfer->producers;
+  const ri_channel_t *consumers = rsc->consumers;
+  const ri_channel_t *producers = rsc->producers;
 
   size_t size = sizeof(ri_request_header_t);
 
@@ -164,7 +164,7 @@ size_t ri_request_calc_size(const ri_transfer_t *xfer)
   size += (n_consumers + n_producers) * sizeof(entry_t);
 
   /* vector info */
-  size += xfer->info.size;
+  size += rsc->info.size;
 
   /* channel info */
   for (unsigned i = 0; i < n_consumers; i++)
@@ -177,7 +177,7 @@ size_t ri_request_calc_size(const ri_transfer_t *xfer)
 }
 
 
-ri_transfer_t* ri_request_parse(const void *req, size_t size)
+ri_resources_t* ri_request_parse(const void *req, size_t size)
 {
   request_reader_t reader = {
     .data = req,
@@ -241,13 +241,13 @@ ri_transfer_t* ri_request_parse(const void *req, size_t size)
     }
   }
 
-  ri_transfer_t *xfer = ri_transfer_alloc(n_consumers, n_producers, &vec_info);
+  ri_resources_t *rsc = ri_resources_alloc(n_consumers, n_producers, &vec_info);
 
-  if (!xfer)
+  if (!rsc)
     goto fail_vmap;
 
   for (unsigned i = 0; i < n_consumers; i++) {
-    ri_channel_t *channel = &xfer->consumers[i];
+    ri_channel_t *channel = &rsc->consumers[i];
     r = request_read_channel(&reader, channel);
 
     if (r < 0)
@@ -255,30 +255,30 @@ ri_transfer_t* ri_request_parse(const void *req, size_t size)
   }
 
   for (unsigned i = 0; i < n_producers; i++) {
-    ri_channel_t *channel = &xfer->producers[i];
+    ri_channel_t *channel = &rsc->producers[i];
     r = request_read_channel(&reader, channel);
 
     if (r < 0)
       goto fail_channel;
   }
 
-  return xfer;
+  return rsc;
 
 fail_channel:
-  ri_transfer_delete(xfer);
+  ri_resources_delete(rsc);
 fail_vmap:
 fail_parse:
   return NULL;
 }
 
 
-int ri_request_write(const ri_transfer_t* xfer, void *req, size_t size)
+int ri_request_write(const ri_resources_t* rsc, void *req, size_t size)
 {
   if (!size)
     goto fail;
 
-  uint32_t n_producers = ri_count_channels(xfer->producers);
-  uint32_t n_consumers = ri_count_channels(xfer->consumers);
+  uint32_t n_producers = ri_count_channels(rsc->producers);
+  uint32_t n_consumers = ri_count_channels(rsc->consumers);
 
   request_writer_t writer = {
     .size = size,
@@ -292,7 +292,7 @@ int ri_request_write(const ri_transfer_t* xfer, void *req, size_t size)
   if (r < 0)
     goto fail;
 
-  uint32_t vec_info = xfer->info.size;
+  uint32_t vec_info = rsc->info.size;
 
   r = request_write(&writer, &vec_info, sizeof(vec_info));
 
@@ -311,13 +311,13 @@ int ri_request_write(const ri_transfer_t* xfer, void *req, size_t size)
 
   writer.offset_info = writer.offset + (n_producers + n_consumers) * sizeof(entry_t);
 
-  r = request_write_info(&writer, &xfer->info);
+  r = request_write_info(&writer, &rsc->info);
 
   if (r < 0)
     goto fail;
 
   for (unsigned i = 0 ; i < n_producers; i++) {
-    const ri_channel_t *channel = &xfer->producers[i];
+    const ri_channel_t *channel = &rsc->producers[i];
     r = request_write_channel(&writer, channel);
 
     if (r < 0)
@@ -325,7 +325,7 @@ int ri_request_write(const ri_transfer_t* xfer, void *req, size_t size)
   }
 
   for (unsigned i = 0 ; i < n_consumers; i++) {
-    const ri_channel_t *channel = &xfer->consumers[i];
+    const ri_channel_t *channel = &rsc->consumers[i];
     r = request_write_channel(&writer, channel);
 
     if (r < 0)
