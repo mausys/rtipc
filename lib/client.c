@@ -80,7 +80,7 @@ fail_socket:
 
 ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
 {
-  ri_resources_t *rsc = ri_resources_new(config);
+  ri_resource_t *rsc = ri_resource_new(config);
 
   if (!rsc) {
     LOG_ERR("ri_transfer_new failed");
@@ -137,7 +137,7 @@ ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
      goto fail_vec;
 
   ri_uxmsg_delete(req, false);
-  ri_resources_delete(rsc);
+  ri_resource_delete(rsc);
 
   return vec;
 
@@ -145,7 +145,7 @@ fail_vec:
 fail_req_init:
   ri_uxmsg_delete(req, false);
 fail_req_alloc:
-  ri_resources_delete(rsc);
+  ri_resource_delete(rsc);
 fail_rsc:
   return NULL;
 }

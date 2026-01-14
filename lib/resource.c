@@ -22,9 +22,9 @@ size_t ri_calc_channel_shm_size(unsigned n_msgs, size_t msg_size)
 }
 
 
-ri_resources_t* ri_resources_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
+ri_resource_t* ri_resource_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
 {
-  ri_resources_t *rsc = malloc(sizeof(ri_resources_t));
+  ri_resource_t *rsc = malloc(sizeof(ri_resource_t));
 
   if (!rsc)
     goto fail_alloc;
@@ -37,7 +37,7 @@ ri_resources_t* ri_resources_alloc(unsigned n_consumers, unsigned n_producers, c
   }
 
 
-  *rsc = (ri_resources_t) {
+  *rsc = (ri_resource_t) {
     .consumers = channels,
     .producers = &channels[n_consumers + 1],
     .info = *info,
@@ -59,12 +59,12 @@ fail_alloc:
 }
 
 
-ri_resources_t* ri_resources_new(const ri_config_t *config)
+ri_resource_t* ri_resource_new(const ri_config_t *config)
 {
   unsigned n_consumers = ri_count_channels(config->consumers);
   unsigned n_producers = ri_count_channels(config->producers);
 
-  ri_resources_t *rsc = ri_resources_alloc(n_consumers, n_producers, &config->info);
+  ri_resource_t *rsc = ri_resource_alloc(n_consumers, n_producers, &config->info);
 
   if (!rsc)
     goto fail_alloc;
@@ -99,13 +99,13 @@ ri_resources_t* ri_resources_new(const ri_config_t *config)
   return rsc;
 
 fail_init:
-  ri_resources_delete(rsc);
+  ri_resource_delete(rsc);
 fail_alloc:
   return NULL;
 }
 
 
-void ri_resources_delete(ri_resources_t *rsc)
+void ri_resource_delete(ri_resource_t *rsc)
 {
   if (rsc->shmfd > 0)
     close(rsc->shmfd);

@@ -11,8 +11,7 @@ include(GNUInstallDirs)
 set(RTIPC_SRCS
   log.c
   log.h
-  transfer.c
-  transfer.h
+  resource.c
   shm.c
   shm.h
   rtipc.h

@@ -38,7 +38,7 @@ typedef struct ri_channel {
 /**
  * @typedef ri_vector_config_t
  *
- * @brief all paramteters needed for creating the vector resources
+ * @brief all paramteters needed for creating the vector resource
  */
 typedef struct ri_config {
   const ri_channel_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
@@ -48,16 +48,16 @@ typedef struct ri_config {
 
 
 /**
- * @typedef ri_resources_t
+ * @typedef ri_resource_t
  *
  * @brief all paramteters + fds needed for creating a vector
  */
-typedef struct ri_resources {
+typedef struct ri_resource {
   ri_channel_t *consumers; /* 0 terminated (msg_size = 0) list of consumers */
   ri_channel_t *producers; /* 0 terminated (msg_size = 0) list of producers */
   ri_info_t info;
   int shmfd;
-} ri_resources_t;
+} ri_resource_t;
 
 /**
  * @typedef ri_server_t
@@ -104,7 +104,7 @@ typedef enum ri_produce_result {
 } ri_produce_result_t;
 
 
-typedef bool (*ri_filter_fn)(const ri_resources_t* rsc, void *user_data);
+typedef bool (*ri_filter_fn)(const ri_resource_t* rsc, void *user_data);
 
 /**
  * @brief ri_set_log_handler redirects rtipc library logs to custom handler
@@ -148,7 +148,7 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
 void ri_server_delete(ri_server_t* server);
 
 ri_vector_t* ri_client_connect(const char *path, const ri_config_t *vconfig);
-ri_vector_t* ri_vector_new(ri_resources_t *rsc, bool server);
+ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server);
 void ri_vector_delete(ri_vector_t *vec);
 
 unsigned ri_vector_num_consumers(const ri_vector_t *vec);
@@ -333,16 +333,16 @@ ri_info_t ri_producer_info(const ri_producer_t *producer);
 void ri_producer_free_info(ri_producer_t *producer);
 
 
-ri_resources_t* ri_resources_new(const ri_config_t *config);
-void ri_resources_delete(ri_resources_t *rsc);
+ri_resource_t* ri_resource_new(const ri_config_t *config);
+void ri_resource_delete(ri_resource_t *rsc);
 
 
 ri_info_t ri_vector_info(const ri_vector_t *vec);
 
-size_t ri_request_calc_size(const ri_resources_t *rsc);
-ri_resources_t* ri_request_parse(const void *req, size_t size);
-int ri_request_write(const ri_resources_t* rsc, void *req, size_t size);
-ri_resources_t* ri_resources_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
+size_t ri_request_calc_size(const ri_resource_t *rsc);
+ri_resource_t* ri_request_parse(const void *req, size_t size);
+int ri_request_write(const ri_resource_t* rsc, void *req, size_t size);
+ri_resource_t* ri_resource_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
 void ri_vector_init_shm(const ri_vector_t *vec);
 
 #ifdef __cplusplus

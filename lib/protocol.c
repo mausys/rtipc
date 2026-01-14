@@ -147,7 +147,7 @@ static int request_read_channel(request_reader_t *reader, ri_channel_t *channel)
 }
 
 
-size_t ri_request_calc_size(const ri_resources_t *rsc)
+size_t ri_request_calc_size(const ri_resource_t *rsc)
 {
   unsigned n_consumers = ri_count_channels(rsc->consumers);
   unsigned n_producers = ri_count_channels(rsc->producers);
@@ -177,7 +177,7 @@ size_t ri_request_calc_size(const ri_resources_t *rsc)
 }
 
 
-ri_resources_t* ri_request_parse(const void *req, size_t size)
+ri_resource_t* ri_request_parse(const void *req, size_t size)
 {
   request_reader_t reader = {
     .data = req,
@@ -241,7 +241,7 @@ ri_resources_t* ri_request_parse(const void *req, size_t size)
     }
   }
 
-  ri_resources_t *rsc = ri_resources_alloc(n_consumers, n_producers, &vec_info);
+  ri_resource_t *rsc = ri_resource_alloc(n_consumers, n_producers, &vec_info);
 
   if (!rsc)
     goto fail_vmap;
@@ -265,14 +265,14 @@ ri_resources_t* ri_request_parse(const void *req, size_t size)
   return rsc;
 
 fail_channel:
-  ri_resources_delete(rsc);
+  ri_resource_delete(rsc);
 fail_vmap:
 fail_parse:
   return NULL;
 }
 
 
-int ri_request_write(const ri_resources_t* rsc, void *req, size_t size)
+int ri_request_write(const ri_resource_t* rsc, void *req, size_t size)
 {
   if (!size)
     goto fail;

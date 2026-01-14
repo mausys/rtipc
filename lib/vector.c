@@ -74,7 +74,7 @@ void ri_vector_delete(ri_vector_t* vec)
   free(vec);
 }
 
-static int init_producers(ri_vector_t *vec, ri_resources_t *rsc, ri_shm_t *shm, size_t *shm_offset)
+static int init_producers(ri_vector_t *vec, ri_resource_t *rsc, ri_shm_t *shm, size_t *shm_offset)
 {
   for (unsigned i = 0; i < vec->n_producers; i++) {
     ri_channel_t *channel = &rsc->producers[i];
@@ -91,7 +91,7 @@ static int init_producers(ri_vector_t *vec, ri_resources_t *rsc, ri_shm_t *shm, 
 }
 
 
-static int init_consumers(ri_vector_t *vec, ri_resources_t *rsc, ri_shm_t *shm, size_t *shm_offset)
+static int init_consumers(ri_vector_t *vec, ri_resource_t *rsc, ri_shm_t *shm, size_t *shm_offset)
 {
   for (unsigned i = 0; i < vec->n_consumers; i++) {
     ri_channel_t *channel = &rsc->consumers[i];
@@ -108,7 +108,7 @@ static int init_consumers(ri_vector_t *vec, ri_resources_t *rsc, ri_shm_t *shm, 
 }
 
 
-ri_vector_t* ri_vector_new(ri_resources_t *rsc, bool server)
+ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server)
 {
   unsigned n_consumers = ri_count_channels(rsc->consumers);
   unsigned n_producers = ri_count_channels(rsc->producers);
