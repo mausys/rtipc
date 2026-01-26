@@ -1,8 +1,31 @@
+/**
+ * @file rtipc.h
+ * @brief Shared-memory interprocess message transport.
+ *
+ * This library provides wait-free message passing between two processes
+ * using shared memory. Communication occurs through *channels* grouped
+ * inside a @ref ri_vector_t.
+ *
+ * Each channel is unidirectional, but the overall connection is typically
+ * bidirectional:
+ *
+ *   - A **producer** in one process corresponds to a **consumer**
+ *     in the peer process.
+ *   - A **consumer** in one process corresponds to a **producer**
+ *     in the peer process.
+ *
+ * In other words, channel roles are *local to each process*.
+ *
+ * All operations are non-blocking. Eventfds may be used for readiness
+ * notification but are not required.
+ */
+
 #pragma once
 
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,8 +94,10 @@ typedef struct ri_info {
 
 /**
  * @typedef ri_channel_t
- * @brief Parameters used to configure and create a channel.
+ * @brief Configuration for creating a producer or consumer channel.
  *
+ * This structure is only used during setup. The library copies the
+ * values; the caller retains ownership after creation.
  */
 typedef struct ri_channel {
   /**
@@ -198,20 +223,87 @@ typedef struct ri_resource {
 } ri_resource_t;
 
 
+/**
+ * @brief Allocates an empty vector resource descriptor.
+ *
+ * Creates a resource capable of holding @p n_consumers consumer channels
+ * and @p n_producers producer channels. The channel descriptors and the
+ * shared memory file descriptor must be filled in by the caller before
+ * the resource is used to construct a vector.
+ *
+ * This function is intended for server-side use when connection setup
+ * is performed using an external or custom IPC mechanism.
+ *
+ * @param n_consumers Number of consumer channels to allocate space for
+ * @param n_producers Number of producer channels to allocate space for
+ * @param info        Optional metadata associated with the vector
+ *
+ * @return A newly allocated resource descriptor, or NULL on failure
+ */
 ri_resource_t* ri_resource_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
+
+
+/**
+ * @brief Creates a fully initialized vector resource from a configuration.
+ *
+ * Builds a @ref ri_resource_t based on the channel layout described in
+ * @p config. The resulting resource contains the channel descriptors and
+ * metadata needed to establish a shared-memory vector with a peer.
+ *
+ * This function is typically used on the client side when connection
+ * establishment is handled via an external or custom IPC mechanism.
+ * The returned resource can be transmitted to the server, which will
+ * then attach to the described shared memory and channels.
+ *
+ * @param config Pointer to a static vector configuration
+ *
+ * @return A newly allocated resource descriptor, or NULL on failure
+ */
 ri_resource_t* ri_resource_new(const ri_config_t *config);
+
+
+/**
+ * @brief Destroys a vector resource descriptor.
+ *
+ * Frees only the memory and file descriptors still owned by this
+ * @ref ri_resource_t. Any ownership already transferred to a
+ * @ref ri_vector_t or its channels is not affected.
+ *
+ * After this call, @p rsc becomes invalid and must not be used again.
+ */
 void ri_resource_delete(ri_resource_t *rsc);
 
 
-
-
-
-
-
+/**
+ * @brief Creates a channel vector from a resource descriptor.
+ *
+ * @param rsc    Resource descriptor describing shared memory and channels
+ * @param server If true, this side acts as the server side of the
+ *               connection; otherwise as the client side.
+ *
+ * The server/client distinction determines which channels are treated
+ * as producers or consumers locally. The peer process will see the
+ * opposite roles.
+ */
 ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server);
+
+
+/**
+ * @brief Destroys a channel vector.
+ *
+ * Releases all channels still owned by the @ref ri_vector_t instance.
+ * Channels whose ownership has already been transferred via
+ * @ref ri_vector_take_consumer or @ref ri_vector_take_producer are not
+ * affected.
+ *
+ * After this call, @p vec becomes invalid and must not be used again.
+ */
 void ri_vector_delete(ri_vector_t *vec);
 
+
 ri_info_t ri_vector_info(const ri_vector_t *vec);
+
+
 void ri_vector_init_shm(const ri_vector_t *vec);
 
 unsigned ri_vector_num_consumers(const ri_vector_t *vec);
@@ -221,8 +313,9 @@ unsigned ri_vector_num_producers(const ri_vector_t *vec);
 
 /**
  * @typedef ri_consumer_t
+ * @brief Handle for receiving messages from a peer process.
  *
- * @brief Opaque handle to a consumer channel
+ * A consumer reads messages written by a producer in the *other* process.
  */
 typedef struct ri_consumer ri_consumer_t;
 
@@ -287,29 +380,41 @@ typedef enum ri_consume_result {
  */
 ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index);
 
+
 /**
- * @brief ri_consumer_delete deletes channel; if its the last channel of the vector, it will also delete the shared memory
- * @param consumer pointer to consumer, invalid after call
+ * @brief Destroys a consumer channel.
+ *
+ * Releases all resources associated with the consumer. After this call,
+ * @p consumer becomes invalid and must not be used again.
+ *
+ * If this is the last remaining channel attached to the shared memory,
+ * the shared memory region is also destroyed.
  */
 void ri_consumer_delete(ri_consumer_t *consumer);
 
 
-
 /**
- * @brief ri_consumer_msg get pointer to current message
+ * @brief Returns a pointer to the consumer's current message buffer.
  *
- * @param consumer pointer to consumer
- * @return pointer to current message (always valid)
+ * The pointer remains valid until the next call to
+ * @ref ri_consumer_pop or @ref ri_consumer_flush.
+ * If no message was produced yet, NULL will be returned.
+ *
+ * The returned memory is owned by the library and must not be freed.
  */
 const void* ri_consumer_msg(const ri_consumer_t *consumer);
 
+
 /**
- * @brief ri_consumer_pop take oldest message from the queue
+ * @brief Advances to the next available message in the queue.
  *
- * @param consumer pointer to consumer
- * @return result
+ * After a successful call, @ref ri_consumer_msg returns the newly
+ * consumed message.
+ *
+ * This function never blocks.
  */
 ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
+
 
 /**
  * @brief ri_consumer_flush get message from the head, discarding all older messages
@@ -318,8 +423,6 @@ ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
  * @return result
  */
 ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
-
-
 
 
 /**
@@ -331,20 +434,19 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
 size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
 \
 
-    /**
- * @brief ri_consumer_eventfd get eventfd, but consumer still uses eventfd and closes it on deleteion
+/**
+ * @brief Returns the eventfd used by this consumer.
  *
- * @param consumer pointer to consumer
- * @return eventfd
+ * The consumer retains ownership and will close the descriptor when
+ * @ref ri_consumer_delete is called.
  */
-    int ri_consumer_eventfd(const ri_consumer_t *consumer);
+int ri_consumer_eventfd(const ri_consumer_t *consumer);
 
 
 /**
- * @brief ri_consumer_eventfd take eventfd, consumer has no more access to eventfd
+ * @brief Transfers ownership of the eventfd to the caller.
  *
- * @param consumer pointer to consumer
- * @return eventfd
+ * After this call, the consumer no longer uses or closes the descriptor.
  */
 int ri_consumer_take_eventfd(ri_consumer_t *consumer);
 
@@ -366,8 +468,10 @@ void ri_consumer_free_info(ri_consumer_t *consumer);
 
 /**
  * @typedef ri_producer_t
+ * @brief Handle for sending messages to a peer process.
  *
- * @brief Opaque handle to a producer channel
+ * A producer writes messages that will be read by a consumer in the
+ * *other* process.
  */
 typedef struct ri_producer ri_producer_t;
 
@@ -425,16 +529,24 @@ typedef enum ri_produce_result {
 ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index);
 
 /**
- * @brief ri_producer_delete deletes channel; if its the last channel of the vector, it will also delete the shared memory
- * @param producer pointer to producer, invalid after call
+ * @brief Destroys a producer channel.
+ *
+ * Releases all resources associated with the consumer. After this call,
+ * @p producer becomes invalid and must not be used again.
+ *
+ * If this is the last remaining channel attached to the shared memory,
+ * the shared memory region is also destroyed.
  */
 void ri_producer_delete(ri_producer_t *producer);
 
 /**
- * @brief ri_producer_msg get pointer to current message
+ * @brief Returns a pointer to the producer's current writable message buffer.
  *
- * @param producer pointer to producer
- * @return pointer to current message (always valid)
+ * The application writes message data into this buffer, then submits it
+ * using @ref ri_producer_try_push or @ref ri_producer_force_push.
+ *
+ * The pointer remains valid until the next push operation or until the
+ * producer is deleted.
  */
 void* ri_producer_msg(const ri_producer_t *producer);
 
@@ -481,18 +593,24 @@ int ri_producer_eventfd(const ri_producer_t *producer);
 int ri_producer_take_eventfd(ri_producer_t *producer);
 
 /**
- * @brief ri_producer_cache_enable enables message cache and copies current message to cache.
- *  ri_producer_msg will always return pointer to cache. Cache is written back with push
- * @param producer pointer to producer
- * @return 0 on success
+ * @brief Enables producer-side message caching.
+ *
+ * When enabled, @ref ri_producer_msg returns a pointer to an internal
+ * cache buffer instead of shared memory. The cache is written back to
+ * shared memory on the next push operation.
+ *
+ * Useful when shared memory writes should be minimized.
+ *
+ * @return 0 on success, negative on error
  */
 int ri_producer_cache_enable(ri_producer_t *producer);
 
+
 /**
- * @brief ri_producer_cache_disable if cache was enabled, copies message cache to current message
- * and deletes message cache.
- * ri_producer_msg will return pointer to current message (zero copy)
- * @param producer pointer to producer
+ * @brief Disables message caching and writes cached data back.
+ *
+ * After this call, @ref ri_producer_msg returns a direct pointer to the
+ * shared memory message slot again.
  */
 void ri_producer_cache_disable(ri_producer_t *producer);
 
@@ -545,12 +663,14 @@ void ri_server_delete(ri_server_t* server);
 int ri_server_socket(const ri_server_t* server);
 
 /**
- * @brief ri_server_accept accepts a connection from client and builds a channel vector
- * @param server
- * @param filter user function for accepting (return true) or rejecting (return false) request
- *  NULL for accepting all
- * @param userdata passed to filter
- * @return channel vector
+ * @brief Accepts a client connection and constructs a vector.
+ *
+ * @param server   Listening server instance
+ * @param filter   Optional callback to accept (true) or reject (false)
+ *                 a connection based on the requested resource
+ * @param user_data Opaque pointer passed to @p filter
+ *
+ * @return A newly created vector on success, or NULL on failure/rejection
  */
 ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data);
 
