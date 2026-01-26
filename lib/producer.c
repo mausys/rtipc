@@ -176,7 +176,7 @@ bool ri_producer_queue_full(const ri_producer_queue_t *producer) {
 
   if (producer->overrun != RI_INDEX_INVALID) {
     bool consumed = !!(tail & RI_CONSUMED_FLAG);
-    /* overrun mean the producer forced_push a message on a full queue
+    /* overrun means the producer forced_push a message on a full queue,
      queue has space if consumer moved on */
     return !consumed;
   } else {

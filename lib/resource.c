@@ -6,7 +6,6 @@
 #include "rtipc.h"
 #include "unix.h"
 #include "channel.h"
-#include "index.h"
 #include "mem_utils.h"
 
 static size_t ri_calc_data_size(unsigned n_msgs, size_t msg_size)

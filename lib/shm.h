@@ -3,8 +3,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
-#include <stdatomic.h>
-
 
 typedef struct ri_shm ri_shm_t;
 
