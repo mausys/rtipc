@@ -165,6 +165,8 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
 
   ri_uxmsg_delete(req, true);
 
+  ri_resource_delete(rsc);
+
   close(cfd);
 
   return vec;
