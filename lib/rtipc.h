@@ -16,7 +16,7 @@
  *
  * In other words, channel roles are *local to each process*.
  *
- * All operations are non-blocking. Eventfds may be used for readiness
+ * All push/pop operations are non-blocking. Eventfds may be used for readiness
  * notification but are not required.
  */
 
@@ -30,7 +30,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 
 /**
@@ -368,6 +367,7 @@ typedef enum ri_consume_result {
    * has occurred.
    */
   RI_CONSUME_RESULT_DISCARDED = 2,
+
 } ri_consume_result_t;
 
 
@@ -458,6 +458,7 @@ int ri_consumer_take_eventfd(ri_consumer_t *consumer);
  */
 ri_info_t ri_consumer_info(const ri_consumer_t *consumer);
 
+
 /**
  * @brief ri_consumer_free_info deletes info
  *
@@ -501,7 +502,6 @@ typedef enum ri_produce_result {
    */
   RI_PRODUCE_RESULT_FAIL = -1,
 
-
   /**
    * The message was successfully added to the queue.
    *
@@ -519,6 +519,7 @@ typedef enum ri_produce_result {
 
 } ri_produce_result_t;
 
+
 /**
  * @brief ri_rtipc_take_producer get a pointer to a producer
  *
@@ -527,6 +528,7 @@ typedef enum ri_produce_result {
  * @return pointer to producer; NULL on error
  */
 ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index);
+
 
 /**
  * @brief Destroys a producer channel.
@@ -539,6 +541,7 @@ ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index);
  */
 void ri_producer_delete(ri_producer_t *producer);
 
+
 /**
  * @brief Returns a pointer to the producer's current writable message buffer.
  *
@@ -550,6 +553,7 @@ void ri_producer_delete(ri_producer_t *producer);
  */
 void* ri_producer_msg(const ri_producer_t *producer);
 
+
 /**
  * @brief ri_producer_force_push submits current message and get a new message
  *
@@ -557,6 +561,7 @@ void* ri_producer_msg(const ri_producer_t *producer);
  * @return result
  */
 ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
+
 
 /**
  * @brief ri_producer_try_push submits current message and get a new message,
@@ -578,28 +583,45 @@ size_t ri_producer_msg_size(const ri_producer_t *producer);
 
 
 /**
- * @brief ri_producer_eventfd get eventfd, but producer still uses eventfd and closes it on deleteion
+ * @brief Returns the eventfd used by this producer.
  *
- * @param producer pointer to producer
- * @return eventfd
+ * The producer retains ownership and will close the descriptor when
+ * @ref ri_producer_delete is called.
  */
 int ri_producer_eventfd(const ri_producer_t *producer);
 
+
 /**
- * @brief ri_producer_take_eventfd take eventfd, producer has no more access to eventfd
- * @param producer pointer to producer
- * @return eventfd
+ * @brief Transfers ownership of the eventfd to the caller.
+ *
+ * After this call, the producer no longer uses or closes the descriptor.
  */
 int ri_producer_take_eventfd(ri_producer_t *producer);
+
 
 /**
  * @brief Enables producer-side message caching.
  *
- * When enabled, @ref ri_producer_msg returns a pointer to an internal
- * cache buffer instead of shared memory. The cache is written back to
- * shared memory on the next push operation.
+ * When caching is enabled, @ref ri_producer_msg returns a pointer to an
+ * internal buffer owned by the producer instead of directly exposing the
+ * shared memory slot. This cache is written back to shared memory on the
+ * next successful push operation.
  *
- * Useful when shared memory writes should be minimized.
+ * Caching provides two important guarantees:
+ *
+ * - **Isolation from the peer:** The producer operates on a private copy
+ *   of the message that cannot be modified by the consumer process. This
+ *   protects reads from accidental corruption or malicious interference
+ *   originating from the peer.
+ *
+ * - **Safe partial updates:** The cache is initialized with the current
+ *   message contents, allowing the producer to modify only selected fields
+ *   while the rest of the message remains valid. This prevents accidental
+ *   reuse of undefined data from a previous message slot.
+ *
+ * The trade-off is that the channel is no longer zero-copy while caching
+ * is enabled, as each push requires copying the cached buffer into shared
+ * memory.
  *
  * @return 0 on success, negative on error
  */
@@ -614,12 +636,14 @@ int ri_producer_cache_enable(ri_producer_t *producer);
  */
 void ri_producer_cache_disable(ri_producer_t *producer);
 
+
 /**
  * @brief ri_producer_info get channel info
  * @param producer pointer to producer
  * @return channel info
  */
 ri_info_t ri_producer_info(const ri_producer_t *producer);
+
 
 /**
  * @brief ri_producer_free_info deletes info
@@ -634,6 +658,7 @@ void ri_producer_free_info(ri_producer_t *producer);
  * @brief server for unix socket
  */
 typedef struct ri_server ri_server_t;
+
 
 typedef bool (*ri_filter_fn)(const ri_resource_t* rsc, void *user_data);
 
@@ -661,6 +686,7 @@ void ri_server_delete(ri_server_t* server);
  * @return sockfd
  */
 int ri_server_socket(const ri_server_t* server);
+
 
 /**
  * @brief Accepts a client connection and constructs a vector.

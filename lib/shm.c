@@ -16,7 +16,6 @@
 
 #include "mem_utils.h"
 #include "log.h"
-#include "unix.h"
 
 struct ri_shm
 {
@@ -28,15 +27,12 @@ struct ri_shm
 };
 
 
-
-
 static void shm_delete(ri_shm_t *shm)
 {
   munmap(shm->mem, shm->size);
   close(shm->fd);
   free(shm);
 }
-
 
 
 ri_shm_t* ri_shm_map(int fd)
