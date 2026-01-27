@@ -11,3 +11,8 @@ target_include_directories(client PRIVATE ${RTIPC_INCLUDE_DIR})
 target_compile_options(client PRIVATE ${RTIPC_COMPILER_OPTIONS})
 target_link_libraries(client PRIVATE ${PROJECT_NAME})
 
+
+add_executable(benchmark benchmark.c)
+target_include_directories(benchmark PRIVATE ${RTIPC_INCLUDE_DIR})
+target_compile_options(benchmark PRIVATE ${RTIPC_COMPILER_OPTIONS})
+target_link_libraries(benchmark PRIVATE ${PROJECT_NAME})

@@ -20,12 +20,6 @@ struct ri_server {
 };
 
 
-int ri_socket_pair(int sockets[2])
-{
-  return socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets);
-}
-
-
 ri_server_t* ri_server_new(const char* path, int backlog)
 {
   ri_server_t *server = malloc(sizeof(ri_server_t));
