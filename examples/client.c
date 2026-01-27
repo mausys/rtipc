@@ -112,7 +112,7 @@ int event_listen(void *arg)
 static app_t* app_new(const char *path, const ri_config_t *config)
 {
 
-  ri_vector_t *vec =  ri_client_connect(path, config);
+  ri_vector_t *vec =  ri_client_connect_path(path, config);
 
   if (!vec)
     goto fail_connect;

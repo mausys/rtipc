@@ -688,6 +688,8 @@ void ri_server_delete(ri_server_t* server);
 int ri_server_socket(const ri_server_t* server);
 
 
+ri_vector_t* ri_socket_accept(int socket, ri_filter_fn filter, void *user_data);
+
 /**
  * @brief Accepts a client connection and constructs a vector.
  *
@@ -702,7 +704,9 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
 
 
 
-ri_vector_t* ri_client_connect(const char *path, const ri_config_t *vconfig);
+ri_vector_t* ri_client_connect_socket(int socket, const ri_config_t *vconfig);
+
+ri_vector_t* ri_client_connect_path(const char *path, const ri_config_t *vconfig);
 
 
 size_t ri_request_calc_size(const ri_resource_t *rsc);

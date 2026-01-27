@@ -11,11 +11,9 @@
 #include "log.h"
 #include "unix.h"
 
-
-
-static int client_transmit_request(const char *path, ri_uxmsg_t *req)
+static int connect_path(const char *path)
 {
-  int r = -1;
+  int r;
   int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 
   if (sockfd < 0) {
@@ -25,6 +23,7 @@ static int client_transmit_request(const char *path, ri_uxmsg_t *req)
   }
 
   struct sockaddr_un addr;
+
   addr.sun_family = AF_UNIX;
   snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 
@@ -36,7 +35,18 @@ static int client_transmit_request(const char *path, ri_uxmsg_t *req)
     goto fail_connect;
   }
 
-  r = ri_uxmsg_send(req, sockfd);
+  return sockfd;
+
+fail_connect:
+  close(sockfd);
+fail_socket:
+  return r;
+}
+
+
+static int exchange(int socket, ri_uxmsg_t *req)
+{
+  int r = ri_uxmsg_send(req, socket);
 
   if (r < 0) {
     LOG_ERR("ri_request_send failed r=%d", r);
@@ -44,7 +54,7 @@ static int client_transmit_request(const char *path, ri_uxmsg_t *req)
   }
 
   size_t response_size;
-  void *response = ri_uxsocket_receive(sockfd, &response_size);
+  void *response = ri_uxsocket_receive(socket, &response_size);
 
   if (!response) {
     r = -1;
@@ -63,7 +73,6 @@ static int client_transmit_request(const char *path, ri_uxmsg_t *req)
   memcpy(&result, response, sizeof(result));
 
   free(response);
-  close(sockfd);
 
   return result;
 
@@ -71,47 +80,37 @@ fail_response:
   free(response);
 fail_receive:
 fail_send:
-fail_connect:
-  close(sockfd);
-fail_socket:
   return r;
 }
 
 
-ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
+static ri_uxmsg_t* uxmsg_from_resource(const ri_resource_t *rsc)
 {
-  ri_resource_t *rsc = ri_resource_alloc(config);
-
-  if (!rsc) {
-    LOG_ERR("ri_transfer_new failed");
-    goto fail_rsc;
-  }
-
   size_t req_size = ri_request_calc_size(rsc);
 
   ri_uxmsg_t *req = ri_uxmsg_new(req_size);
 
   if (!req)
-    goto fail_req_alloc;
+    goto fail_alloc;
 
   void *req_data = ri_uxmsg_data(req, &req_size);
 
   int r = ri_request_write(rsc, req_data, req_size);
 
   if (r < 0)
-    goto fail_req_init;
+    goto fail_construct;
 
   r = ri_uxmsg_add_fd(req, rsc->shmfd);
 
   if (r < 0)
-    goto fail_req_init;
+    goto fail_construct;
 
   for (const ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
     if (channel->eventfd > 0) {
       r = ri_uxmsg_add_fd(req, channel->eventfd);
 
       if (r < 0)
-        goto fail_req_init;
+        goto fail_construct;
     }
   }
 
@@ -120,21 +119,46 @@ ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
       r = ri_uxmsg_add_fd(req, channel->eventfd);
 
       if (r < 0)
-        goto fail_req_init;
+        goto fail_construct;
     }
   }
 
-  r = client_transmit_request(path, req);
+  return req;
 
-  if (r < 0) {
-    LOG_ERR("client_send_vector failed");
-    goto fail_req_init;
+fail_construct:
+  ri_uxmsg_delete(req, false);
+fail_alloc:
+  return NULL;
+}
+
+
+ri_vector_t* ri_client_connect_socket(int socket, const ri_config_t *config)
+{
+  ri_resource_t *rsc = ri_resource_alloc(config);
+
+  if (!rsc) {
+    LOG_ERR("ri_transfer_new failed");
+    goto fail_rsc;
   }
 
-   ri_vector_t *vec = ri_vector_new(rsc, false);
+  ri_uxmsg_t *req = uxmsg_from_resource(rsc);
 
-   if (!vec)
-     goto fail_vec;
+  if (!req) {
+    LOG_ERR("uxmsg_from_resource failed");
+    goto fail_req;
+  }
+
+  int r = exchange(socket, req);
+
+  if (r < 0) {
+    LOG_ERR("exchange failed");
+    goto fail_exchange;
+  }
+
+  ri_vector_t *vec = ri_vector_new(rsc, false);
+
+  if (!vec)
+    goto fail_vec;
 
   ri_uxmsg_delete(req, false);
   ri_resource_delete(rsc);
@@ -142,10 +166,26 @@ ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
   return vec;
 
 fail_vec:
-fail_req_init:
+fail_exchange:
   ri_uxmsg_delete(req, false);
-fail_req_alloc:
+fail_req:
   ri_resource_delete(rsc);
 fail_rsc:
   return NULL;
+}
+
+
+ri_vector_t* ri_client_connect_path(const char *path, const ri_config_t *config)
+{
+  int socket = connect_path(path);
+
+  if (socket < 0) {
+    return NULL;
+  }
+
+  ri_vector_t *vec = ri_client_connect_socket(socket, config);
+
+  close(socket);
+
+  return vec;
 }
