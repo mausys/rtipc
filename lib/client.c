@@ -80,7 +80,7 @@ fail_socket:
 
 ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
 {
-  ri_resource_t *rsc = ri_resource_new(config);
+  ri_resource_t *rsc = ri_resource_alloc(config);
 
   if (!rsc) {
     LOG_ERR("ri_transfer_new failed");

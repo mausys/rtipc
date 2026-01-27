@@ -223,7 +223,7 @@ typedef struct ri_resource {
 
 
 /**
- * @brief Allocates an empty vector resource descriptor.
+ * @brief Creates an empty vector resource descriptor.
  *
  * Creates a resource capable of holding @p n_consumers consumer channels
  * and @p n_producers producer channels. The channel descriptors and the
@@ -239,7 +239,7 @@ typedef struct ri_resource {
  *
  * @return A newly allocated resource descriptor, or NULL on failure
  */
-ri_resource_t* ri_resource_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
+ri_resource_t* ri_resource_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
 
 
 /**
@@ -258,7 +258,7 @@ ri_resource_t* ri_resource_alloc(unsigned n_consumers, unsigned n_producers, con
  *
  * @return A newly allocated resource descriptor, or NULL on failure
  */
-ri_resource_t* ri_resource_new(const ri_config_t *config);
+ri_resource_t* ri_resource_alloc(const ri_config_t *config);
 
 
 /**

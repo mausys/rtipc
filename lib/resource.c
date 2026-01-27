@@ -21,7 +21,7 @@ size_t ri_calc_channel_shm_size(unsigned n_msgs, size_t msg_size)
 }
 
 
-ri_resource_t* ri_resource_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
+ri_resource_t* ri_resource_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
 {
   ri_resource_t *rsc = malloc(sizeof(ri_resource_t));
 
@@ -58,12 +58,12 @@ fail_alloc:
 }
 
 
-ri_resource_t* ri_resource_new(const ri_config_t *config)
+ri_resource_t* ri_resource_alloc(const ri_config_t *config)
 {
   unsigned n_consumers = ri_count_channels(config->consumers);
   unsigned n_producers = ri_count_channels(config->producers);
 
-  ri_resource_t *rsc = ri_resource_alloc(n_consumers, n_producers, &config->info);
+  ri_resource_t *rsc = ri_resource_new(n_consumers, n_producers, &config->info);
 
   if (!rsc)
     goto fail_alloc;

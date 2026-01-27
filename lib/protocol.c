@@ -241,7 +241,7 @@ ri_resource_t* ri_request_parse(const void *req, size_t size)
     }
   }
 
-  ri_resource_t *rsc = ri_resource_alloc(n_consumers, n_producers, &vec_info);
+  ri_resource_t *rsc = ri_resource_new(n_consumers, n_producers, &vec_info);
 
   if (!rsc)
     goto fail_vmap;
