@@ -10,6 +10,7 @@
 
 #include "log.h"
 #include "unix.h"
+#include "protocol.h"
 
 static int connect_path(const char *path)
 {

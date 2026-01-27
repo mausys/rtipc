@@ -167,7 +167,6 @@ typedef struct ri_config {
 } ri_config_t;
 
 
-
 /**
  * @typedef ri_resource_t
  * @brief Descriptor used to create a vector via an external setup mechanism.
@@ -300,13 +299,45 @@ ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server);
 void ri_vector_delete(ri_vector_t *vec);
 
 
+/**
+ * @brief Returns the user-defined metadata associated with the vector.
+ *
+ * Retrieves the application-specific information previously attached to
+ * the vector instance.
+ *
+ * @param vec Pointer to the vector.
+ * @return The metadata associated with the vector.
+ */
 ri_info_t ri_vector_info(const ri_vector_t *vec);
 
 
+/**
+ * @brief Initialize the shared memory region with default values.
+ *
+ * Must be called exactly once by the server before any
+ * channel operations are performed. This function prepares the shared
+ * memory state required for subsequent communication.
+ *
+ * @param vec Pointer to the vector associated with the shared memory.
+ */
 void ri_vector_init_shm(const ri_vector_t *vec);
 
+
+/**
+ * @brief Get the number of consumer channels.
+ *
+ * @param vec Pointer to the vector.
+ * @return The number of consumer channels.
+ */
 unsigned ri_vector_num_consumers(const ri_vector_t *vec);
 
+
+/**
+ * @brief Get the number of producer channels.
+ *
+ * @param vec Pointer to the vector.
+ * @return The number of producer channels.
+ */
 unsigned ri_vector_num_producers(const ri_vector_t *vec);
 
 
@@ -452,17 +483,25 @@ int ri_consumer_take_eventfd(ri_consumer_t *consumer);
 
 
 /**
- * @brief ri_consumer_info git channel info
- * @param consumer pointr to consumer
- * @return channel info
+ * @brief Returns the user-defined metadata associated with the consumer channel.
+ *
+ * Retrieves the application-specific information previously attached to
+ * the consumer instance.
+ *
+ * @param consumer Pointer to the consumer channel.
+ * @return The metadata associated with the consumer channel.
  */
 ri_info_t ri_consumer_info(const ri_consumer_t *consumer);
 
 
 /**
- * @brief ri_consumer_free_info deletes info
+ * @brief Delete the user-defined metadata associated with a consumer channel.
  *
- * @param consumer pointer to consumer
+ * Frees any application-specific information attached to the consumer.
+ * This should be called when the metadata is no longer needed to avoid
+ * unnecessary memory usage.
+ *
+ * @param consumer Pointer to the consumer.
  */
 void ri_consumer_free_info(ri_consumer_t *consumer);
 
@@ -638,29 +677,35 @@ void ri_producer_cache_disable(ri_producer_t *producer);
 
 
 /**
- * @brief ri_producer_info get channel info
- * @param producer pointer to producer
- * @return channel info
+ * @brief Returns the user-defined metadata associated with the producer channel.
+ *
+ * Retrieves the application-specific information previously attached to
+ * the producer instance.
+ *
+ * @param producer Pointer to the producer channel.
+ * @return The metadata associated with the producer channel.
  */
 ri_info_t ri_producer_info(const ri_producer_t *producer);
 
 
 /**
- * @brief ri_producer_free_info deletes info
- * @param producer pointer to producer
+ * @brief Delete the user-defined metadata associated with a producer channel.
+ *
+ * Frees any application-specific information attached to the producer.
+ * This should be called when the metadata is no longer needed to avoid
+ * unnecessary memory usage.
+ *
+ * @param producer Pointer to the producer.
  */
 void ri_producer_free_info(ri_producer_t *producer);
 
 
 /**
  * @typedef ri_server_t
- *
- * @brief server for unix socket
+ * @brief Opaque handle representing a server that owns a listening Unix domain socket.
  */
 typedef struct ri_server ri_server_t;
 
-
-typedef bool (*ri_filter_fn)(const ri_resource_t* rsc, void *user_data);
 
 
 /**
@@ -681,13 +726,29 @@ void ri_server_delete(ri_server_t* server);
 
 
 /**
- * @brief ri_server_socket
- * @param server pointer to server
- * @return sockfd
+ * @brief Get the server's Unix domain socket file descriptor.
+ *
+ * Returns the file descriptor of the Unix domain socket associated with
+ * the given server instance. The descriptor remains owned by the server
+ * and must not be closed by the caller.
+ *
+ * @param server Pointer to an initialized server instance.
+ * @return File descriptor of the Unix domain socket.
  */
 int ri_server_socket(const ri_server_t* server);
 
+typedef bool (*ri_filter_fn)(const ri_resource_t* rsc, void *user_data);
 
+/**
+ * @brief Accepts a client connection and constructs a vector.
+ *
+ * @param socket   Unix Domain Socket ( socket(AF_UNIX, SOCK_SEQPACKET, 0) )
+ * @param filter   Optional callback to accept (true) or reject (false)
+ *                 a connection based on the requested resource
+ * @param user_data Opaque pointer passed to @p filter
+ *
+ * @return A newly created vector on success, or NULL on failure/rejection
+ */
 ri_vector_t* ri_server_socket_accept(int socket, ri_filter_fn filter, void *user_data);
 
 /**
@@ -707,11 +768,6 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
 ri_vector_t* ri_client_socket_connect(int socket, const ri_config_t *vconfig);
 
 ri_vector_t* ri_client_connect(const char *path, const ri_config_t *vconfig);
-
-
-size_t ri_request_calc_size(const ri_resource_t *rsc);
-ri_resource_t* ri_request_parse(const void *req, size_t size);
-int ri_request_write(const ri_resource_t* rsc, void *req, size_t size);
 
 
 

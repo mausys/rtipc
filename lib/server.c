@@ -11,6 +11,7 @@
 #include "rtipc.h"
 #include "log.h"
 #include "unix.h"
+#include "protocol.h"
 
 typedef struct ri_server ri_server_t;
 

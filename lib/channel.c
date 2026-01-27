@@ -7,7 +7,6 @@
 
 #include "producer.h"
 #include "consumer.h"
-#include "queue.h"
 #include "unix.h"
 #include "log.h"
 
