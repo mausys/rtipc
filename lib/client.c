@@ -132,7 +132,7 @@ fail_alloc:
 }
 
 
-ri_vector_t* ri_client_connect_socket(int socket, const ri_config_t *config)
+ri_vector_t* ri_client_socket_connect(int socket, const ri_config_t *config)
 {
   ri_resource_t *rsc = ri_resource_alloc(config);
 
@@ -175,7 +175,7 @@ fail_rsc:
 }
 
 
-ri_vector_t* ri_client_connect_path(const char *path, const ri_config_t *config)
+ri_vector_t* ri_client_connect(const char *path, const ri_config_t *config)
 {
   int socket = connect_path(path);
 
@@ -183,7 +183,7 @@ ri_vector_t* ri_client_connect_path(const char *path, const ri_config_t *config)
     return NULL;
   }
 
-  ri_vector_t *vec = ri_client_connect_socket(socket, config);
+  ri_vector_t *vec = ri_client_socket_connect(socket, config);
 
   close(socket);
 

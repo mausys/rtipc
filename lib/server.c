@@ -19,6 +19,7 @@ struct ri_server {
   struct sockaddr_un addr;
 };
 
+
 int ri_socket_pair(int sockets[2])
 {
   return socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets);
@@ -76,7 +77,6 @@ int ri_server_socket(const ri_server_t* server)
 
 static int server_send_response(int socket, int32_t result)
 {
-
   return ri_uxsocket_send(socket, &result, sizeof(result));
 }
 
@@ -125,19 +125,12 @@ fail_map:
 }
 
 
-ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data)
+ri_vector_t* ri_server_socket_accept(int socket, ri_filter_fn filter, void *user_data)
 {
-  int cfd = accept(server->sockfd, NULL, NULL);
-
-  if (cfd < 0) {
-    LOG_ERR("accept failed errno=%u", errno);
-    goto fail_accept;
-  }
-
-  ri_uxmsg_t *req = ri_uxmsg_receive(cfd);
+  ri_uxmsg_t *req = ri_uxmsg_receive(socket);
 
   if (!req) {
-     LOG_ERR("ri_uxmsg_receive failed");
+    LOG_ERR("ri_uxmsg_receive failed");
     goto fail_receive;
   }
 
@@ -161,13 +154,11 @@ ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, vo
 
   ri_vector_init_shm(vec);
 
-  server_send_response(cfd, 0);
+  server_send_response(socket, 0);
 
   ri_uxmsg_delete(req, true);
 
   ri_resource_delete(rsc);
-
-  close(cfd);
 
   return vec;
 
@@ -176,11 +167,28 @@ fail_rejected:
 fail_transfer:
   ri_uxmsg_delete(req, true);
 fail_receive:
-  server_send_response(cfd, -1);
-  close(cfd);
-fail_accept:
+  server_send_response(socket, -1);
+
   return NULL;
 }
+
+
+ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data)
+{
+  int socket = accept(server->sockfd, NULL, NULL);
+
+  if (socket < 0) {
+    LOG_ERR("accept failed errno=%u", errno);
+    return NULL;
+  }
+
+  ri_vector_t *vec = ri_server_socket_accept(socket, filter, user_data);
+
+  close(socket);
+
+  return vec;
+}
+
 
 void ri_server_delete(ri_server_t* server)
 {
