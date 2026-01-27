@@ -11,7 +11,7 @@
 
 
 #define MAGIC 0x1f0c /* lock-free and zero-copy :) */
-#define HEADER_VERSION 1
+#define HEADER_VERSION 2
 
 
 int ri_request_header_validate(const ri_request_header_t *header)

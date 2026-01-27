@@ -114,8 +114,8 @@ ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer)
 
   if ((tail & RI_CONSUMED_FLAG) == 0) {
     /* producer moved tail (force_push), so use it; one or more messages were discarded */
-    consumer->current = tail;
-    return RI_CONSUME_RESULT_DISCARDED;
+    consumer->current = tail & RI_INDEX_MASK;
+    return (tail & RI_FIRST_FLAG) ? RI_CONSUME_RESULT_SUCCESS : RI_CONSUME_RESULT_DISCARDED;
   }
 
   /* try to get next message */

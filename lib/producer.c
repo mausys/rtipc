@@ -103,7 +103,7 @@ static void enqueue_first_msg(ri_producer_queue_t *producer)
   /* current message is the new end of chain*/
   chain_store(producer, producer->current, RI_INDEX_INVALID);
 
-  ri_queue_tail_store(queue, producer->current);
+  ri_queue_tail_store(queue, producer->current | RI_FIRST_FLAG);
 
   producer->head = producer->current;
 
