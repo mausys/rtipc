@@ -10,26 +10,46 @@
 
 typedef struct ri_queue
 {
-  /* number of messages available, can't be lesser than 3 */
+  /**
+   * Number of messages in the queue. Must be at least 3.
+   */
   unsigned n_msgs;
+
+  /**
+   * Size of each message in bytes.
+   */
   size_t msg_size;
+
+  /**
+   * Size of each message aligned to the cache line size for optimal memory access.
+   */
   size_t msg_size_aligned;
+
+  /**
+   * Pointer to the contiguous block of message storage.
+   */
   void* msgs;
-  /* producer and consumer can change the tail
-    *  the MSB shows who has last modified the tail */
+
+  /**
+   * Tail index for the queue (atomic). Both producer and consumer can update it.
+   * The most significant bit (MSB) indicates which side last modified the tail.
+  */
   ri_atomic_index_t *tail;
-  /* head is only written by producer and only used
-    * in consumer_get_head */
+
+  /**
+   * Head index for the queue (atomic). Written by the producer,
+   * but only used by the consumer during flush operations.
+   */
   ri_atomic_index_t *head;
-  /* circular queue for ordering the messages,
-    * initialized simple as queue[i] = (i + 1) % n,
-    * but due to overruns might get scrambled.
-    * only producer can modify the queue */
+
+  /**
+   * Circular queue used for message ordering.
+   * Initially set as queue[i] = (i + 1) % n_msgs.
+   * May become scrambled due to overruns.
+   * Only the producer modifies this array.
+   */
   ri_atomic_index_t *chain;
 } ri_queue_t;
-
-
-
 
 
 void* ri_queue_get_msg(const ri_queue_t *queue, ri_index_t idx);
