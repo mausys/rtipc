@@ -191,14 +191,14 @@ bool ri_producer_queue_full(const ri_producer_queue_t *producer) {
 /* inserts the next message into the queue and
  * if the queue is full, discard the last message that is not
  * used by consumer. Returns pointer to new message */
-ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer)
+ri_force_push_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer)
 {
   ri_index_t next = producer->chain[producer->current];
 
   if (producer->head == RI_INDEX_INVALID) {
     enqueue_first_msg(producer);
     producer->current = next;
-    return RI_PRODUCE_RESULT_SUCCESS;
+    return RI_FORCE_PUSH_RESULT_SUCCESS;
   }
 
   ri_queue_t *queue = &producer->queue;
@@ -210,7 +210,7 @@ ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer)
   ri_index_t tail = ri_queue_tail_load(queue);
 
   if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK))
-    return RI_PRODUCE_RESULT_ERROR;
+    return RI_FORCE_PUSH_RESULT_ERROR;
 
   bool consumed = !!(tail & RI_CONSUMED_FLAG);
 
@@ -264,18 +264,18 @@ ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer)
     }
   }
 
-  return discarded ? RI_PRODUCE_RESULT_DISCARDED : RI_PRODUCE_RESULT_SUCCESS;
+  return discarded ? RI_FORCE_PUSH_RESULT_DISCARDED : RI_FORCE_PUSH_RESULT_SUCCESS;
 }
 
 /* trys to insert the next message into the queue */
-ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
+ri_try_push_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
 {
   ri_index_t next = producer->chain[producer->current];
 
   if (producer->head == RI_INDEX_INVALID) {
     enqueue_first_msg(producer);
     producer->current = next;
-    return RI_PRODUCE_RESULT_SUCCESS;
+    return RI_TRY_PUSH_RESULT_SUCCESS;
   }
 
   const ri_queue_t *queue = &producer->queue;
@@ -283,7 +283,7 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
   ri_index_t tail = ri_queue_tail_load(queue);
 
   if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK))
-    return RI_PRODUCE_RESULT_ERROR;
+    return RI_TRY_PUSH_RESULT_ERROR;
 
   if (producer->overrun != RI_INDEX_INVALID) {
     bool consumed = !!(tail & RI_CONSUMED_FLAG);
@@ -298,7 +298,7 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
       producer->current = producer->overrun;
       producer->overrun = RI_INDEX_INVALID;
 
-      return RI_PRODUCE_RESULT_SUCCESS;
+      return RI_TRY_PUSH_RESULT_SUCCESS;
     }
   } else {
     bool full = next == (tail & RI_INDEX_MASK);
@@ -309,11 +309,11 @@ ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer)
 
       producer->current = next;
 
-      return RI_PRODUCE_RESULT_SUCCESS;
+      return RI_TRY_PUSH_RESULT_SUCCESS;
     }
   }
 
-  return RI_PRODUCE_RESULT_FAIL;
+  return RI_TRY_PUSH_RESULT_FAIL;
 }
 
 

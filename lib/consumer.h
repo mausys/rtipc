@@ -17,6 +17,6 @@ size_t ri_consumer_queue_msg_size(const ri_consumer_queue_t *consumer);
 
 const void* ri_consumer_queue_msg(const ri_consumer_queue_t *consumer);
 
-ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer);
+ri_pop_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer);
 
-ri_consume_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer);
+ri_pop_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer);

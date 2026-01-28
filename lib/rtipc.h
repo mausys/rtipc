@@ -351,58 +351,6 @@ typedef struct ri_consumer ri_consumer_t;
 
 
 /**
- * @enum ri_consume_result_t
- * @brief Result codes returned by ri_consumer_pop.
- *
- * These values describe the outcome of attempting to consume data from
- * a channel.
- */
-typedef enum ri_consume_result {
-  /**
-   * A fatal error occurred.
-   *
-   * Indicates an unrecoverable condition such as internal corruption,
-   * invalid state, or a system-level failure. The caller should treat
-   * the channel as unusable after this result.
-   */
-  RI_CONSUME_RESULT_ERROR = -2,
-
-  /**
-   * No message has ever been produced.
-   *
-   * The channel has not yet received any data since creation.
-   */
-  RI_CONSUME_RESULT_NO_MSG = -1,
-
-  /**
-   * No new message since the last successful consume.
-   *
-   * Data was previously available, but nothing new has been produced
-   * since the caller last consumed a message.
-   */
-  RI_CONSUME_RESULT_NO_UPDATE = 0,
-
-  /**
-   * One message was successfully consumed.
-   *
-   * At least one message newer than the last consumed one was available.
-   */
-  RI_CONSUME_RESULT_SUCCESS = 1,
-
-  /**
-   * Messages were lost due to queue overflow.
-   *
-   * One or more older messages were overwritten by producers before
-   * they could be consumed. The message returned is the **oldest message
-   * still available** in the queue, meaning a gap in the data stream
-   * has occurred.
-   */
-  RI_CONSUME_RESULT_DISCARDED = 2,
-
-} ri_consume_result_t;
-
-
-/**
  * @brief ri_vector_take_consumer get a pointer to a consumer
  *
  * @param shm shared memory object
@@ -437,6 +385,57 @@ const void* ri_consumer_msg(const ri_consumer_t *consumer);
 
 
 /**
+ * @enum ri_pop_result_t
+ * @brief Result codes returned by ri_consumer_pop.
+ *
+ * These values describe the outcome of attempting to consume data from
+ * a channel.
+ */
+typedef enum ri_pop_result {
+  /**
+   * A fatal error occurred.
+   *
+   * Indicates an unrecoverable condition such as internal corruption,
+   * invalid state, or a system-level failure. The caller should treat
+   * the channel as unusable after this result.
+   */
+  RI_POP_RESULT_ERROR = -2,
+
+  /**
+   * No message has ever been produced.
+   *
+   * The channel has not yet received any data since creation.
+   */
+  RI_POP_RESULT_NO_MSG = -1,
+
+  /**
+   * No new message since the last successful consume.
+   *
+   * Data was previously available, but nothing new has been produced
+   * since the caller last consumed a message.
+   */
+  RI_POP_RESULT_NO_UPDATE = 0,
+
+  /**
+   * One message was successfully consumed.
+   *
+   * At least one message newer than the last consumed one was available.
+   */
+  RI_POP_RESULT_SUCCESS = 1,
+
+  /**
+   * Messages were lost due to queue overflow.
+   *
+   * One or more older messages were overwritten by producers before
+   * they could be consumed. The message returned is the **oldest message
+   * still available** in the queue, meaning a gap in the data stream
+   * has occurred.
+   */
+  RI_POP_RESULT_DISCARDED = 2,
+
+} ri_pop_result_t;
+
+/**
  * @brief Advances to the next available message in the queue.
  *
  * After a successful call, @ref ri_consumer_msg returns the newly
@@ -444,7 +443,7 @@ const void* ri_consumer_msg(const ri_consumer_t *consumer);
  *
  * This function never blocks.
  */
-ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
+ri_pop_result_t ri_consumer_pop(ri_consumer_t *consumer);
 
 
 /**
@@ -453,7 +452,7 @@ ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer);
  * @param consumer pointer to consumer
  * @return result
  */
-ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer);
+ri_pop_result_t ri_consumer_flush(ri_consumer_t *consumer);
 
 
 /**
@@ -515,49 +514,6 @@ void ri_consumer_free_info(ri_consumer_t *consumer);
  */
 typedef struct ri_producer ri_producer_t;
 
-/**
- * @enum ri_produce_result_t
- * @brief Result codes returned by a produce (push) operation.
- *
- * These values describe the outcome of attempting to add a message to
- * a producer channel.
- */
-typedef enum ri_produce_result {
-
-  /**
-   * A fatal error occurred.
-   *
-   * Indicates an unrecoverable condition such as internal corruption,
-   * invalid state, or a system-level failure. The caller should treat
-   * the channel as unusable after this result.
-   */
-  RI_PRODUCE_RESULT_ERROR = -2,
-
-  /**
-   * The message was not queued because the queue was full.
-   *
-   * This result can only occur when using @c ri_producer_try_push.
-   * No existing messages were modified or removed.
-   */
-  RI_PRODUCE_RESULT_FAIL = -1,
-
-  /**
-   * The message was successfully added to the queue.
-   *
-   * No messages were lost as a result of this operation.
-   */
-  RI_PRODUCE_RESULT_SUCCESS = 1,
-
-  /**
-   * The message was added, but the oldest queued message was discarded.
-   *
-   * This result can only occur when using @c ri_producer_force_push.
-   * Data loss has occurred because the queue was already full.
-   */
-  RI_PRODUCE_RESULT_DISCARDED = 2,
-
-} ri_produce_result_t;
-
 
 /**
  * @brief ri_rtipc_take_producer get a pointer to a producer
@@ -594,13 +550,77 @@ void* ri_producer_msg(const ri_producer_t *producer);
 
 
 /**
+ * @enum ri_produce_result_t
+ * @brief Result codes returned by a produce (push) operation.
+ *
+ * These values describe the outcome of attempting to add a message to
+ * a producer channel.
+ */
+typedef enum ri_force_push_result {
+
+  /**
+   * A fatal error occurred.
+   *
+   * Indicates an unrecoverable condition such as internal corruption,
+   * invalid state, or a system-level failure. The caller should treat
+   * the channel as unusable after this result.
+   */
+  RI_FORCE_PUSH_RESULT_ERROR = -2,
+
+  /**
+   * The message was successfully added to the queue.
+   *
+   * No messages were lost as a result of this operation.
+   */
+  RI_FORCE_PUSH_RESULT_SUCCESS = 1,
+
+  /**
+   * The message was added, but the oldest queued message was discarded.
+   *
+   * Data loss has occurred because the queue was already full.
+   */
+  RI_FORCE_PUSH_RESULT_DISCARDED = 2,
+
+} ri_force_push_result_t;
+
+/**
  * @brief ri_producer_force_push submits current message and get a new message
  *
  * @param producer pointer to producer
  * @return result
  */
-ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
+ri_force_push_result_t ri_producer_force_push(ri_producer_t *producer);
 
+
+/**
+ * @enum ri_try_result_t
+ * @brief Result codes returned by a produce (push) operation.
+ *
+ * These values describe the outcome of attempting to add a message to
+ * a producer channel.
+ */
+typedef enum ri_try_push_result {
+
+  /**
+   * A fatal error occurred.
+   *
+   * Indicates an unrecoverable condition such as internal corruption,
+   * invalid state, or a system-level failure. The caller should treat
+   * the channel as unusable after this result.
+   */
+  RI_TRY_PUSH_RESULT_ERROR = -2,
+
+  /**
+   * The message was not queued because the queue was full.
+   */
+  RI_TRY_PUSH_RESULT_FAIL = -1,
+
+  /**
+   * The message was successfully added to the queue.
+   */
+  RI_TRY_PUSH_RESULT_SUCCESS = 1,
+
+} ri_try_push_result_t;
 
 /**
  * @brief ri_producer_try_push submits current message and get a new message,
@@ -609,7 +629,7 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer);
  * @param producer pointer to producer
  * @return result
  */
-ri_produce_result_t ri_producer_try_push(ri_producer_t *producer);
+ri_try_push_result_t ri_producer_try_push(ri_producer_t *producer);
 
 
 /**

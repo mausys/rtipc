@@ -1,8 +1,6 @@
 #pragma once
 
 #include <stddef.h>
-#include <stdint.h>
-
 
 #include "rtipc.h"
 #include "shm.h"
@@ -22,8 +20,8 @@ size_t ri_producer_queue_msg_size(const ri_producer_queue_t *producer);
 
 void* ri_producer_queue_msg(const ri_producer_queue_t *producer);
 
-ri_produce_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer);
+ri_force_push_result_t ri_producer_queue_force_push(ri_producer_queue_t *producer);
 
-ri_produce_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer);
+ri_try_push_result_t ri_producer_queue_try_push(ri_producer_queue_t *producer);
 
 bool ri_producer_queue_full(const ri_producer_queue_t *producer);

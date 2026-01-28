@@ -65,7 +65,7 @@ void ri_consumer_queue_init_shm(const ri_consumer_queue_t *consumer)
 }
 
 
-ri_consume_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
+ri_pop_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
 {
   ri_queue_t *queue = &consumer->queue;
 
@@ -74,17 +74,17 @@ ri_consume_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
 
     if (tail == RI_INDEX_INVALID) {
       /* or CONSUMED_FLAG doesn't change INDEX_END*/
-      return RI_CONSUME_RESULT_NO_MSG;
+      return RI_POP_RESULT_NO_MSG;
     }
 
     if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK)) {
-      return RI_CONSUME_RESULT_ERROR;
+      return RI_POP_RESULT_ERROR;
     }
 
     ri_index_t head = atomic_load(queue->head);
 
     if (!ri_queue_index_valid(queue, head)) {
-      return RI_CONSUME_RESULT_ERROR;
+      return RI_POP_RESULT_ERROR;
     }
 
     tail |= RI_CONSUMED_FLAG;
@@ -98,24 +98,24 @@ ri_consume_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
     }
   }
 
-  return RI_CONSUME_RESULT_DISCARDED;
+  return RI_POP_RESULT_DISCARDED;
 }
 
-ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer)
+ri_pop_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer)
 {
   ri_queue_t *queue = &consumer->queue;
   ri_index_t tail = ri_queue_tail_fetch_or(queue, RI_CONSUMED_FLAG);
 
   if (tail == RI_INDEX_INVALID)
-    return RI_CONSUME_RESULT_NO_MSG;
+    return RI_POP_RESULT_NO_MSG;
 
   if (!ri_queue_index_valid(queue, tail & RI_INDEX_MASK))
-    return RI_CONSUME_RESULT_ERROR;
+    return RI_POP_RESULT_ERROR;
 
   if ((tail & RI_CONSUMED_FLAG) == 0) {
     /* producer moved tail (force_push), so use it; one or more messages were discarded */
     consumer->current = tail & RI_INDEX_MASK;
-    return (tail & RI_FIRST_FLAG) ? RI_CONSUME_RESULT_SUCCESS : RI_CONSUME_RESULT_DISCARDED;
+    return (tail & RI_FIRST_FLAG) ? RI_POP_RESULT_SUCCESS : RI_POP_RESULT_DISCARDED;
   }
 
   /* try to get next message */
@@ -123,24 +123,24 @@ ri_consume_result_t ri_consumer_queue_pop(ri_consumer_queue_t *consumer)
 
   if (next == RI_INDEX_INVALID)
     /* end of queue, no newer message available */
-    return RI_CONSUME_RESULT_NO_UPDATE;
+    return RI_POP_RESULT_NO_UPDATE;
 
   if (!ri_queue_index_valid(queue, next))
-    return RI_CONSUME_RESULT_ERROR;
+    return RI_POP_RESULT_ERROR;
 
   if (ri_queue_tail_compare_exchange(queue, tail, next | RI_CONSUMED_FLAG)) {
     consumer->current = next;
-    return RI_CONSUME_RESULT_SUCCESS;
+    return RI_POP_RESULT_SUCCESS;
   } else {
     /* producer just moved tail, use it */
     ri_index_t current = ri_queue_tail_fetch_or(queue, RI_CONSUMED_FLAG);
 
     if (!ri_queue_index_valid(queue, current))
-      return RI_CONSUME_RESULT_ERROR;
+      return RI_POP_RESULT_ERROR;
 
     consumer->current = current;
 
-    return RI_CONSUME_RESULT_DISCARDED;
+    return RI_POP_RESULT_DISCARDED;
   }
 }
 

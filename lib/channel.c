@@ -1,5 +1,6 @@
 #include "channel.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -306,14 +307,14 @@ void ri_producer_free_info(ri_producer_t *producer)
 }
 
 
-ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer)
+ri_pop_result_t ri_consumer_pop(ri_consumer_t *consumer)
 {
   if (consumer->eventfd >= 0) {
     uint64_t v;
     int r = read(consumer->eventfd, &v, sizeof(v));
 
     if (r < 0) {
-      return ri_consumer_queue_msg(consumer->queue)? RI_CONSUME_RESULT_NO_UPDATE : RI_CONSUME_RESULT_NO_MSG;
+      return ri_consumer_queue_msg(consumer->queue)? RI_POP_RESULT_NO_UPDATE : RI_POP_RESULT_NO_MSG;
     }
   }
 
@@ -321,13 +322,13 @@ ri_consume_result_t ri_consumer_pop(ri_consumer_t *consumer)
 }
 
 
-ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
+ri_pop_result_t ri_consumer_flush(ri_consumer_t *consumer)
 {
-  ri_consume_result_t r;
+  ri_pop_result_t r;
   if (consumer->eventfd >= 0) {
     do {
       r = ri_consumer_pop(consumer);
-    } while (r == RI_CONSUME_RESULT_SUCCESS);
+    } while (r == RI_POP_RESULT_SUCCESS);
   } else {
     r = ri_consumer_queue_flush(consumer->queue);
   }
@@ -336,15 +337,15 @@ ri_consume_result_t ri_consumer_flush(ri_consumer_t *consumer)
 }
 
 
-ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
+ri_force_push_result_t ri_producer_force_push(ri_producer_t *producer)
 {
   if (producer->cache) {
     producer_cache_write(producer);
   }
 
-  ri_produce_result_t r = ri_producer_queue_force_push(producer->queue);
+  ri_force_push_result_t r = ri_producer_queue_force_push(producer->queue);
 
-  if ((producer->eventfd >= 0) && (r == RI_PRODUCE_RESULT_SUCCESS)) {
+  if ((producer->eventfd >= 0) && (r == RI_FORCE_PUSH_RESULT_SUCCESS)) {
     uint64_t v = 1;
     write(producer->eventfd, &v, sizeof(v));
   }
@@ -353,18 +354,18 @@ ri_produce_result_t ri_producer_force_push(ri_producer_t *producer)
 }
 
 
-ri_produce_result_t ri_producer_try_push(ri_producer_t *producer)
+ri_try_push_result_t ri_producer_try_push(ri_producer_t *producer)
 {
   if (producer->cache) {
     if (ri_producer_queue_full(producer->queue))
-      return RI_PRODUCE_RESULT_FAIL;
+      return RI_TRY_PUSH_RESULT_FAIL;
 
     producer_cache_write(producer);
   }
 
-  ri_produce_result_t r = ri_producer_queue_try_push(producer->queue);
+  ri_try_push_result_t r = ri_producer_queue_try_push(producer->queue);
 
-  if ((producer->eventfd >= 0) && (r == RI_PRODUCE_RESULT_SUCCESS)) {
+  if ((producer->eventfd >= 0) && (r == RI_TRY_PUSH_RESULT_SUCCESS)) {
     uint64_t v = 1;
     write(producer->eventfd, &v, sizeof(v));
   }
