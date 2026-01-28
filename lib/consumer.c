@@ -70,7 +70,7 @@ ri_pop_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
   ri_queue_t *queue = &consumer->queue;
 
   for (;;) {
-    ri_index_t tail = atomic_fetch_or(queue->tail, RI_CONSUMED_FLAG);
+    ri_index_t tail = ri_queue_tail_fetch_or(queue, RI_CONSUMED_FLAG);
 
     if (tail == RI_INDEX_INVALID) {
       /* or CONSUMED_FLAG doesn't change INDEX_END*/
@@ -81,7 +81,7 @@ ri_pop_result_t ri_consumer_queue_flush(ri_consumer_queue_t *consumer)
       return RI_POP_RESULT_ERROR;
     }
 
-    ri_index_t head = atomic_load(queue->head);
+    ri_index_t head = ri_queue_head_load(queue);
 
     if (!ri_queue_index_valid(queue, head)) {
       return RI_POP_RESULT_ERROR;
