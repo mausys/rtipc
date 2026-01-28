@@ -95,7 +95,7 @@ static int32_t server_send_events(ri_producer_t *producer, uint32_t id, unsigned
     if (force) {
       ri_producer_force_push(producer);
     } else {
-      if (ri_producer_try_push(producer) == RI_PRODUCE_RESULT_FAIL) {
+      if (ri_producer_try_push(producer) == RI_TRY_PUSH_RESULT_FAIL) {
         return i;
       }
     }
@@ -120,9 +120,9 @@ void app_run(app_t *app)
   for (int i = 0; i < MAX_CYCLES; i++) {
 
     bool run = true;
-    ri_consume_result_t r = ri_consumer_pop(app->command);
+    ri_pop_result_t r = ri_consumer_pop(app->command);
 
-    if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+    if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
       usleep(1000);
       continue;
     }

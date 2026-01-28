@@ -95,9 +95,9 @@ int event_listen(void *arg)
     }
 
     if (pollfd.revents & POLLIN) {
-      ri_consume_result_t r = ri_consumer_pop(app->event);
+      ri_pop_result_t r = ri_consumer_pop(app->event);
 
-      if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+      if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
          printf("message queue empty");
       }
 
@@ -169,12 +169,12 @@ void app_run(app_t *app, const msg_command_t *cmds)
     ri_producer_force_push(app->command);
 
     for (;;) {
-      ri_consume_result_t r = ri_consumer_pop(app->response);
+      ri_pop_result_t r = ri_consumer_pop(app->response);
 
-      if (r == RI_CONSUME_RESULT_ERROR) {
+      if (r == RI_POP_RESULT_ERROR) {
         printf("ri_consumer_pop receive error\n");
         return;
-      } else if ((r == RI_CONSUME_RESULT_NO_MSG) || (r == RI_CONSUME_RESULT_NO_UPDATE)) {
+      } else if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
         usleep(1000);
         continue;
       } else {

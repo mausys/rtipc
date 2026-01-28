@@ -18,17 +18,24 @@
 
 #define CLOCKID CLOCK_PROCESS_CPUTIME_ID
 
+#ifndef ADDITIONAL_MSGS
+#define ADDITIONAL_MSGS 100
+#endif
+
 #ifndef SEND_NUM_MSGS
 #define SEND_NUM_MSGS 10000000
 #endif
 
 #ifndef CPU_SERVER
-#define CPU_SERVER 0
+#define CPU_SERVER 2
 #endif
 
 #ifndef CPU_CLIENT
-#define CPU_CLIENT 1
+#define CPU_CLIENT 0
 #endif
+
+
+#define COUNTER_INIT UINT64_MAX
 
 typedef int (*entry_fn)(int);
 
@@ -124,26 +131,26 @@ static uint64_t timestamp_elapsed(const struct timespec *earlier)
 
 static int consume(ri_consumer_t *consumer, uint64_t *counter, server_stat_t *stat) {
   int r = 1;
-  ri_consume_result_t result = ri_consumer_pop(consumer);
+  ri_pop_result_t result = ri_consumer_pop(consumer);
 
   switch (result) {
-    case RI_CONSUME_RESULT_ERROR:
+    case RI_POP_RESULT_ERROR:
       r = -1;
       printf("RI_CONSUME_RESULT_ERROR\n");
       break;
-    case RI_CONSUME_RESULT_NO_MSG:
-      if (*counter != 0) {
+    case RI_POP_RESULT_NO_MSG:
+      if (*counter != COUNTER_INIT) {
         printf("RI_CONSUME_RESULT_NO_MSG but message was already received\n");
         r = -1;
       }
       break;
-    case RI_CONSUME_RESULT_NO_UPDATE:
+    case RI_POP_RESULT_NO_UPDATE:
       break;
-    case RI_CONSUME_RESULT_SUCCESS: {
+    case RI_POP_RESULT_SUCCESS: {
         const msg_t *msg = ri_consumer_msg(consumer);
         stat->received++;
 
-        if ((*counter != 0) && (msg->counter != *counter + 1)) {
+        if ((*counter != COUNTER_INIT) && (msg->counter != *counter + 1)) {
           printf("RI_CONSUME_RESULT_SUCCESS counter missmatch msg:%lu previous:%lu\n" , msg->counter, *counter);
           r = -1;
         }
@@ -154,18 +161,19 @@ static int consume(ri_consumer_t *consumer, uint64_t *counter, server_stat_t *st
         }
       }
       break;
-    case RI_CONSUME_RESULT_DISCARDED: {
-        stat->received++;
-        stat->overflowed++;
+    case RI_POP_RESULT_DISCARDED: {
         const msg_t *msg = ri_consumer_msg(consumer);
 
-        if ((*counter != 0) && (msg->counter <= *counter + 1)) {
+        stat->received++;
+        stat->overflowed++;
+
+        if ((*counter != COUNTER_INIT) && (msg->counter <= *counter + 1)) {
           printf("RI_CONSUME_RESULT_DISCARDED counter missmatch msg:%lu previous:%lu\n", msg->counter, *counter);
           r = -1;
           break;
         }
 
-        stat->dropped += msg->counter - *counter - 1;
+        stat->dropped += *counter == COUNTER_INIT ? msg->counter : msg->counter - *counter - 1;
         *counter = msg->counter;
 
         if (msg->stop) {
@@ -185,21 +193,17 @@ static int produce(ri_producer_t *producer, uint64_t counter, client_stat_t *sta
 
   msg_t *msg = ri_producer_msg(producer);
   msg->counter = counter;
-  ri_produce_result_t result = ri_producer_force_push(producer);
+  ri_force_push_result_t result = ri_producer_force_push(producer);
 
   switch (result) {
-    case RI_PRODUCE_RESULT_ERROR:
+    case RI_FORCE_PUSH_RESULT_ERROR:
       r = -1;
       printf("RI_PRODUCE_RESULT_ERROR\n");
       break;
-    case RI_PRODUCE_RESULT_FAIL:
-      r = -1;
-      printf("RI_PRODUCE_RESULT_FAIL\n");
-      break;
-    case RI_PRODUCE_RESULT_SUCCESS:
+    case RI_FORCE_PUSH_RESULT_SUCCESS:
       stat->sent++;
       break;
-    case RI_PRODUCE_RESULT_DISCARDED:
+    case RI_FORCE_PUSH_RESULT_DISCARDED:
       stat->sent++;
       stat->dropped++;
       break;
@@ -210,7 +214,7 @@ static int produce(ri_producer_t *producer, uint64_t counter, client_stat_t *sta
 static int client_entry(int socket)
 {
   const ri_channel_t producers[] = {
-    (ri_channel_t) { .add_msgs = 0, .msg_size = sizeof(msg_t)},
+    (ri_channel_t) { .add_msgs = ADDITIONAL_MSGS, .msg_size = sizeof(msg_t)},
     { 0 },
   };
 
@@ -258,12 +262,13 @@ static int client_entry(int socket)
   /* not needed anymore */
   ri_producer_delete(producer);
 
+  /* let the server print first */
+  usleep(100000);
+
   print_client_stat(&stat);
   printf("%lu nanoseconds elapsed\n", elapsed);
   double msg_sec = (double)stat.sent / (double)elapsed * 1000000000.0;
   printf("send rate: %f msg/s \n", msg_sec);
-
-
 
   return 0;
 
@@ -294,7 +299,7 @@ static int server_entry(int socket)
 
   server_stat_t stat = {0};
 
-  uint64_t counter = 0;
+  uint64_t counter = COUNTER_INIT;
 
   while (state > 0) {
     state = consume(consumer, &counter, &stat);
@@ -325,6 +330,8 @@ static pid_t fork_on_cpu(int cpu, entry_fn entry, int socket)
 
     int r = entry(socket);
 
+    fflush(stdout);
+
     _exit(r);
   }
 
@@ -336,8 +343,6 @@ static pid_t fork_on_cpu(int cpu, entry_fn entry, int socket)
 int main()
 {
   int sockets[2];
-
-
 
   int r = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets);
 
@@ -357,9 +362,12 @@ int main()
   int client_status;
   int server_status;
 
+  waitpid(client, &client_status, 0);
+  waitpid(server, &server_status, 0);
 
-  pid_t pid = waitpid(client, &client_status, 0);
-  pid = waitpid(server, &server_status, 0);
+  printf("server (%d) and client (%d) terminated\n", server_status, client_status);
+
+  usleep(10000);
 
   return 0;
 fail_connect:
