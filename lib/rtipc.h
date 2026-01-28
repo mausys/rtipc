@@ -351,11 +351,14 @@ typedef struct ri_consumer ri_consumer_t;
 
 
 /**
- * @brief ri_vector_take_consumer get a pointer to a consumer
+ * @brief Transfer ownership of a consumer channel from the vector to the caller.
  *
- * @param shm shared memory object
- * @param index consumer channel index
- * @return pointer to consumer; NULL on error
+ * Removes the consumer at the specified index from the vector and transfers
+ * ownership to the caller, who becomes responsible for its lifetime.
+ *
+ * @param vec   Pointer to the vector containing consumer channels.
+ * @param index Index of the consumer channel to take.
+ * @return Pointer to the consumer on success; NULL on error.
  */
 ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index);
 
@@ -456,10 +459,10 @@ ri_pop_result_t ri_consumer_flush(ri_consumer_t *consumer);
 
 
 /**
- * @brief ri_consumer_msg_size get message size
+ * @brief Get the size of messages in the consumer's message queue.
  *
- * @param consumer pointer to consumer
- * @return size of message
+ * @param consumer Pointer to the consumer instance.
+ * @return Size of messages in the queue, in bytes.
  */
 size_t ri_consumer_msg_size(const ri_consumer_t *consumer);
 \
@@ -516,11 +519,14 @@ typedef struct ri_producer ri_producer_t;
 
 
 /**
- * @brief ri_rtipc_take_producer get a pointer to a producer
+ * @brief Transfer ownership of a producer channel from the vector to the caller.
  *
- * @param shm shared memory object
- * @param index producer channel index
- * @return pointer to producer; NULL on error
+ * Removes the producer at the specified index from the vector and transfers
+ * ownership to the caller, who becomes responsible for its lifetime.
+ *
+ * @param vec   Pointer to the vector containing producer channels.
+ * @param index Index of the producer channel to take.
+ * @return Pointer to the producer on success; NULL on error.
  */
 ri_producer_t* ri_vector_take_producer(ri_vector_t *vec, unsigned index);
 
@@ -583,11 +589,16 @@ typedef enum ri_force_push_result {
 
 } ri_force_push_result_t;
 
+
 /**
- * @brief ri_producer_force_push submits current message and get a new message
+ * @brief Submit the current message and acquire a new message buffer, discarding
+ *        the oldest queued message if necessary.
  *
- * @param producer pointer to producer
- * @return result
+ * If the queue is full, the oldest message that is not currently in use by the
+ * consumer will be discarded to make room for the new message.
+ *
+ * @param producer Pointer to the producer instance.
+ * @return Result indicating the outcome of the operation.
  */
 ri_force_push_result_t ri_producer_force_push(ri_producer_t *producer);
 
@@ -622,21 +633,25 @@ typedef enum ri_try_push_result {
 
 } ri_try_push_result_t;
 
+
 /**
- * @brief ri_producer_try_push submits current message and get a new message,
- * if queue is not full
+ * @brief Attempt to submit the current message and acquire a new message buffer.
  *
- * @param producer pointer to producer
- * @return result
+ * If the producer's queue is not full, the current message is enqueued and
+ * a new message buffer is returned to the producer. If the queue is full,
+ * no message is submitted and the producer retains the current message.
+ *
+ * @param producer Pointer to the producer instance.
+ * @return Result indicating whether the message was submitted successfully.
  */
 ri_try_push_result_t ri_producer_try_push(ri_producer_t *producer);
 
 
 /**
- * @brief ri_producer_msg_size get message size
+ * @brief Get the size of messages in the producer's message queue.
  *
- * @param producer pointer to producer
- * @return size of message
+ * @param producer Pointer to the producer instance.
+ * @return Size of messages in the queue, in bytes.
  */
 size_t ri_producer_msg_size(const ri_producer_t *producer);
 
