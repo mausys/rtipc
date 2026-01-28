@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "rtipc.h"
 
@@ -65,15 +64,18 @@ static inline ri_index_t ri_queue_tail_load(const ri_queue_t *queue)
   return atomic_load(queue->tail);
 }
 
+
 static inline void ri_queue_tail_store(const ri_queue_t *queue, ri_index_t val)
 {
   atomic_store(queue->tail, val);
 }
 
+
 static inline ri_index_t ri_queue_tail_fetch_or(const ri_queue_t *queue, ri_index_t val)
 {
   return atomic_fetch_or(queue->tail, val);
 }
+
 
 static inline bool ri_queue_tail_compare_exchange(const ri_queue_t *queue,
                                                     ri_index_t expected,
@@ -82,20 +84,24 @@ static inline bool ri_queue_tail_compare_exchange(const ri_queue_t *queue,
   return atomic_compare_exchange_strong(queue->tail, &expected, desired);
 }
 
+
 static inline ri_index_t ri_queue_head_load(const ri_queue_t *queue)
 {
   return atomic_load(queue->head);
 }
+
 
 static inline void ri_queue_head_store(const ri_queue_t *queue, ri_index_t val)
 {
   atomic_store(queue->head, val);
 }
 
+
 static inline ri_index_t ri_queue_chain_load(const ri_queue_t *queue, ri_index_t idx)
 {
   return atomic_load(&queue->chain[idx]);
 }
+
 
 static inline void ri_queue_chain_store(const ri_queue_t *queue,
                                           ri_index_t idx,
@@ -103,6 +109,7 @@ static inline void ri_queue_chain_store(const ri_queue_t *queue,
 {
   atomic_store(&queue->chain[idx], val);
 }
+
 
 static inline bool ri_queue_index_valid(const ri_queue_t *queue, ri_index_t idx)
 {

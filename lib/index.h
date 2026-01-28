@@ -7,6 +7,7 @@
 #if ATOMIC_INT_LOCK_FREE == 2
 
 typedef unsigned int ri_index_t;
+
 typedef atomic_uint ri_atomic_index_t;
 
 #define RI_INDEX_INVALID UINT_MAX

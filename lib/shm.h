@@ -9,7 +9,6 @@ typedef struct ri_shm ri_shm_t;
 ri_shm_t* ri_shm_new(size_t size);
 ri_shm_t* ri_shm_map(int fd);
 
-
 void ri_shm_ref(ri_shm_t *shm);
 void ri_shm_unref(ri_shm_t *shm);
 
