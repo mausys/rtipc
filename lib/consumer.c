@@ -4,10 +4,21 @@
 
 #include "queue.h"
 
-struct ri_consumer_queue
-{
+struct ri_consumer_queue {
+  /**
+   * Pointer to the shared memory this queue is mapped to.
+   * Only used to decrement the shared memory reference counter on deletion.
+   */
   ri_shm_t *shm;
+
+  /**
+   * The queue structure stored in shared memory.
+   */
   ri_queue_t queue;
+
+  /**
+   * Index of the message currently being used by the consumer.
+   */
   ri_index_t current;
 };
 
