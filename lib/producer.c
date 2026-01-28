@@ -1,7 +1,6 @@
 #include "producer.h"
 
 #include <assert.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -9,18 +8,43 @@
 #include "channel.h"
 #include "queue.h"
 
-#include "log.h"
 
-
-struct ri_producer_queue
-{
+struct ri_producer_queue {
+  /**
+   * Pointer to the shared memory this queue is mapped to.
+   * Only used to decrement the shared memory reference counter on deletion.
+   */
   ri_shm_t *shm;
+
+  /**
+   * The queue structure stored in shared memory.
+   */
   ri_queue_t queue;
 
-  ri_index_t head; /* last message in chain that can be used by consumer, chain[head] is always INDEX_END */
-  ri_index_t current; /* message used by producer, will become head  */
-  ri_index_t overrun; /* message used by consumer when tail moved away by producer, will become current when released by consumer */
-  ri_index_t chain[]; /* local copy of chain, because queue is read only for consumer */
+  /**
+   * Index of the last message in the chain available to the consumer.
+   * chain[head] is always INDEX_END.
+  */
+  ri_index_t head;
+
+  /**
+   * Index of the message currently being used by the producer.
+   * Will become the new head once finalized.
+   */
+  ri_index_t current;
+
+  /**
+   * Index of a message accessed by the consumer after the producer
+   * has advanced the tail. Will become 'current' when released by consumer.
+   */
+  ri_index_t overrun;
+
+  /**
+   * Local copy of the message chain.
+   * Required because the consumer only reads the queue;
+   * reading from a local copy is safer and faster.
+   */
+  ri_index_t chain[];
 };
 
 
