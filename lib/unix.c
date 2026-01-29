@@ -40,6 +40,7 @@ static int shm_init(int fd, size_t size, bool sealing)
   int r = ftruncate(fd, size);
 
   if (r < 0) {
+    r = -errno;
     LOG_ERR("ftruncate to size=%zu failed: %s", size, strerror(errno));
     return r;
   }
@@ -48,6 +49,7 @@ static int shm_init(int fd, size_t size, bool sealing)
     r = fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
 
     if (r < 0) {
+      r = -errno;
       LOG_ERR("fcntl F_ADD_SEALS failed: %s", strerror(errno));
       return r;
     }
@@ -88,14 +90,21 @@ fail_create:
 }
 
 
-int ri_eventfd(void)
+int ri_eventfd_create(void)
 {
-  return eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE | EFD_NONBLOCK);
+  int r = eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE | EFD_NONBLOCK);
+
+  if (r < 0) {
+    r = -errno;
+     LOG_ERR("fcntl eventfd failed: %s", strerror(errno));
+  }
+
+  return r;
 }
 
 
 
-int ri_check_memfd(int fd)
+int ri_memfd_verify(int fd)
 {
   char path[32];
   char link[32];
@@ -112,7 +121,7 @@ int ri_check_memfd(int fd)
 }
 
 
-int ri_check_eventfd(int fd)
+int ri_eventfd_veryfy(int fd)
 {
   char path[32];
   char link[32];

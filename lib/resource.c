@@ -79,7 +79,7 @@ ri_resource_t* ri_resource_alloc(const ri_config_t *config)
     rsc->consumers[i] = config->consumers[i];
 
     if (config->consumers[i].eventfd > 0) {
-      rsc->consumers[i].eventfd = ri_eventfd();
+      rsc->consumers[i].eventfd = ri_eventfd_create();
       if (rsc->consumers[i].eventfd < 0)
         goto fail_init;
     }
@@ -89,7 +89,7 @@ ri_resource_t* ri_resource_alloc(const ri_config_t *config)
     rsc->producers[i] = config->producers[i];
 
     if (config->producers[i].eventfd > 0) {
-      rsc->producers[i].eventfd = ri_eventfd();
+      rsc->producers[i].eventfd = ri_eventfd_create();
       if (rsc->producers[i].eventfd < 0)
         goto fail_init;
     }
