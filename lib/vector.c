@@ -20,12 +20,23 @@ struct ri_vector {
 };
 
 
-static ri_vector_t* ri_vector_alloc(unsigned n_consumers, unsigned n_producers)
+static ri_vector_t* ri_vector_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
 {
   ri_vector_t *vec = calloc(1, sizeof(ri_vector_t));
 
   if (!vec)
     goto fail_alloc;
+
+  if (info->size > 0 && vec->info.data) {
+    vec->info.data = malloc(info->size);
+
+    if (!vec->info.data)
+      goto fail_info;
+
+    memcpy(vec->info.data, info->data, info->size);
+
+    vec->info.size = info->size;
+  }
 
   if (n_consumers > 0) {
     vec->consumers = calloc(n_consumers, sizeof(ri_consumer_t*));
@@ -50,6 +61,10 @@ fail_producers:
   if (n_consumers > 0)
     free(vec->consumers);
 fail_consumers:
+  if (vec->info.data) {
+    free(vec->info.data);
+  }
+fail_info:
   free(vec);
 fail_alloc:
   return NULL;
@@ -119,7 +134,7 @@ ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server)
   unsigned n_consumers = ri_count_channels(rsc->consumers);
   unsigned n_producers = ri_count_channels(rsc->producers);
 
-  ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers);
+  ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers, &rsc->info);
 
   if (!vec)
     goto fail_alloc;
@@ -152,10 +167,6 @@ ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server)
     if (r < 0)
       goto fail_channel;
   }
-
-  int r = ri_vector_set_info(vec, &rsc->info);
-    if (r < 0)
-      goto fail_channel;
 
   ri_shm_unref(shm);
   return vec;
@@ -190,24 +201,6 @@ unsigned ri_vector_num_producers(const ri_vector_t *vec)
 unsigned ri_vector_num_consumers(const ri_vector_t *vec)
 {
   return vec->n_consumers;
-}
-
-
-int ri_vector_set_info(ri_vector_t* vec, const ri_info_t *info)
-{
-  if (info->size == 0 || !vec->info.data)
-    return 0;
-
-  vec->info.data = malloc(info->size);
-
-  if (!vec->info.data)
-    return -ENOMEM;
-
-  memcpy(vec->info.data, info->data, info->size);
-
-  vec->info.size = info->size;
-
-  return 0;
 }
 
 
