@@ -5,13 +5,19 @@
 #include <errno.h>
 #include <string.h>
 
-#include "log.h"
 #include "rtipc.h"
 #include "channel.h"
-#include "unix.h"
 
-
-
+struct ri_vector {
+  unsigned n_consumers;
+  unsigned n_producers;
+  ri_consumer_t **consumers;
+  ri_producer_t **producers;
+  struct {
+    size_t size;
+    void *data;
+  } info;
+};
 
 
 static ri_vector_t* ri_vector_alloc(unsigned n_consumers, unsigned n_producers)
