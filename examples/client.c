@@ -23,7 +23,6 @@ const ri_channel_t server2client_channels[] = {
 };
 
 
-
 typedef struct app {
     ri_producer_t *command;
     ri_consumer_t *response;
@@ -31,8 +30,6 @@ typedef struct app {
     thrd_t listener;
     atomic_bool run;
 } app_t;
-
-
 
 
 static msg_command_t commands[] = {
@@ -65,6 +62,7 @@ static msg_command_t commands[] = {
   },
 };
 
+
 static void app_delete(app_t *app)
 {
   if (app->command)
@@ -75,6 +73,7 @@ static void app_delete(app_t *app)
     ri_consumer_delete(app->event);
   free(app);
 }
+
 
 int event_listen(void *arg)
 {
@@ -195,13 +194,13 @@ void app_run(app_t *app, const msg_command_t *cmds)
 }
 
 
-
 int main()
 {
   const ri_config_t config = {
     .consumers = server2client_channels,
     .producers = client2server_channels,
   };
+
   app_t *app = app_new("rtipc.sock", &config);
 
   if (!app) {

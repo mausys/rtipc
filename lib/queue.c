@@ -1,6 +1,5 @@
 #include "queue.h"
 
-#include "log.h"
 #include "mem_utils.h"
 #include "channel.h"
 

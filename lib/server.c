@@ -9,7 +9,6 @@
 #include <sys/un.h>
 
 #include "rtipc.h"
-#include "log.h"
 #include "unix.h"
 #include "protocol.h"
 

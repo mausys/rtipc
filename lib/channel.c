@@ -9,7 +9,6 @@
 #include "producer.h"
 #include "consumer.h"
 #include "unix.h"
-#include "log.h"
 
 struct ri_consumer {
   ri_consumer_queue_t *queue;

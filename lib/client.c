@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include "log.h"
 #include "unix.h"
 #include "protocol.h"
 

@@ -1,4 +1,5 @@
-#include "log.h"
+#include "rtipc.h"
+
 
 #include <fcntl.h>
 #include <stdarg.h>
@@ -7,7 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "rtipc.h"
 
 #define ARG_UNUSED(x) (void)(x)
 

@@ -10,7 +10,6 @@ include(GNUInstallDirs)
 
 set(RTIPC_SRCS
   log.c
-  log.h
   resource.c
   shm.c
   shm.h
@@ -52,6 +51,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
   PUBLIC_HEADER "${RTIPC_INCLUDE_FILES}")
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra  -Wsign-compare)
+target_compile_definitions(${PROJECT_NAME} PUBLIC -DRTIPC_LOG_API=1)
+
 
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

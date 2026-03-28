@@ -17,7 +17,8 @@
 #include <sys/socket.h>
 #include <sys/mman.h> // memfd_create
 
-#include "log.h"
+#include "rtipc.h"
+
 
 /* from kernel/include/net/scm.h */
 #define SCM_MAX_FD     253

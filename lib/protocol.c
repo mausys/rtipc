@@ -8,7 +8,6 @@
 #include "rtipc.h"
 #include "channel.h"
 #include "header.h"
-#include "log.h"
 #include "mem_utils.h"
 
 typedef struct entry {
