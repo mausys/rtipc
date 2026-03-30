@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdatomic.h>
@@ -97,7 +96,7 @@ int event_listen(void *arg)
       ri_pop_result_t r = ri_consumer_pop(app->event);
 
       if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
-         printf("message queue empty");
+         LOG_ERR("message queue empty");
       }
 
       msg_event_print(ri_consumer_msg(app->event));
@@ -171,7 +170,7 @@ void app_run(app_t *app, const msg_command_t *cmds)
       ri_pop_result_t r = ri_consumer_pop(app->response);
 
       if (r == RI_POP_RESULT_ERROR) {
-        printf("ri_consumer_pop receive error\n");
+        LOG_ERR("ri_consumer_pop receive error");
         return;
       } else if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
         usleep(1000);
@@ -181,7 +180,7 @@ void app_run(app_t *app, const msg_command_t *cmds)
       }
     }
 
-    printf("client received:\n");
+    LOG_INF("client received:");
     msg_response_print(ri_consumer_msg(app->response));
     cmd++;
   }
@@ -209,7 +208,7 @@ int main()
 
   app_run(app, commands);
 
-  printf("deleting client\n");
+  LOG_INF("deleting client");
   app_delete(app);
 
   return 0;

@@ -1,7 +1,6 @@
 #define _GNU_SOURCE
 
 #include <stdint.h>
-#include <stdio.h>
 #include <error.h>
 #include <unistd.h>
 #include <errno.h>
@@ -60,18 +59,18 @@ typedef struct client_stat {
 
 void print_server_stat(const server_stat_t *stat)
 {
-  printf("server:\n");
-  printf("\tmsgs received %lu\n", stat->received);
-  printf("\tmsgs dropped %lu\n", stat->dropped);
-  printf("\tqueue overflowed %lu\n", stat->overflowed);
+  LOG_INF("server:");
+  LOG_INF("\tmsgs received %lu", stat->received);
+  LOG_INF("\tmsgs dropped %lu", stat->dropped);
+  LOG_INF("\tqueue overflowed %lu", stat->overflowed);
 }
 
 
 void print_client_stat(const client_stat_t *stat)
 {
-  printf("client:\n");
-  printf("\tmsgs sent %lu\n", stat->sent);
-  printf("\tmsgs dropped %lu\n", stat->dropped);
+  LOG_INF("client:");
+  LOG_INF("\tmsgs sent %lu", stat->sent);
+  LOG_INF("\tmsgs dropped %lu", stat->dropped);
 }
 
 
@@ -136,11 +135,11 @@ static int consume(ri_consumer_t *consumer, uint64_t *counter, server_stat_t *st
   switch (result) {
     case RI_POP_RESULT_ERROR:
       r = -1;
-      printf("RI_CONSUME_RESULT_ERROR\n");
+      LOG_ERR("RI_CONSUME_RESULT_ERROR");
       break;
     case RI_POP_RESULT_NO_MSG:
       if (*counter != COUNTER_INIT) {
-        printf("RI_CONSUME_RESULT_NO_MSG but message was already received\n");
+        LOG_ERR("RI_CONSUME_RESULT_NO_MSG but message was already received");
         r = -1;
       }
       break;
@@ -151,7 +150,7 @@ static int consume(ri_consumer_t *consumer, uint64_t *counter, server_stat_t *st
         stat->received++;
 
         if ((*counter != COUNTER_INIT) && (msg->counter != *counter + 1)) {
-          printf("RI_CONSUME_RESULT_SUCCESS counter missmatch msg:%lu previous:%lu\n" , msg->counter, *counter);
+          LOG_ERR("RI_CONSUME_RESULT_SUCCESS counter missmatch msg:%lu previous:%lu" , msg->counter, *counter);
           r = -1;
         }
 
@@ -168,7 +167,7 @@ static int consume(ri_consumer_t *consumer, uint64_t *counter, server_stat_t *st
         stat->overflowed++;
 
         if ((*counter != COUNTER_INIT) && (msg->counter <= *counter + 1)) {
-          printf("RI_CONSUME_RESULT_DISCARDED counter missmatch msg:%lu previous:%lu\n", msg->counter, *counter);
+          LOG_ERR("RI_CONSUME_RESULT_DISCARDED counter missmatch msg:%lu previous:%lu", msg->counter, *counter);
           r = -1;
           break;
         }
@@ -198,7 +197,7 @@ static int produce(ri_producer_t *producer, uint64_t counter, client_stat_t *sta
   switch (result) {
     case RI_FORCE_PUSH_RESULT_ERROR:
       r = -1;
-      printf("RI_PRODUCE_RESULT_ERROR\n");
+      LOG_ERR("RI_PRODUCE_RESULT_ERROR");
       break;
     case RI_FORCE_PUSH_RESULT_SUCCESS:
       stat->sent++;
@@ -246,7 +245,7 @@ static int client_entry(int socket)
     int r = produce(producer, counter, &stat);
 
     if (r < 0) {
-      printf("produce failed\n");
+      LOG_ERR("produce failed\n");
       break;
     }
   }
@@ -266,9 +265,9 @@ static int client_entry(int socket)
   usleep(100000);
 
   print_client_stat(&stat);
-  printf("%lu nanoseconds elapsed\n", elapsed);
+  LOG_INF("%lu nanoseconds elapsed", elapsed);
   double msg_sec = (double)stat.sent / (double)elapsed * 1000000000.0;
-  printf("send rate: %f msg/s \n", msg_sec);
+  LOG_INF("send rate: %f msg/s", msg_sec);
 
   return 0;
 
@@ -330,8 +329,6 @@ static pid_t fork_on_cpu(int cpu, entry_fn entry, int socket)
 
     int r = entry(socket);
 
-    fflush(stdout);
-
     _exit(r);
   }
 
@@ -365,7 +362,7 @@ int main()
   waitpid(client, &client_status, 0);
   waitpid(server, &server_status, 0);
 
-  printf("server (%d) and client (%d) terminated\n", server_status, client_status);
+  LOG_INF("server (%d) and client (%d) terminated", server_status, client_status);
 
   usleep(10000);
 

@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
 
 
@@ -30,13 +29,13 @@ static void app_delete(app_t* app)
 static void app_print_info(const app_t* app)
 {
   ri_info_t info = ri_consumer_info(app->command);
-  printf("command name = %s\n", (const char*)info.data);
+  LOG_INF("command name = %s", (const char*)info.data);
 
   info = ri_producer_info(app->response);
-  printf("response name = %s\n", (const char*)info.data);
+  LOG_INF("response name = %s", (const char*)info.data);
 
   info = ri_producer_info(app->event);
-  printf("event name = %s\n", (const char*)info.data);
+  LOG_INF("event name = %s", (const char*)info.data);
 
 }
 
@@ -128,7 +127,7 @@ void app_run(app_t *app)
     }
 
     const msg_command_t *cmd = ri_consumer_msg(app->command);
-    printf("server received:\n");
+    LOG_INF("server received:");
     msg_command_print(cmd);
 
     msg_response_t *rsp = ri_producer_msg(app->response);
@@ -170,7 +169,7 @@ int main()
 
   app_run(app);
 
-  printf("deleting server\n");
+  LOG_INF("deleting server");
   app_delete(app);
 
   return 0;
