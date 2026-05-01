@@ -22,13 +22,13 @@ const ri_channel_t server2client_channels[] = {
 };
 
 
-typedef struct app {
+typedef struct client {
     ri_producer_t *command;
     ri_consumer_t *response;
     ri_consumer_t *event;
     thrd_t listener;
     atomic_bool run;
-} app_t;
+} client_t;
 
 
 static msg_command_t commands[] = {
@@ -62,30 +62,30 @@ static msg_command_t commands[] = {
 };
 
 
-static void app_delete(app_t *app)
+static void client_delete(client_t *client)
 {
-  if (app->command)
-    ri_producer_delete(app->command);
-  if (app->response)
-    ri_consumer_delete(app->response);
-  if (app->event)
-    ri_consumer_delete(app->event);
-  free(app);
+  if (client->command)
+    ri_producer_delete(client->command);
+  if (client->response)
+    ri_consumer_delete(client->response);
+  if (client->event)
+    ri_consumer_delete(client->event);
+  free(client);
 }
 
 
 int event_listen(void *arg)
 {
-  app_t *app = arg;
+  client_t *client = arg;
 
-  int eventfd = ri_consumer_eventfd(app->event);
+  int eventfd = ri_consumer_eventfd(client->event);
 
   if (eventfd < 0)
     return eventfd;
 
   struct pollfd pollfd = {.fd = eventfd, .events = POLLIN, };
 
-  while (atomic_load(&app->run)) {
+  while (atomic_load(&client->run)) {
     int r = poll(&pollfd, 1, 10);
 
     if (r < 0) {
@@ -93,13 +93,13 @@ int event_listen(void *arg)
     }
 
     if (pollfd.revents & POLLIN) {
-      ri_pop_result_t r = ri_consumer_pop(app->event);
+      ri_pop_result_t r = ri_consumer_pop(client->event);
 
       if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
          LOG_ERR("message queue empty");
       }
 
-      msg_event_print(ri_consumer_msg(app->event));
+      msg_event_print(ri_consumer_msg(client->event));
     }
 
   }
@@ -107,33 +107,33 @@ int event_listen(void *arg)
   return 0;
 }
 
-static app_t* app_new(const char *path, const ri_config_t *config)
+static client_t* client_new(const char *path, const ri_config_t *config)
 {
   ri_vector_t *vec =  ri_client_connect(path, config);
 
   if (!vec)
     goto fail_connect;
 
-  app_t *app = calloc(1, sizeof(app_t));
+  client_t *client = calloc(1, sizeof(client_t));
 
-  if (!app)
+  if (!client)
     goto fail_alloc;
 
-  app->command = ri_vector_take_producer(vec, 0);
-  if (!app->command)
+  client->command = ri_vector_take_producer(vec, 0);
+  if (!client->command)
     goto fail_channel;
 
-  app->response = ri_vector_take_consumer(vec, 0);
-  if (!app->response)
+  client->response = ri_vector_take_consumer(vec, 0);
+  if (!client->response)
     goto fail_channel;
 
-  app->event = ri_vector_take_consumer(vec, 1);
-  if (!app->event)
+  client->event = ri_vector_take_consumer(vec, 1);
+  if (!client->event)
     goto fail_channel;
 
-  atomic_store(&app->run, true);
+  atomic_store(&client->run, true);
 
-  int r = thrd_create(&app->listener, event_listen, app);
+  int r = thrd_create(&client->listener, event_listen, client);
 
   if (r != thrd_success) {
     goto fail_thread;
@@ -142,11 +142,11 @@ static app_t* app_new(const char *path, const ri_config_t *config)
 
   ri_vector_delete(vec);
 
-  return app;
+  return client;
 
 fail_thread:
 fail_channel:
-  app_delete(app);
+  client_delete(client);
 fail_alloc:
   ri_vector_delete(vec);
 fail_connect:
@@ -155,7 +155,7 @@ fail_connect:
 
 
 
-void app_run(app_t *app, const msg_command_t *cmds)
+void client_run(client_t *client, const msg_command_t *cmds)
 {
   const msg_command_t *cmd = cmds;
 
@@ -163,11 +163,11 @@ void app_run(app_t *app, const msg_command_t *cmds)
     if (cmd->id == CMDID_UNKNOWN)
       return;
 
-    *(msg_command_t*)ri_producer_msg(app->command) = *cmd;
-    ri_producer_force_push(app->command);
+    *(msg_command_t*)ri_producer_msg(client->command) = *cmd;
+    ri_producer_force_push(client->command);
 
     for (;;) {
-      ri_pop_result_t r = ri_consumer_pop(app->response);
+      ri_pop_result_t r = ri_consumer_pop(client->response);
 
       if (r == RI_POP_RESULT_ERROR) {
         LOG_ERR("ri_consumer_pop receive error");
@@ -181,15 +181,15 @@ void app_run(app_t *app, const msg_command_t *cmds)
     }
 
     LOG_INF("client received:");
-    msg_response_print(ri_consumer_msg(app->response));
+    msg_response_print(ri_consumer_msg(client->response));
     cmd++;
   }
 
   usleep(10000);
 
-  atomic_store(&app->run, false);
+  atomic_store(&client->run, false);
 
-  thrd_join(app->listener, NULL);
+  thrd_join(client->listener, NULL);
 }
 
 
@@ -200,16 +200,16 @@ int main()
     .producers = client2server_channels,
   };
 
-  app_t *app = app_new("rtipc.sock", &config);
+  client_t *client = client_new("rtipc.sock", &config);
 
-  if (!app) {
+  if (!client) {
     return -1;
   }
 
-  app_run(app, commands);
+  client_run(client, commands);
 
   LOG_INF("deleting client");
-  app_delete(app);
+  client_delete(client);
 
   return 0;
 }

@@ -7,76 +7,76 @@
 
 #define MAX_CYCLES 10000
 
-typedef struct app {
+typedef struct server {
     ri_consumer_t *command;
     ri_producer_t *response;
     ri_producer_t *event;
-} app_t;
+} server_t;
 
 
 
-static void app_delete(app_t* app)
+static void server_delete(server_t* server)
 {
-  if (app->command)
-    ri_consumer_delete(app->command);
-  if (app->response)
-    ri_producer_delete(app->response);
-  if (app->event)
-    ri_producer_delete(app->event);
-  free(app);
+  if (server->command)
+    ri_consumer_delete(server->command);
+  if (server->response)
+    ri_producer_delete(server->response);
+  if (server->event)
+    ri_producer_delete(server->event);
+  free(server);
 }
 
-static void app_print_info(const app_t* app)
+static void server_print_info(const server_t* server)
 {
-  ri_info_t info = ri_consumer_info(app->command);
+  ri_info_t info = ri_consumer_info(server->command);
   LOG_INF("command name = %s", (const char*)info.data);
 
-  info = ri_producer_info(app->response);
+  info = ri_producer_info(server->response);
   LOG_INF("response name = %s", (const char*)info.data);
 
-  info = ri_producer_info(app->event);
+  info = ri_producer_info(server->event);
   LOG_INF("event name = %s", (const char*)info.data);
 
 }
 
-static app_t* app_new(const char *path)
+static server_t* server_new(const char *path)
 {
-  ri_server_t *server = ri_server_new(path, 1);
-  if (!server)
+  ri_server_t *ri_server = ri_server_new(path, 1);
+  if (!ri_server)
     goto fail_server;
 
-  ri_vector_t *vec = ri_server_accept(server, NULL, NULL);
+  ri_vector_t *vec = ri_server_accept(ri_server, NULL, NULL);
 
-  ri_server_delete(server);
+  ri_server_delete(ri_server);
+
   if (!vec)
     goto fail_server;
 
-  app_t *app = calloc(1, sizeof(app_t));
+  server_t *server = calloc(1, sizeof(server_t));
 
-  if (!app)
+  if (!server)
     goto fail_alloc;
 
-
-  app->command = ri_vector_take_consumer(vec, 0);
-  if (!app->command)
+  server->command = ri_vector_take_consumer(vec, 0);
+  if (!server->command)
     goto fail_channel;
 
-  app->response = ri_vector_take_producer(vec, 0);
-  if (!app->response)
+  server->response = ri_vector_take_producer(vec, 0);
+  if (!server->response)
     goto fail_channel;
 
-  app->event = ri_vector_take_producer(vec, 1);
-  if (!app->event)
+  server->event = ri_vector_take_producer(vec, 1);
+  if (!server->event)
     goto fail_channel;
 
   ri_vector_delete(vec);
 
-  app_print_info(app);
+  server_print_info(server);
 
-  return app;
+  return server;
 
 fail_channel:
-  app_delete(app);
+  server_delete(server);
 fail_alloc:
    ri_vector_delete(vec);
 fail_server:
@@ -113,24 +113,24 @@ static int32_t server_div(int32_t a, int32_t b, int32_t *res)
   }
 }
 
-void app_run(app_t *app)
+void server_run(server_t *server)
 {
 
   for (int i = 0; i < MAX_CYCLES; i++) {
 
     bool run = true;
-    ri_pop_result_t r = ri_consumer_pop(app->command);
+    ri_pop_result_t r = ri_consumer_pop(server->command);
 
     if ((r == RI_POP_RESULT_NO_MSG) || (r == RI_POP_RESULT_NO_UPDATE)) {
       usleep(1000);
       continue;
     }
 
-    const msg_command_t *cmd = ri_consumer_msg(app->command);
+    const msg_command_t *cmd = ri_consumer_msg(server->command);
     LOG_INF("server received:");
     msg_command_print(cmd);
 
-    msg_response_t *rsp = ri_producer_msg(app->response);
+    msg_response_t *rsp = ri_producer_msg(server->response);
 
     rsp->id = cmd->id;
     switch (cmd->id) {
@@ -142,7 +142,7 @@ void app_run(app_t *app)
       rsp->result = 0;
       break;
     case CMDID_SENDEVENT:
-      rsp->result = server_send_events(app->event, cmd->args[0], cmd->args[1], cmd->args[2]);
+      rsp->result = server_send_events(server->event, cmd->args[0], cmd->args[1], cmd->args[2]);
       break;
     case CMDID_DIV:
       rsp->result = server_div(cmd->args[0], cmd->args[1], &rsp->data);
@@ -151,26 +151,25 @@ void app_run(app_t *app)
       rsp->result = -1;
       break;
     }
-    ri_producer_force_push(app->response);
+    ri_producer_force_push(server->response);
     if (!run)
       break;
   }
 }
 
 
-
 int main()
 {
-  app_t* app = app_new("rtipc.sock");
+  server_t* server = server_new("rtipc.sock");
 
-  if (!app) {
+  if (!server) {
     return -1;
   }
 
-  app_run(app);
+  server_run(server);
 
   LOG_INF("deleting server");
-  app_delete(app);
+  server_delete(server);
 
   return 0;
 }
