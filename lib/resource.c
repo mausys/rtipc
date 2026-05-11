@@ -1,12 +1,12 @@
-
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <errno.h>
 
 #include "rtipc.h"
+#include "mem_utils.h"
 #include "unix.h"
 #include "channel.h"
-#include "mem_utils.h"
+#include "request.h"
 
 static size_t ri_calc_data_size(unsigned n_msgs, size_t msg_size)
 {
@@ -106,17 +106,17 @@ fail_alloc:
 
 void ri_resource_delete(ri_resource_t *rsc)
 {
-  if (rsc->shmfd > 0)
+  if (rsc->shmfd >= 0)
     close(rsc->shmfd);
 
   for (ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
-    if (channel->eventfd > 0) {
+    if (channel->eventfd >= 0) {
       close(channel->eventfd);
     }
   }
 
   for (ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
-    if (channel->eventfd > 0) {
+    if (channel->eventfd >= 0) {
       close(channel->eventfd);
     }
   }
@@ -127,4 +127,109 @@ void ri_resource_delete(ri_resource_t *rsc)
   free(rsc);
 }
 
+static int get_fd(unsigned idx, const int fds[], unsigned n_fds)
+{
+  if (idx >= n_fds)
+    return -1;
+
+  return fds[idx];
+}
+
+size_t ri_resource_serialize_size(const ri_resource_t *rsc)
+{
+  return ri_request_calc_size(rsc);
+}
+
+int ri_resource_serialize(const ri_resource_t *rsc, void* req, size_t size, int fds[], unsigned *n_fds)
+{
+  if (!n_fds || (*n_fds < 1))
+    return -EINVAL;
+
+  int r = ri_request_write(rsc, req, size);
+  if (r < 0)
+    return r;
+
+  unsigned idx = 0;
+
+  fds[idx++] = rsc->shmfd;
+
+  for (const ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd > 0) {
+      if (idx >= *n_fds)
+        return -1;
+
+      fds[idx++] = channel->eventfd;
+    }
+  }
+
+  for (const ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd > 0) {
+      if (idx >= *n_fds)
+        return -1;
+
+      fds[idx++] = channel->eventfd;
+    }
+  }
+
+  *n_fds = idx;
+  return r;
+}
+
+
+ri_resource_t* ri_resource_deserialize(const void* req, size_t size, int fds[], unsigned *n_fds)
+{
+  ri_resource_t* rsc = ri_request_parse(req, size);
+  if (!rsc)
+    goto fail_parse;
+
+  unsigned idx = 0;
+
+  rsc->shmfd = get_fd(idx++, fds, *n_fds);
+  if (rsc->shmfd < 0)
+    goto fail_eventfd;
+
+  for (ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd <= 0)
+      continue;
+
+    channel->eventfd = get_fd(idx++, fds, *n_fds);
+
+    if (channel->eventfd < 0)
+      goto fail_eventfd;
+  }
+
+  for (ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
+    if (channel->eventfd <= 0)
+      continue;
+
+    channel->eventfd = get_fd(idx++, fds, *n_fds);
+
+    if (channel->eventfd < 0)
+      goto fail_eventfd;
+  }
+
+  /* transfer ownership to resource and close unused fds */
+  for (unsigned i = 0; i < *n_fds; i++) {
+    if (fds[i] < 0)
+      continue;
+
+    if (i >= idx) {
+      close(fds[i]);
+    }
+
+    fds[i] = -1;
+  }
+
+  *n_fds = idx;
+
+  return rsc;
+
+fail_eventfd:
+  if (rsc->consumers)
+    free(rsc->consumers);
+
+  free(rsc);
+fail_parse:
+  return NULL;
+}
 

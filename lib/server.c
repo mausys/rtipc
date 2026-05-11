@@ -10,7 +10,6 @@
 
 #include "rtipc.h"
 #include "unix.h"
-#include "protocol.h"
 
 typedef struct ri_server ri_server_t;
 
@@ -78,44 +77,18 @@ static int server_send_response(int socket, int32_t result)
 static ri_resource_t* request_to_resources(ri_uxmsg_t *req)
 {
   size_t size;
+  unsigned n_fds;
   const void *data = ri_uxmsg_data(req, &size);
-  ri_resource_t *rsc = ri_request_parse(data, size);
+  int *fds = ri_uxmsg_fds(req, &n_fds);
+
+  ri_resource_t *rsc = ri_resource_deserialize(data, size, fds, &n_fds);
 
   if (!rsc) {
     LOG_ERR("ri_request_parse failed");
-    goto fail_map;
-  }
-
-  unsigned fd_index = 0;
-
-  rsc->shmfd = ri_uxmsg_take_fd(req, fd_index++);
-
-  for (ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
-    if (channel->eventfd <= 0)
-      continue;
-
-    channel->eventfd = ri_uxmsg_take_fd(req, fd_index++);
-
-    if (channel->eventfd <= 0)
-      goto fail_eventfd;
-  }
-
-  for (ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
-    if (channel->eventfd <= 0)
-      continue;
-
-    channel->eventfd = ri_uxmsg_take_fd(req, fd_index++);
-
-    if (channel->eventfd <= 0)
-      goto fail_eventfd;
+    return NULL;
   }
 
   return rsc;
-
-fail_eventfd:
-  ri_resource_delete(rsc);
-fail_map:
-  return NULL;
 }
 
 
@@ -150,7 +123,7 @@ ri_vector_t* ri_server_socket_accept(int socket, ri_filter_fn filter, void *user
 
   server_send_response(socket, 0);
 
-  ri_uxmsg_delete(req, true);
+  ri_uxmsg_delete(req);
 
   ri_resource_delete(rsc);
 
@@ -159,7 +132,7 @@ ri_vector_t* ri_server_socket_accept(int socket, ri_filter_fn filter, void *user
 fail_rejected:
   ri_resource_delete(rsc);
 fail_transfer:
-  ri_uxmsg_delete(req, true);
+  ri_uxmsg_delete(req);
 fail_receive:
   server_send_response(socket, -1);
 

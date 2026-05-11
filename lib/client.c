@@ -9,7 +9,6 @@
 #include <sys/un.h>
 
 #include "unix.h"
-#include "protocol.h"
 
 static int connect_path(const char *path)
 {
@@ -86,7 +85,7 @@ fail_send:
 
 static ri_uxmsg_t* uxmsg_from_resource(const ri_resource_t *rsc)
 {
-  size_t req_size = ri_request_calc_size(rsc);
+  size_t req_size = ri_resource_serialize_size(rsc);
 
   ri_uxmsg_t *req = ri_uxmsg_new(req_size);
 
@@ -94,39 +93,21 @@ static ri_uxmsg_t* uxmsg_from_resource(const ri_resource_t *rsc)
     goto fail_alloc;
 
   void *req_data = ri_uxmsg_data(req, &req_size);
+  unsigned n_fds;
+  int *fds = ri_uxmsg_fds(req, &n_fds);
 
-  int r = ri_request_write(rsc, req_data, req_size);
-
+  int r = ri_resource_serialize(rsc, req_data, req_size, fds, &n_fds);
   if (r < 0)
     goto fail_construct;
 
-  r = ri_uxmsg_add_fd(req, rsc->shmfd);
-
+  r = ri_uxmsg_set_num_fds(req, n_fds);
   if (r < 0)
     goto fail_construct;
-
-  for (const ri_channel_t *channel = rsc->producers; channel->msg_size != 0; channel++) {
-    if (channel->eventfd > 0) {
-      r = ri_uxmsg_add_fd(req, channel->eventfd);
-
-      if (r < 0)
-        goto fail_construct;
-    }
-  }
-
-  for (const ri_channel_t *channel = rsc->consumers; channel->msg_size != 0; channel++) {
-    if (channel->eventfd > 0) {
-      r = ri_uxmsg_add_fd(req, channel->eventfd);
-
-      if (r < 0)
-        goto fail_construct;
-    }
-  }
 
   return req;
 
 fail_construct:
-  ri_uxmsg_delete(req, false);
+  ri_uxmsg_delete(req);
 fail_alloc:
   return NULL;
 }
@@ -160,14 +141,14 @@ ri_vector_t* ri_client_socket_connect(int socket, const ri_config_t *config)
   if (!vec)
     goto fail_vec;
 
-  ri_uxmsg_delete(req, false);
+  ri_uxmsg_delete(req);
   ri_resource_delete(rsc);
 
   return vec;
 
 fail_vec:
 fail_exchange:
-  ri_uxmsg_delete(req, false);
+  ri_uxmsg_delete(req);
 fail_req:
   ri_resource_delete(rsc);
 fail_rsc:

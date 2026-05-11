@@ -309,6 +309,66 @@ void ri_resource_delete(ri_resource_t *rsc);
 
 
 /**
+ * Returns the number of bytes required to serialize a resource.
+ *
+ * Calculates the total serialized size of the given resource, including
+ * all metadata and payload data needed for serialization.
+ *
+ * @param rsc Pointer to the resource to measure.
+ * @return The size in bytes required to serialize the resource.
+ */
+size_t ri_resource_serialize_size(const ri_resource_t *rsc);
+
+
+/**
+ * Serializes a resource into the provided buffer.
+ *
+ * Encodes the given resource into a serialized representation written to
+ * `req`. Any associated file descriptors are stored in `fds`, and the
+ * number of file descriptors written is returned through `n_fds`.
+ *
+ * The caller must ensure that `req` points to a buffer large enough to
+ * hold the serialized data, typically determined by
+ * `ri_resource_serialize_size()`.
+ *
+ * @param rsc    Pointer to the resource to serialize.
+ * @param req    Output buffer receiving the serialized resource data.
+ * @param size   Size of the output buffer in bytes.
+ * @param fds    Array receiving any associated file descriptors.
+ * @param n_fds  Input/output parameter. On input, contains the capacity of
+ *                the `fds` array. On output, contains the number of file
+ *                descriptors written.
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int ri_resource_serialize(const ri_resource_t *rsc, void* req, size_t size, int fds[], unsigned *n_fds);
+
+
+/**
+ * Deserializes a resource from a serialized buffer.
+ *
+ * Reconstructs a resource object from the serialized data contained in
+ * `req`. Any associated file descriptors are read from `fds`, and the
+ * number of file descriptors consumed is returned through `n_fds`.
+ *
+ * On success, ownership of all file descriptors in `fds` is transferred
+ * to the newly created resource object. Any unused file descriptors are
+ * closed internally, and all entries in `fds` are set to `-1`.
+ *
+ * @param req    Pointer to the serialized resource data.
+ * @param size   Size of the serialized data buffer in bytes.
+ * @param fds    Array containing associated file descriptors.
+ * @param n_fds  Input/output parameter. On input, contains the number of
+ *                available file descriptors in `fds`. On output, contains
+ *                the number of file descriptors consumed.
+ *
+ * @return A newly allocated resource object on success, or NULL on failure.
+ *         The caller is responsible for releasing the returned resource.
+ */
+ri_resource_t* ri_resource_deserialize(const void* req, size_t size, int fds[], unsigned *n_fds);
+
+
+/**
  * @brief Creates a channel vector from a resource descriptor.
  *
  * @param rsc    Resource descriptor describing shared memory and channels

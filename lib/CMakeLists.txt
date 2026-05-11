@@ -31,7 +31,7 @@ set(RTIPC_SRCS
   header.h
   unix.c
   unix.h
-  protocol.c
+  request.c
   server.c
   client.c
 )

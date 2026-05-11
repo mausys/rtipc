@@ -75,17 +75,13 @@ int ri_set_nonblocking(int fd);
 ri_uxmsg_t* ri_uxmsg_new(size_t size);
 
 
-void ri_uxmsg_delete(ri_uxmsg_t *msg, bool close_fds);
-
+void ri_uxmsg_delete(ri_uxmsg_t *msg);
 
 void* ri_uxmsg_data(const ri_uxmsg_t *msg, size_t *size);
 
+int* ri_uxmsg_fds(ri_uxmsg_t *msg, unsigned *n_fds);
 
-int ri_uxmsg_take_fd(ri_uxmsg_t *msg, unsigned index);
-
-
-int ri_uxmsg_add_fd(ri_uxmsg_t *msg, int fd);
-
+int ri_uxmsg_set_num_fds(ri_uxmsg_t *msg, unsigned n_fds);
 
 int ri_uxmsg_send(const ri_uxmsg_t *msg, int socket);
 
