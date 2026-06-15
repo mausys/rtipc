@@ -7,8 +7,11 @@
 
 #include "rtipc.h"
 #include "channel.h"
+#include "unix.h"
+#include "request.h"
 
 struct ri_vector {
+  ri_shm_t *shm;
   unsigned n_consumers;
   unsigned n_producers;
   ri_consumer_t **consumers;
@@ -18,6 +21,123 @@ struct ri_vector {
     void *data;
   } info;
 };
+
+
+static int take_eventfd(unsigned idx, int fds[], unsigned n_fds)
+{
+  if (idx >= n_fds)
+    return -1;
+
+  int eventfd = fds[idx];
+  if (eventfd < 0)
+    return eventfd;
+
+  int r = ri_eventfd_verify(eventfd);
+  if (r < 0)
+    return r;
+
+  r = ri_set_nonblocking(eventfd);
+  if (r < 0)
+    return r;
+
+  fds[idx] = -1;
+
+  return eventfd;
+}
+
+
+static ri_config_t ri_vector_config(const ri_vector_t *vec, ri_channel_t **rsc)
+{
+  if (!rsc) {
+    goto fail_args;
+  }
+  ri_channel_t *channels = calloc(vec->n_consumers + vec->n_producers + 2, sizeof(ri_channel_t));
+  if (!channels) {
+    goto fail_alloc;
+  }
+
+  ri_channel_t *consumers = &channels[0];
+  ri_channel_t *producers = &channels[vec->n_consumers + 1];
+
+  for (unsigned i = 0; i < vec->n_consumers; i++) {
+    if (!vec->consumers[i])
+      continue;
+    consumers[i] = ri_consumer_config(vec->consumers[i]);
+  }
+
+  for (unsigned i = 0; i < vec->n_producers; i++) {
+    if (!vec->producers[i])
+      continue;
+    producers[i] = ri_producer_config(vec->producers[i]);
+  }
+
+  *rsc = channels;
+
+  return (ri_config_t) {
+      .consumers = consumers,
+      .producers = producers,
+      .info.size = vec->info.size,
+      .info.data = vec->info.data,
+  };
+
+
+fail_alloc:
+fail_args:
+  return (ri_config_t) {.consumers = NULL, .producers = NULL};
+}
+
+
+static int build_request(const ri_vector_t *vec, void* req, size_t size) {
+  ri_channel_t *channels = NULL;
+
+  ri_config_t config = ri_vector_config(vec, &channels);
+  if (!channels)
+    return -1;
+
+  int r = ri_request_write(&config, req, size);
+
+  free(channels);
+
+  return r;
+}
+
+
+static int collect_fds(const ri_vector_t *vec, int fds[], unsigned n_fds) {
+  if (n_fds < 1)
+    return -EINVAL;
+
+  unsigned idx = 0;
+
+  fds[idx++] = ri_shm_get_fd(vec->shm);
+
+  for (unsigned i = 0; i < vec->n_producers; i++) {
+    if (!vec->producers[i])
+      continue;
+
+    int eventfd = ri_producer_eventfd(vec->producers[i]);
+
+    if (eventfd >= 0) {
+      if (idx >= n_fds)
+        return -ENOMEM;
+      fds[idx++] = eventfd;
+    }
+  }
+
+  for (unsigned i = 0; i < vec->n_consumers; i++) {
+    if (!vec->consumers[i])
+      continue;
+
+    int eventfd = ri_consumer_eventfd(vec->consumers[i]);
+
+    if (eventfd >= 0) {
+      if (idx >= n_fds)
+        return -ENOMEM;
+      fds[idx++] = eventfd;
+    }
+  }
+
+  return idx;
+}
 
 
 static ri_vector_t* ri_vector_alloc(unsigned n_consumers, unsigned n_producers, const ri_info_t *info)
@@ -70,6 +190,72 @@ fail_alloc:
   return NULL;
 }
 
+static ri_shm_t* shm_new(size_t shm_size)
+{
+  int shmfd = ri_shmfd_create(shm_size);
+  if (shmfd < 0)
+    goto fail_fd;
+
+  ri_shm_t *shm = ri_shm_map(shmfd);
+
+  if (!shm)
+    goto fail_shm;
+
+  return shm;
+
+fail_shm:
+  close(shmfd);
+fail_fd:
+  return NULL;
+}
+
+
+ri_vector_t* ri_vector_new(const ri_config_t *config)
+{
+  unsigned n_producers = ri_count_channels(config->producers);
+  unsigned n_consumers = ri_count_channels(config->consumers);
+
+  ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers, &config->info);
+  if (!vec)
+    goto fail_alloc;
+
+  size_t shm_size = ri_calc_shm_size(config->consumers, config->producers);
+
+  vec->shm = shm_new(shm_size);
+  if (!vec->shm)
+    goto fail_shm;
+
+  size_t shm_offset = 0;
+
+
+  for (unsigned i = 0; i < vec->n_producers; i++) {
+    const ri_channel_t *channel = &config->producers[i];
+
+    vec->producers[i] = ri_producer_new(channel, vec->shm, shm_offset);
+    if (!vec->producers[i])
+      goto fail_channel;
+
+    shm_offset += ri_channel_shm_size(channel);
+  }
+
+  for (unsigned i = 0; i < vec->n_consumers; i++) {
+    const ri_channel_t *channel = &config->consumers[i];
+
+    vec->consumers[i] = ri_consumer_new(channel, vec->shm, shm_offset);
+    if (!vec->consumers[i])
+      goto fail_channel;
+
+    shm_offset += ri_channel_shm_size(channel);
+  }
+
+  return vec;
+
+fail_channel:
+fail_shm:
+  ri_vector_delete(vec);
+fail_alloc:
+  return NULL;
+}
 
 
 void ri_vector_delete(ri_vector_t* vec)
@@ -92,103 +278,140 @@ void ri_vector_delete(ri_vector_t* vec)
     free(vec->producers);
   }
 
+  if (vec->shm)
+    ri_shm_unref(vec->shm);
+
   free(vec);
 }
 
-static int init_producers(ri_vector_t *vec, ri_resource_t *rsc, ri_shm_t *shm, size_t *shm_offset)
+
+size_t ri_vector_serialize_size(const ri_vector_t *vec)
 {
-  for (unsigned i = 0; i < vec->n_producers; i++) {
-    ri_channel_t *channel = &rsc->producers[i];
+  ri_channel_t *channels = NULL;
 
-    vec->producers[i] = ri_producer_new(channel, shm, *shm_offset);
+  ri_config_t config = ri_vector_config(vec, &channels);
+  if (!channels)
+    return 0;
 
-    if (!vec->producers[i])
-      return -1;
+  size_t size = ri_request_calc_size(&config);
 
-    *shm_offset += ri_channel_shm_size(channel);
-  }
+  free(channels);
+
+  return size;
+}
+
+
+int ri_vector_serialize(const ri_vector_t *vec, void* req, size_t size, int fds[], unsigned *n_fds)
+{
+  if (!n_fds || (*n_fds < 1))
+    return -EINVAL;
+
+  int r = build_request(vec, req, size);
+  if (r < 0)
+    return r;
+
+  r = collect_fds(vec, fds, *n_fds);
+  if (r < 0)
+    return r;
+
+  *n_fds = r;
 
   return 0;
 }
 
 
-static int init_consumers(ri_vector_t *vec, ri_resource_t *rsc, ri_shm_t *shm, size_t *shm_offset)
+static ri_vector_t* ri_vector_map(const ri_config_t *config, int fds[], unsigned *n_fds)
 {
-  for (unsigned i = 0; i < vec->n_consumers; i++) {
-    ri_channel_t *channel = &rsc->consumers[i];
+  if (!fds || !n_fds || (*n_fds < 1))
+    goto fail_args;
 
-    vec->consumers[i] = ri_consumer_new(channel, shm, *shm_offset);
+  int eventfd = -1;
+  unsigned n_consumers = ri_count_channels(config->consumers);
+  unsigned n_producers = ri_count_channels(config->producers);
 
-    if (!vec->consumers[i])
-      return -1;
-
-    *shm_offset += ri_channel_shm_size(channel);
-  }
-
-  return 0;
-}
-
-
-ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server)
-{
-  unsigned n_consumers = ri_count_channels(rsc->consumers);
-  unsigned n_producers = ri_count_channels(rsc->producers);
-
-  ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers, &rsc->info);
-
+  ri_vector_t *vec = ri_vector_alloc(n_consumers, n_producers, &config->info);
   if (!vec)
     goto fail_alloc;
 
-  ri_shm_t *shm = ri_shm_map(rsc->shmfd);
-
-  if (!shm)
+  int r = ri_memfd_verify(fds[0]);
+  if (r < 0)
     goto fail_shm;
 
+  vec->shm = ri_shm_map(fds[0]);
+  if (!vec->shm)
+    goto fail_shm;
+
+  /* ownership of shmfd transfered to shm */
+  fds[0] = -1;
+
+  unsigned idx = 1;
   size_t shm_offset = 0;
 
-  if (server) {
-    int r = init_consumers(vec, rsc, shm, &shm_offset);
+  for (unsigned i = 0; i < vec->n_consumers; i++) {
+    const ri_channel_t *channel = &config->consumers[i];
 
-    if (r < 0)
+    if (channel->eventfd) {
+      eventfd = take_eventfd(idx++, fds, *n_fds);
+      if (eventfd < 0)
+        goto fail_channel;
+    }
+
+    vec->consumers[i] = ri_consumer_map(channel, eventfd, vec->shm, shm_offset);
+
+    if (!vec->consumers[i])
       goto fail_channel;
 
-    r = init_producers(vec, rsc, shm, &shm_offset);
-
-    if (r < 0)
-      goto fail_channel;
-  } else {
-    int r = init_producers(vec, rsc, shm, &shm_offset);
-
-    if (r < 0)
-      goto fail_channel;
-
-    r = init_consumers(vec, rsc, shm, &shm_offset);
-
-    if (r < 0)
-      goto fail_channel;
+    /* ownership of eventfd transfered to consumer */
+    eventfd = -1;
+    shm_offset += ri_channel_shm_size(channel);
   }
 
-  ri_shm_unref(shm);
+  for (unsigned i = 0; i < vec->n_producers; i++) {
+    const ri_channel_t *channel = &config->producers[i];
+
+    if (channel->eventfd) {
+      eventfd = take_eventfd(idx++, fds, *n_fds);
+      if (eventfd < 0)
+        goto fail_channel;
+    }
+
+    vec->producers[i] = ri_producer_map(channel, eventfd, vec->shm, shm_offset);
+    if (!vec->producers[i])
+      goto fail_channel;
+
+    /* ownership of eventfd transfered to producer */
+    eventfd = -1;
+    shm_offset += ri_channel_shm_size(channel);
+  }
+
   return vec;
 
 fail_channel:
-  ri_shm_unref(shm);
+  if (eventfd >= 0)
+    close(eventfd);
 fail_shm:
   ri_vector_delete(vec);
 fail_alloc:
+fail_args:
   return NULL;
 }
 
 
-void ri_vector_init_shm(const ri_vector_t *vec)
+ri_vector_t* ri_vector_deserialize(const void* req, size_t size, int fds[], unsigned *n_fds)
 {
-  for (unsigned i = 0; i < vec->n_consumers; i++) {
-    ri_consumer_init_shm(vec->consumers[i]);
-  }
+  if (!n_fds || (*n_fds < 1))
+    return NULL;
 
-  for (unsigned i = 0; i < vec->n_producers; i++) {
-    ri_producer_init_shm(vec->producers[i]);
-  }
+  ri_channel_t *channels = NULL;
+  ri_config_t config = ri_request_parse(req, size, &channels);
+  if (!channels)
+    return NULL;
+
+  ri_vector_t *vec = ri_vector_map(&config, fds, n_fds);
+
+  free(channels);
+
+  return vec;
 }
 
 
@@ -247,9 +470,3 @@ ri_consumer_t* ri_vector_take_consumer(ri_vector_t *vec, unsigned index)
 
   return consumer;
 }
-
-
-
-
-
-

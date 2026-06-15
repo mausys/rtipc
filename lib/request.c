@@ -101,7 +101,7 @@ static int request_write_channel(request_writer_t *writer, const ri_channel_t *c
       .add_msgs = channel->add_msgs,
       .msg_size = channel->msg_size,
       .info_size = channel->info.size,
-      .eventfd = channel->eventfd > 0 ? 1 : 0,
+      .eventfd = channel->eventfd,
   };
 
   int r = request_write(writer, &entry, sizeof(entry));
@@ -141,20 +141,20 @@ static int request_read_channel(request_reader_t *reader, ri_channel_t *channel)
       .add_msgs = entry.add_msgs,
       .msg_size = entry.msg_size,
       .info = info,
-      .eventfd = entry.eventfd > 0 ? 1 : -1,
+      .eventfd = entry.eventfd,
   };
 
   return r;
 }
 
 
-size_t ri_request_calc_size(const ri_resource_t *rsc)
+size_t ri_request_calc_size(const ri_config_t *config)
 {
-  unsigned n_consumers = ri_count_channels(rsc->consumers);
-  unsigned n_producers = ri_count_channels(rsc->producers);
+  unsigned n_consumers = ri_count_channels(config->consumers);
+  unsigned n_producers = ri_count_channels(config->producers);
 
-  const ri_channel_t *consumers = rsc->consumers;
-  const ri_channel_t *producers = rsc->producers;
+  const ri_channel_t *consumers = config->consumers;
+  const ri_channel_t *producers = config->producers;
 
   size_t size = sizeof(ri_request_header_t);
 
@@ -165,7 +165,7 @@ size_t ri_request_calc_size(const ri_resource_t *rsc)
   size += (n_consumers + n_producers) * sizeof(entry_t);
 
   /* vector info */
-  size += rsc->info.size;
+  size += config->info.size;
 
   /* channel info */
   for (unsigned i = 0; i < n_consumers; i++)
@@ -178,8 +178,12 @@ size_t ri_request_calc_size(const ri_resource_t *rsc)
 }
 
 
-ri_resource_t* ri_request_parse(const void *req, size_t size)
+ri_config_t ri_request_parse(const void *req, size_t size, ri_channel_t **rsc)
 {
+  if (!rsc) {
+    goto fail_args;
+  }
+
   request_reader_t reader = {
     .data = req,
     .size = size,
@@ -242,44 +246,50 @@ ri_resource_t* ri_request_parse(const void *req, size_t size)
     }
   }
 
-  ri_resource_t *rsc = ri_resource_new(n_consumers, n_producers, &vec_info);
+  ri_channel_t *channels = calloc(n_consumers + n_producers + 2, sizeof(ri_channel_t));
+  if (!channels) {
+    goto fail_alloc;
+  }
 
-  if (!rsc)
-    goto fail_vmap;
+  ri_channel_t *consumers = &channels[0];
+  ri_channel_t *producers = &channels[n_consumers + 1];
 
   for (unsigned i = 0; i < n_consumers; i++) {
-    ri_channel_t *channel = &rsc->consumers[i];
-    r = request_read_channel(&reader, channel);
-
+    r = request_read_channel(&reader, &consumers[i]);
     if (r < 0)
       goto fail_channel;
   }
 
   for (unsigned i = 0; i < n_producers; i++) {
-    ri_channel_t *channel = &rsc->producers[i];
-    r = request_read_channel(&reader, channel);
-
+    r = request_read_channel(&reader, &producers[i]);
     if (r < 0)
       goto fail_channel;
   }
 
-  return rsc;
+  *rsc = channels;
+
+  return (ri_config_t) {
+         .consumers = consumers,
+         .producers = producers,
+         .info = vec_info,
+         };
 
 fail_channel:
-  ri_resource_delete(rsc);
-fail_vmap:
+  free(channels);
 fail_parse:
-  return NULL;
+fail_alloc:
+fail_args:
+  return (ri_config_t) {.consumers = NULL, .producers = NULL};
 }
 
 
-int ri_request_write(const ri_resource_t* rsc, void *req, size_t size)
+int ri_request_write(const ri_config_t* config, void *req, size_t size)
 {
   if (!size)
     goto fail;
 
-  uint32_t n_producers = ri_count_channels(rsc->producers);
-  uint32_t n_consumers = ri_count_channels(rsc->consumers);
+  uint32_t n_producers = ri_count_channels(config->producers);
+  uint32_t n_consumers = ri_count_channels(config->consumers);
 
   request_writer_t writer = {
     .size = size,
@@ -293,7 +303,7 @@ int ri_request_write(const ri_resource_t* rsc, void *req, size_t size)
   if (r < 0)
     goto fail;
 
-  uint32_t vec_info = rsc->info.size;
+  uint32_t vec_info = config->info.size;
 
   r = request_write(&writer, &vec_info, sizeof(vec_info));
 
@@ -312,13 +322,13 @@ int ri_request_write(const ri_resource_t* rsc, void *req, size_t size)
 
   writer.offset_info = writer.offset + (n_producers + n_consumers) * sizeof(entry_t);
 
-  r = request_write_info(&writer, &rsc->info);
+  r = request_write_info(&writer, &config->info);
 
   if (r < 0)
     goto fail;
 
   for (unsigned i = 0 ; i < n_producers; i++) {
-    const ri_channel_t *channel = &rsc->producers[i];
+    const ri_channel_t *channel = &config->producers[i];
     r = request_write_channel(&writer, channel);
 
     if (r < 0)
@@ -326,7 +336,7 @@ int ri_request_write(const ri_resource_t* rsc, void *req, size_t size)
   }
 
   for (unsigned i = 0 ; i < n_consumers; i++) {
-    const ri_channel_t *channel = &rsc->consumers[i];
+    const ri_channel_t *channel = &config->consumers[i];
     r = request_write_channel(&writer, channel);
 
     if (r < 0)

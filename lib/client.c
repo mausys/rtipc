@@ -13,8 +13,8 @@
 static int connect_path(const char *path)
 {
   int r;
-  int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 
+  int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (sockfd < 0) {
     r = -errno;
     LOG_ERR("socket failed errno=%u", errno);
@@ -27,7 +27,6 @@ static int connect_path(const char *path)
   snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 
   r = connect(sockfd, (struct sockaddr*)&addr, sizeof(addr));
-
   if (r < 0) {
     r = -errno;
     LOG_ERR("connect failed errno=%u", errno);
@@ -46,7 +45,6 @@ fail_socket:
 static int exchange(int socket, ri_uxmsg_t *req)
 {
   int r = ri_uxmsg_send(req, socket);
-
   if (r < 0) {
     LOG_ERR("ri_request_send failed r=%d", r);
     goto fail_send;
@@ -54,7 +52,6 @@ static int exchange(int socket, ri_uxmsg_t *req)
 
   size_t response_size;
   void *response = ri_uxsocket_receive(socket, &response_size);
-
   if (!response) {
     r = -1;
     LOG_ERR("ri_uxsocket_receive failed");
@@ -83,12 +80,11 @@ fail_send:
 }
 
 
-static ri_uxmsg_t* uxmsg_from_resource(const ri_resource_t *rsc)
+static ri_uxmsg_t* uxmsg_from_vector(const ri_vector_t *vec)
 {
-  size_t req_size = ri_resource_serialize_size(rsc);
+  size_t req_size = ri_vector_serialize_size(vec);
 
   ri_uxmsg_t *req = ri_uxmsg_new(req_size);
-
   if (!req)
     goto fail_alloc;
 
@@ -96,7 +92,7 @@ static ri_uxmsg_t* uxmsg_from_resource(const ri_resource_t *rsc)
   unsigned n_fds;
   int *fds = ri_uxmsg_fds(req, &n_fds);
 
-  int r = ri_resource_serialize(rsc, req_data, req_size, fds, &n_fds);
+  int r = ri_vector_serialize(vec, req_data, req_size, fds, &n_fds);
   if (r < 0)
     goto fail_construct;
 
@@ -115,43 +111,34 @@ fail_alloc:
 
 ri_vector_t* ri_client_socket_connect(int socket, const ri_config_t *config)
 {
-  ri_resource_t *rsc = ri_resource_alloc(config);
-
-  if (!rsc) {
-    LOG_ERR("ri_transfer_new failed");
-    goto fail_rsc;
+  ri_vector_t *vec = ri_vector_new(config);
+  if (!vec) {
+    LOG_ERR("ri_vector_new failed");
+    goto fail_vec;
   }
 
-  ri_uxmsg_t *req = uxmsg_from_resource(rsc);
-
+  ri_uxmsg_t *req = uxmsg_from_vector(vec);
   if (!req) {
     LOG_ERR("uxmsg_from_resource failed");
     goto fail_req;
   }
 
   int r = exchange(socket, req);
-
   if (r < 0) {
     LOG_ERR("exchange failed");
     goto fail_exchange;
   }
 
-  ri_vector_t *vec = ri_vector_new(rsc, false);
-
-  if (!vec)
-    goto fail_vec;
 
   ri_uxmsg_delete(req);
-  ri_resource_delete(rsc);
 
   return vec;
 
-fail_vec:
 fail_exchange:
   ri_uxmsg_delete(req);
 fail_req:
-  ri_resource_delete(rsc);
-fail_rsc:
+  ri_vector_delete(vec);
+fail_vec:
   return NULL;
 }
 

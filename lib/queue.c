@@ -7,7 +7,6 @@ size_t ri_calc_queue_size(unsigned n_msgs)
 {
   unsigned  n = n_msgs + 2; /* tail + head*/
 
-
   return cacheline_aligned(n * sizeof(ri_atomic_index_t));
 }
 

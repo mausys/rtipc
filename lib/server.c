@@ -74,63 +74,50 @@ static int server_send_response(int socket, int32_t result)
 }
 
 
-static ri_resource_t* request_to_resources(ri_uxmsg_t *req)
+static ri_vector_t* request_to_vector(ri_uxmsg_t *req)
 {
   size_t size;
   unsigned n_fds;
   const void *data = ri_uxmsg_data(req, &size);
   int *fds = ri_uxmsg_fds(req, &n_fds);
 
-  ri_resource_t *rsc = ri_resource_deserialize(data, size, fds, &n_fds);
-
-  if (!rsc) {
-    LOG_ERR("ri_request_parse failed");
+  ri_vector_t *vec = ri_vector_deserialize(data, size, fds, &n_fds);
+  if (!vec) {
+    LOG_ERR("ri_vector_deserialize failed");
     return NULL;
   }
 
-  return rsc;
+  return vec;
 }
 
 
 ri_vector_t* ri_server_socket_accept(int socket, ri_filter_fn filter, void *user_data)
 {
   ri_uxmsg_t *req = ri_uxmsg_receive(socket);
-
   if (!req) {
     LOG_ERR("ri_uxmsg_receive failed");
     goto fail_receive;
   }
 
-  ri_resource_t *rsc = request_to_resources(req);
-
-  if (!rsc)
+  ri_vector_t *vec = request_to_vector(req);
+  if (!vec)
     goto fail_transfer;
 
   if (filter) {
-    if (!filter(rsc, user_data)) {
+    if (!filter(vec, user_data)) {
       LOG_INF("server rejected request");
       goto fail_rejected;
     }
   }
 
-  ri_vector_t *vec = ri_vector_new(rsc, true);
-
-  if (!vec) {
-    goto fail_rejected;
-  }
-
-  ri_vector_init_shm(vec);
-
   server_send_response(socket, 0);
 
   ri_uxmsg_delete(req);
 
-  ri_resource_delete(rsc);
-
   return vec;
 
 fail_rejected:
-  ri_resource_delete(rsc);
+  ri_vector_delete(vec);
 fail_transfer:
   ri_uxmsg_delete(req);
 fail_receive:
@@ -143,7 +130,6 @@ fail_receive:
 ri_vector_t* ri_server_accept(const ri_server_t* server, ri_filter_fn filter, void *user_data)
 {
   int socket = accept(server->sockfd, NULL, NULL);
-
   if (socket < 0) {
     LOG_ERR("accept failed errno=%u", errno);
     return NULL;

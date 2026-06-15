@@ -73,7 +73,6 @@ int ri_shmfd_create(size_t size)
   snprintf(name, sizeof(name) - 1, "rtipc_%u", nr);
 
   int fd = memfd_create(name, MFD_ALLOW_SEALING | MFD_CLOEXEC);
-
   if (fd < 0) {
     r = -errno;
     LOG_ERR("memfd_create failed for %s: %s", name, strerror(errno));
@@ -97,7 +96,6 @@ fail_create:
 int ri_eventfd_create(void)
 {
   int r = eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE | EFD_NONBLOCK);
-
   if (r < 0) {
     r = -errno;
      LOG_ERR("fcntl eventfd failed: %s", strerror(errno));
@@ -105,7 +103,6 @@ int ri_eventfd_create(void)
 
   return r;
 }
-
 
 
 int ri_memfd_verify(int fd)
@@ -117,7 +114,6 @@ int ri_memfd_verify(int fd)
   snprintf(path, sizeof(path), PROC_SELF_FORMAT, fd);
 
   ssize_t r = readlink(path, link, sizeof(link));
-
   if ((r < 0) || ((size_t)r < sizeof(expected)))
     return -1;
 
@@ -125,7 +121,7 @@ int ri_memfd_verify(int fd)
 }
 
 
-int ri_eventfd_veryfy(int fd)
+int ri_eventfd_verify(int fd)
 {
   char path[32];
   char link[32];
@@ -134,7 +130,6 @@ int ri_eventfd_veryfy(int fd)
   snprintf(path, sizeof(path), PROC_SELF_FORMAT, fd);
 
   ssize_t r = readlink(path, link, sizeof(link));
-
   if ((r < 0) || ((size_t)r < sizeof(expected)))
     return -1;
 
@@ -145,8 +140,8 @@ int ri_eventfd_veryfy(int fd)
 int ri_set_nonblocking(int fd)
 {
   int flags = fcntl(fd, F_GETFL, 0);
-  int r = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
+  int r = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
   if (r < 0) {
     r = -errno;
     LOG_ERR("ri_set_nonblocking failed for %d errno-%d", fd , -r);
@@ -185,7 +180,6 @@ void* ri_uxsocket_receive(int socket, size_t *size)
   };
 
   int r = recvmsg(socket, &msghdr, MSG_PEEK | MSG_TRUNC);
-
   if (r <= 0)
     goto fail_peek;
 
@@ -207,7 +201,6 @@ void* ri_uxsocket_receive(int socket, size_t *size)
   };
 
   r = recvmsg(socket, &msghdr, 0);
-
   if (r != (int)*size)
     goto fail_recv;
 
@@ -223,7 +216,6 @@ fail_peek:
 ri_uxmsg_t* ri_uxmsg_new(size_t size)
 {
   ri_uxmsg_t *msg = malloc(sizeof(ri_uxmsg_t));
-
   if (!msg)
     goto fail_alloc;
 
@@ -233,7 +225,6 @@ ri_uxmsg_t* ri_uxmsg_new(size_t size)
   };
 
   msg->data = malloc(size);
-
   if (!msg->data)
     goto fail_msg;
 
@@ -338,12 +329,10 @@ ri_uxmsg_t* ri_uxmsg_receive(int socket)
   };
 
   int r = recvmsg(socket, &msghdr, MSG_PEEK | MSG_TRUNC);
-
   if (r <= 0)
     goto fail_peek;
 
   ri_uxmsg_t* msg = ri_uxmsg_new(r);
-
   if (!msg)
     goto fail_peek;
 
@@ -362,7 +351,6 @@ ri_uxmsg_t* ri_uxmsg_receive(int socket)
   };
 
   r = recvmsg(socket, &msghdr, 0);
-
   if (r != (int)msg->size)
     goto fail_recv;
 

@@ -109,13 +109,11 @@ int event_listen(void *arg)
 
 static client_t* client_new(const char *path, const ri_config_t *config)
 {
-  ri_vector_t *vec =  ri_client_connect(path, config);
-
+  ri_vector_t *vec = ri_client_connect(path, config);
   if (!vec)
     goto fail_connect;
 
   client_t *client = calloc(1, sizeof(client_t));
-
   if (!client)
     goto fail_alloc;
 
@@ -134,7 +132,6 @@ static client_t* client_new(const char *path, const ri_config_t *config)
   atomic_store(&client->run, true);
 
   int r = thrd_create(&client->listener, event_listen, client);
-
   if (r != thrd_success) {
     goto fail_thread;
   }
@@ -201,7 +198,6 @@ int main()
   };
 
   client_t *client = client_new("rtipc.sock", &config);
-
   if (!client) {
     return -1;
   }

@@ -37,8 +37,8 @@ static void shm_delete(ri_shm_t *shm)
 ri_shm_t* ri_shm_map(int fd)
 {
   struct stat stat;
-  ri_shm_t *shm = malloc(sizeof(ri_shm_t));
 
+  ri_shm_t *shm = malloc(sizeof(ri_shm_t));
   if (!shm)
     return NULL;
 
@@ -48,7 +48,6 @@ ri_shm_t* ri_shm_map(int fd)
   };
 
   int r = fstat(shm->fd, &stat);
-
   if (r < 0) {
     LOG_ERR("fstat failed: %s", strerror(errno));
     goto fail_stat;
@@ -57,14 +56,12 @@ ri_shm_t* ri_shm_map(int fd)
   shm->size = stat.st_size;
 
   shm->mem = mmap(NULL, shm->size, PROT_READ | PROT_WRITE, MAP_SHARED, shm->fd, 0);
-
   if (shm->mem == MAP_FAILED) {
     LOG_ERR("mmap with size=%zu failed: %s", shm->size, strerror(errno));
     goto fail_map;
   }
 
   r = mlock(shm->mem, shm->size);
-
   if (r < 0) {
     LOG_ERR("mlock failed: %s", strerror(errno));
     goto fail_map;

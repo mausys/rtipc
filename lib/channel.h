@@ -46,20 +46,21 @@ static inline size_t ri_channel_shm_size(const ri_channel_t *channel)
 size_t ri_calc_shm_size(const ri_channel_t consumers[], const ri_channel_t producers[]);
 
 
-ri_consumer_t* ri_consumer_new(ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset);
+ri_consumer_t* ri_consumer_new(const ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset);
 
-ri_producer_t* ri_producer_new(ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset);
+ri_producer_t* ri_producer_new(const ri_channel_t *channel, ri_shm_t *shm, size_t shm_offset);
 
+ri_consumer_t* ri_consumer_map(const ri_channel_t *channel, int eventfd, ri_shm_t *shm, size_t shm_offset);
 
-void ri_consumer_init_shm(const ri_consumer_t *consumer);
+ri_producer_t* ri_producer_map(const ri_channel_t *channel, int eventfd, ri_shm_t *shm, size_t shm_offset);
 
-void ri_producer_init_shm(const ri_producer_t *producer);
+ri_channel_t ri_consumer_config(const ri_consumer_t *consumer);
 
+ri_channel_t ri_producer_config(const ri_producer_t *producer);
 
 size_t ri_consumer_shm_offset(const ri_consumer_t *consumer);
 
 size_t ri_prdoucer_shm_offset(const ri_producer_t *producer);
-
 
 unsigned ri_consumer_len(const ri_consumer_t *consumer);
 

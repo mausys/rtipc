@@ -108,7 +108,7 @@ void ri_set_log_handler(ri_log_fn log_handler);
 #endif /* RTIPC_LOG_API */
 /**
  * @typedef ri_vector_t
- * @brief Opaque handle to a vector resource connecting producer and consumer channels
+ * @brief Opaque handle to a channel vector connecting producer and consumer channels
  * mapped to the same shared memory region.
  */
 typedef struct ri_vector ri_vector_t;
@@ -152,7 +152,7 @@ typedef struct ri_channel {
   /**
    * Event file descriptor used to signal the consumer.
    */
-  int eventfd;
+  bool eventfd;
 
   /**
    * Optional user-defined metadata associated with the channel.
@@ -167,7 +167,7 @@ typedef struct ri_channel {
 
 /**
  * @typedef ri_vector_config_t
- * @brief Configuration parameters for creating a vector resource.
+ * @brief Configuration parameters for creating a channel vector.
  *
  * This structure defines the set of producer and consumer channels that
  * will be attached to the vector, along with optional user-defined
@@ -203,183 +203,20 @@ typedef struct ri_config {
 } ri_config_t;
 
 
-/**
- * @typedef ri_resource_t
- * @brief Descriptor used to create a vector via an external setup mechanism.
- *
- * This structure contains the channel configuration and file descriptors
- * required to construct a vector when the connection is established
- * out-of-band (for example, over D-Bus).
- *
- * Unlike @ref ri_vector_config_t, this form may contain live file
- * descriptors and is intended for interprocess resource handoff.
- */
-typedef struct ri_resource {
-
-  /**
-   * Array of consumer channel descriptors.
-   *
-   * Each entry corresponds to a consumer channel configuration. The array
-   * must be terminated by a sentinel element where @ref msg_size is set to 0.
-   *
-   * The @ref eventfd field of each entry is either a valid eventfd used for
-   * notification or -1 if event-based signaling is not used.
-   */
-  ri_channel_t *consumers;
-
-  /**
-   * Array of producer channel descriptors.
-   *
-   * Each entry corresponds to a producer channel configuration. The array
-   * must be terminated by a sentinel element where @ref msg_size is set to 0.
-   *
-   * The @ref eventfd field of each entry is either a valid eventfd used for
-   * notification or -1 if event-based signaling is not used.
-   */
-  ri_channel_t *producers;
-
-  /**
-   * Optional user-defined metadata associated with the vector.
-   *
-   * This information is transferred during setup and is not interpreted
-   * by the vector implementation.
-   */
-  ri_info_t info;
-
-  /**
-   * File descriptor referring to the shared memory backing the vector.
-   *
-   * This must reference a valid shared memory object suitable for mapping
-   * by all participating processes.
-   */
-  int shmfd;
-
-} ri_resource_t;
-
 
 /**
- * @brief Creates an empty vector resource descriptor.
+ * @brief Creates a channel vector from configuration.
  *
- * Creates a resource capable of holding @p n_consumers consumer channels
- * and @p n_producers producer channels. The channel descriptors and the
- * shared memory file descriptor must be filled in by the caller before
- * the resource is used to construct a vector.
- *
- * This function is intended for server-side use when connection setup
- * is performed using an external or custom IPC mechanism.
- *
- * @param n_consumers Number of consumer channels to allocate space for
- * @param n_producers Number of producer channels to allocate space for
- * @param info        Optional metadata associated with the vector
- *
- * @return A newly allocated resource descriptor, or NULL on failure
- */
-ri_resource_t* ri_resource_new(unsigned n_consumers, unsigned n_producers, const ri_info_t *info);
-
-
-/**
- * @brief Creates a fully initialized vector resource from a configuration.
- *
- * Builds a @ref ri_resource_t based on the channel layout described in
- * @p config. The resulting resource contains the channel descriptors and
- * metadata needed to establish a shared-memory vector with a peer.
+ * Builds a @ref ri_vector_t based on the channel layout described in
+ * @p config.
  *
  * This function is typically used on the client side when connection
  * establishment is handled via an external or custom IPC mechanism.
- * The returned resource can be transmitted to the server, which will
- * then attach to the described shared memory and channels.
  *
  * @param config Pointer to a static vector configuration
  *
- * @return A newly allocated resource descriptor, or NULL on failure
  */
-ri_resource_t* ri_resource_alloc(const ri_config_t *config);
-
-
-/**
- * @brief Destroys a vector resource descriptor.
- *
- * Frees only the memory and file descriptors still owned by this
- * @ref ri_resource_t. Any ownership already transferred to a
- * @ref ri_vector_t or its channels is not affected.
- *
- * After this call, @p rsc becomes invalid and must not be used again.
- */
-void ri_resource_delete(ri_resource_t *rsc);
-
-
-/**
- * Returns the number of bytes required to serialize a resource.
- *
- * Calculates the total serialized size of the given resource, including
- * all metadata and payload data needed for serialization.
- *
- * @param rsc Pointer to the resource to measure.
- * @return The size in bytes required to serialize the resource.
- */
-size_t ri_resource_serialize_size(const ri_resource_t *rsc);
-
-
-/**
- * Serializes a resource into the provided buffer.
- *
- * Encodes the given resource into a serialized representation written to
- * `req`. Any associated file descriptors are stored in `fds`, and the
- * number of file descriptors written is returned through `n_fds`.
- *
- * The caller must ensure that `req` points to a buffer large enough to
- * hold the serialized data, typically determined by
- * `ri_resource_serialize_size()`.
- *
- * @param rsc    Pointer to the resource to serialize.
- * @param req    Output buffer receiving the serialized resource data.
- * @param size   Size of the output buffer in bytes.
- * @param fds    Array receiving any associated file descriptors.
- * @param n_fds  Input/output parameter. On input, contains the capacity of
- *                the `fds` array. On output, contains the number of file
- *                descriptors written.
- *
- * @return 0 on success, or a negative error code on failure.
- */
-int ri_resource_serialize(const ri_resource_t *rsc, void* req, size_t size, int fds[], unsigned *n_fds);
-
-
-/**
- * Deserializes a resource from a serialized buffer.
- *
- * Reconstructs a resource object from the serialized data contained in
- * `req`. Any associated file descriptors are read from `fds`, and the
- * number of file descriptors consumed is returned through `n_fds`.
- *
- * On success, ownership of all file descriptors in `fds` is transferred
- * to the newly created resource object. Any unused file descriptors are
- * closed internally, and all entries in `fds` are set to `-1`.
- *
- * @param req    Pointer to the serialized resource data.
- * @param size   Size of the serialized data buffer in bytes.
- * @param fds    Array containing associated file descriptors.
- * @param n_fds  Input/output parameter. On input, contains the number of
- *                available file descriptors in `fds`. On output, contains
- *                the number of file descriptors consumed.
- *
- * @return A newly allocated resource object on success, or NULL on failure.
- *         The caller is responsible for releasing the returned resource.
- */
-ri_resource_t* ri_resource_deserialize(const void* req, size_t size, int fds[], unsigned *n_fds);
-
-
-/**
- * @brief Creates a channel vector from a resource descriptor.
- *
- * @param rsc    Resource descriptor describing shared memory and channels
- * @param server If true, this side acts as the server side of the
- *               connection; otherwise as the client side.
- *
- * The server/client distinction determines which channels are treated
- * as producers or consumers locally. The peer process will see the
- * opposite roles.
- */
-ri_vector_t* ri_vector_new(ri_resource_t *rsc, bool server);
+ri_vector_t* ri_vector_new(const ri_config_t *config);
 
 
 /**
@@ -396,6 +233,64 @@ void ri_vector_delete(ri_vector_t *vec);
 
 
 /**
+ * Returns the number of bytes required to serialize a channel vector.
+ *
+ * Calculates the total serialized size of the given channel vector, including
+ * all metadata and payload data needed for serialization.
+ *
+ * @param vec Pointer to the channel vector to measure.
+ * @return The size in bytes required to serialize the channel vector.
+ */
+size_t ri_vector_serialize_size(const ri_vector_t *vec);
+
+
+/**
+ * Serializes a channel vector into the provided buffer.
+ *
+ * Encodes the given channel vector into a serialized representation written to
+ * `req`. Any associated file descriptors are stored in `fds`, and the
+ * number of file descriptors written is returned through `n_fds`.
+ *
+ * The caller must ensure that `req` points to a buffer large enough to
+ * hold the serialized data, typically determined by
+ * `ri_vector_serialize_size()`.
+ *
+ * @param vec    Pointer to the channel vector to serialize.
+ * @param req    Output buffer receiving the serialized channel vector data.
+ * @param size   Size of the output buffer in bytes.
+ * @param fds    Array receiving any associated file descriptors.
+ * @param n_fds  Input/output parameter. On input, contains the capacity of
+ *                the `fds` array. On output, contains the number of file
+ *                descriptors written.
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int ri_vector_serialize(const ri_vector_t *vec, void* req, size_t size, int fds[], unsigned *n_fds);
+
+
+/**
+ * Deserializes a channel vector from a serialized buffer.
+ *
+ * Reconstructs a channel vector from the serialized data contained in
+ * `req`. Any associated file descriptors are read from `fds`, and the
+ * number of file descriptors consumed is returned through `n_fds`.
+ *
+ * On success, ownership of all file descriptors in `fds` is transferred
+ * to the newly created channel vector. Any unused file descriptors are
+ * closed internally, and all entries in `fds` are set to `-1`.
+ *
+ * @param req    Pointer to the serialized channel vector data.
+ * @param size   Size of the serialized data buffer in bytes.
+ * @param fds    Array containing associated file descriptors.
+ * @param n_fds  Input/output parameter. On input, contains the number of
+ *                available file descriptors in `fds`. On output, contains
+ *                the number of file descriptors consumed.
+ *
+ * @return A newly allocated channel vector on success, or NULL on failure.
+ */
+ri_vector_t* ri_vector_deserialize(const void* req, size_t size, int fds[], unsigned *n_fds);
+
+/**
  * @brief Returns the user-defined metadata associated with the vector.
  *
  * Retrieves the application-specific information previously attached to
@@ -405,19 +300,6 @@ void ri_vector_delete(ri_vector_t *vec);
  * @return The metadata associated with the vector.
  */
 ri_info_t ri_vector_info(const ri_vector_t *vec);
-
-
-/**
- * @brief Initialize the shared memory region with default values.
- *
- * Must be called exactly once by the server before any
- * channel operations are performed. This function prepares the shared
- * memory state required for subsequent communication.
- *
- * @param vec Pointer to the vector associated with the shared memory.
- */
-void ri_vector_init_shm(const ri_vector_t *vec);
-
 
 /**
  * @brief Get the number of consumer channels.
@@ -872,7 +754,7 @@ void ri_server_delete(ri_server_t* server);
  */
 int ri_server_socket(const ri_server_t* server);
 
-typedef bool (*ri_filter_fn)(const ri_resource_t* rsc, void *user_data);
+typedef bool (*ri_filter_fn)(const ri_vector_t* vec, void *user_data);
 
 /**
  * @brief Accept a client connection and constructs a channel vector.
@@ -885,7 +767,7 @@ typedef bool (*ri_filter_fn)(const ri_resource_t* rsc, void *user_data);
  * @param socket    UNIX domain socket file descriptor (created with
  *                  socket(AF_UNIX, SOCK_SEQPACKET, 0)).
  * @param filter    Optional callback to accept (true) or reject (false) a
- *                  connection based on the requested resource.
+ *                  connection based on the requested channel vector.
  * @param user_data Opaque pointer passed to @p filter.
  *
  * @return A newly created vector on success, or NULL if the connection
