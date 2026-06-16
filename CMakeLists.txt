@@ -1,15 +1,12 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 
+include(GNUInstallDirs)
 
 project(rtipc LANGUAGES C)
-
-
 
 set(CMAKE_C_STANDARD 11)
 
 option(RTIPC_BUILD_EXAMPLES "Build examples" OFF)
-
-include(GNUInstallDirs)
 
 set(RTIPC_SRCS
   src/log.c
@@ -35,8 +32,6 @@ set(RTIPC_SRCS
   src/request.c
   src/server.c
   src/client.c)
-
-
 
 
 set(RTIPC_COMPILER_OPTIONS -Wall -Wextra  -Wsign-compare)
