@@ -31,26 +31,41 @@ set(RTIPC_SRCS
   src/unix.h
   src/request.c
   src/server.c
-  src/client.c)
+  src/client.c
+)
 
 
 set(RTIPC_COMPILER_OPTIONS -Wall -Wextra  -Wsign-compare)
 
-add_library(${PROJECT_NAME} SHARED ${RTIPC_SRCS})
+add_library(${PROJECT_NAME})
 
 target_include_directories(rtipc PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    ${RTIPC_SRCS}
+  PUBLIC
+    FILE_SET HEADERS
+    BASE_DIRS
+      include
+    FILES
+      include/rtipc.h
+)
+
+
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra  -Wsign-compare)
 target_compile_definitions(${PROJECT_NAME} PUBLIC -DRTIPC_LOG_API=1)
 
 
-install(TARGETS ${PROJECT_NAME}
+install(
+  TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  FILE_SET HEADERS
+)
 
 
 if (RTIPC_BUILD_EXAMPLES)
