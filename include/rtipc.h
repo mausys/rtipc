@@ -128,13 +128,13 @@ typedef struct ri_info {
 
 
 /**
- * @typedef ri_channel_t
+ * @typedef ri_attr_t
  * @brief Configuration for creating a producer or consumer channel.
  *
  * This structure is only used during setup. The library copies the
  * values; the caller retains ownership after creation.
  */
-typedef struct ri_channel {
+typedef struct ri_attr {
   /**
    * Size of a single message in bytes.
    *
@@ -162,11 +162,11 @@ typedef struct ri_channel {
    */
   ri_info_t info;
 
-} ri_channel_t;
+} ri_attr_t;
 
 
 /**
- * @typedef ri_vector_config_t
+ * @typedef ri_config_t
  * @brief Configuration parameters for creating a channel vector.
  *
  * This structure defines the set of producer and consumer channels that
@@ -182,7 +182,7 @@ typedef struct ri_config {
    * The array must be terminated by a sentinel element where @ref msg_size
    * is set to 0.
    */
-  const ri_channel_t *consumers;
+  const ri_attr_t *consumers;
 
   /**
    * Array of producer channel configurations.
@@ -190,7 +190,7 @@ typedef struct ri_config {
    * The array must be terminated by a sentinel element where @ref msg_size
    * is set to 0.
    */
-  const ri_channel_t *producers;
+  const ri_attr_t *producers;
 
   /**
    * Optional user-defined metadata associated with the vector.

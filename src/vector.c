@@ -46,32 +46,32 @@ static int take_eventfd(unsigned idx, int fds[], unsigned n_fds)
 }
 
 
-static ri_config_t ri_vector_config(const ri_vector_t *vec, ri_channel_t **rsc)
+static ri_config_t ri_vector_config(const ri_vector_t *vec, ri_attr_t **attrs)
 {
-  if (!rsc) {
+  if (!attrs) {
     goto fail_args;
   }
-  ri_channel_t *channels = calloc(vec->n_consumers + vec->n_producers + 2, sizeof(ri_channel_t));
+  ri_attr_t *channels = calloc(vec->n_consumers + vec->n_producers + 2, sizeof(ri_attr_t));
   if (!channels) {
     goto fail_alloc;
   }
 
-  ri_channel_t *consumers = &channels[0];
-  ri_channel_t *producers = &channels[vec->n_consumers + 1];
+  ri_attr_t *consumers = &channels[0];
+  ri_attr_t *producers = &channels[vec->n_consumers + 1];
 
   for (unsigned i = 0; i < vec->n_consumers; i++) {
     if (!vec->consumers[i])
       continue;
-    consumers[i] = ri_consumer_config(vec->consumers[i]);
+    consumers[i] = ri_consumer_attr(vec->consumers[i]);
   }
 
   for (unsigned i = 0; i < vec->n_producers; i++) {
     if (!vec->producers[i])
       continue;
-    producers[i] = ri_producer_config(vec->producers[i]);
+    producers[i] = ri_producer_attr(vec->producers[i]);
   }
 
-  *rsc = channels;
+  *attrs = channels;
 
   return (ri_config_t) {
       .consumers = consumers,
@@ -88,15 +88,15 @@ fail_args:
 
 
 static int build_request(const ri_vector_t *vec, void* req, size_t size) {
-  ri_channel_t *channels = NULL;
+  ri_attr_t *attrs = NULL;
 
-  ri_config_t config = ri_vector_config(vec, &channels);
-  if (!channels)
+  ri_config_t config = ri_vector_config(vec, &attrs);
+  if (!attrs)
     return -1;
 
   int r = ri_request_write(&config, req, size);
 
-  free(channels);
+  free(attrs);
 
   return r;
 }
@@ -229,23 +229,23 @@ ri_vector_t* ri_vector_new(const ri_config_t *config)
 
 
   for (unsigned i = 0; i < vec->n_producers; i++) {
-    const ri_channel_t *channel = &config->producers[i];
+    const ri_attr_t *attr = &config->producers[i];
 
-    vec->producers[i] = ri_producer_new(channel, vec->shm, shm_offset);
+    vec->producers[i] = ri_producer_new(attr, vec->shm, shm_offset);
     if (!vec->producers[i])
       goto fail_channel;
 
-    shm_offset += ri_channel_shm_size(channel);
+    shm_offset += ri_channel_shm_size(attr);
   }
 
   for (unsigned i = 0; i < vec->n_consumers; i++) {
-    const ri_channel_t *channel = &config->consumers[i];
+    const ri_attr_t *attr = &config->consumers[i];
 
-    vec->consumers[i] = ri_consumer_new(channel, vec->shm, shm_offset);
+    vec->consumers[i] = ri_consumer_new(attr, vec->shm, shm_offset);
     if (!vec->consumers[i])
       goto fail_channel;
 
-    shm_offset += ri_channel_shm_size(channel);
+    shm_offset += ri_channel_shm_size(attr);
   }
 
   return vec;
@@ -287,15 +287,15 @@ void ri_vector_delete(ri_vector_t* vec)
 
 size_t ri_vector_serialize_size(const ri_vector_t *vec)
 {
-  ri_channel_t *channels = NULL;
+  ri_attr_t *attrs = NULL;
 
-  ri_config_t config = ri_vector_config(vec, &channels);
-  if (!channels)
+  ri_config_t config = ri_vector_config(vec, &attrs);
+  if (!attrs)
     return 0;
 
   size_t size = ri_request_calc_size(&config);
 
-  free(channels);
+  free(attrs);
 
   return size;
 }
@@ -348,40 +348,40 @@ static ri_vector_t* ri_vector_map(const ri_config_t *config, int fds[], unsigned
   size_t shm_offset = 0;
 
   for (unsigned i = 0; i < vec->n_consumers; i++) {
-    const ri_channel_t *channel = &config->consumers[i];
+    const ri_attr_t *attr = &config->consumers[i];
 
-    if (channel->eventfd) {
+    if (attr->eventfd) {
       eventfd = take_eventfd(idx++, fds, *n_fds);
       if (eventfd < 0)
         goto fail_channel;
     }
 
-    vec->consumers[i] = ri_consumer_map(channel, eventfd, vec->shm, shm_offset);
+    vec->consumers[i] = ri_consumer_map(attr, eventfd, vec->shm, shm_offset);
 
     if (!vec->consumers[i])
       goto fail_channel;
 
     /* ownership of eventfd transfered to consumer */
     eventfd = -1;
-    shm_offset += ri_channel_shm_size(channel);
+    shm_offset += ri_channel_shm_size(attr);
   }
 
   for (unsigned i = 0; i < vec->n_producers; i++) {
-    const ri_channel_t *channel = &config->producers[i];
+    const ri_attr_t *attr = &config->producers[i];
 
-    if (channel->eventfd) {
+    if (attr->eventfd) {
       eventfd = take_eventfd(idx++, fds, *n_fds);
       if (eventfd < 0)
         goto fail_channel;
     }
 
-    vec->producers[i] = ri_producer_map(channel, eventfd, vec->shm, shm_offset);
+    vec->producers[i] = ri_producer_map(attr, eventfd, vec->shm, shm_offset);
     if (!vec->producers[i])
       goto fail_channel;
 
     /* ownership of eventfd transfered to producer */
     eventfd = -1;
-    shm_offset += ri_channel_shm_size(channel);
+    shm_offset += ri_channel_shm_size(attr);
   }
 
   return vec;
@@ -402,14 +402,14 @@ ri_vector_t* ri_vector_deserialize(const void* req, size_t size, int fds[], unsi
   if (!n_fds || (*n_fds < 1))
     return NULL;
 
-  ri_channel_t *channels = NULL;
-  ri_config_t config = ri_request_parse(req, size, &channels);
-  if (!channels)
+  ri_attr_t *attrs = NULL;
+  ri_config_t config = ri_request_parse(req, size, &attrs);
+  if (!attrs)
     return NULL;
 
   ri_vector_t *vec = ri_vector_map(&config, fds, n_fds);
 
-  free(channels);
+  free(attrs);
 
   return vec;
 }
