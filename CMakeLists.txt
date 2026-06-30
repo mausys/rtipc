@@ -37,7 +37,7 @@ set(RTIPC_SRCS
 
 set(RTIPC_COMPILER_OPTIONS -Wall -Wextra  -Wsign-compare)
 
-add_library(${PROJECT_NAME})
+add_library(${PROJECT_NAME} SHARED)
 
 target_include_directories(rtipc PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
