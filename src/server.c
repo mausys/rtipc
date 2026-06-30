@@ -8,7 +8,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/connect.h"
+#include "rtipc/log.h"
 #include "unix.h"
 
 typedef struct ri_server ri_server_t;

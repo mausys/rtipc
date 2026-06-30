@@ -13,7 +13,8 @@
 #include <sys/stat.h> // fstat
 #include <sys/mman.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/log.h"
 #include "mem_utils.h"
 
 struct ri_shm

@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/connect.h"
+#include "rtipc/log.h"
 #include "messages.h"
 
 #define MAX_CYCLES 10000

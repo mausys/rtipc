@@ -1,5 +1,7 @@
 #include "queue.h"
 
+#include "rtipc/log.h"
+
 #include "mem_utils.h"
 #include "channel.h"
 

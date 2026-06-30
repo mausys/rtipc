@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 #include "index.h"
 

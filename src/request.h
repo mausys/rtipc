@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 size_t ri_request_calc_size(const ri_config_t *config);
 

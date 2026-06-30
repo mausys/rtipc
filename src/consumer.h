@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 #include "shm.h"
 
 typedef struct ri_consumer_queue ri_consumer_queue_t;

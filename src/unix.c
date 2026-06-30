@@ -17,7 +17,7 @@
 #include <sys/socket.h>
 #include <sys/mman.h> // memfd_create
 
-#include "rtipc.h"
+#include "rtipc/log.h"
 
 
 /* from kernel/include/net/scm.h */

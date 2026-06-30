@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include "rtipc/log.h"
 #include "mem_utils.h"
 #include "producer.h"
 #include "consumer.h"

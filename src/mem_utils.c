@@ -5,7 +5,8 @@
 #include <stdatomic.h>
 #include <stdio.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/log.h"
 
 #ifdef RI_CACHELINE_SIZE
 

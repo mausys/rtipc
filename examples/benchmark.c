@@ -11,8 +11,9 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 
-
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/connect.h"
+#include "rtipc/log.h"
 
 
 #define CLOCKID CLOCK_PROCESS_CPUTIME_ID
@@ -367,7 +368,6 @@ int main()
   usleep(10000);
 
   return 0;
-fail_connect:
 fail_sockets:
   return r;
 }

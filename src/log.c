@@ -1,4 +1,5 @@
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/log.h"
 
 
 #include <fcntl.h>

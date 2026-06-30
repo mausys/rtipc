@@ -5,7 +5,10 @@
 #include <threads.h>
 #include <poll.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/connect.h"
+#include "rtipc/log.h"
+
 #include "messages.h"
 
 

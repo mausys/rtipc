@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 #include "shm.h"
 

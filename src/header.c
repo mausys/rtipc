@@ -4,7 +4,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include "rtipc.h"
+#include "rtipc/log.h"
+#include "rtipc/rtipc.h"
 #include "index.h"
 #include "mem_utils.h"
 

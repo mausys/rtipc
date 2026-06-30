@@ -5,7 +5,8 @@
 #include <string.h>
 #include <errno.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
+#include "rtipc/log.h"
 #include "channel.h"
 #include "header.h"
 #include "mem_utils.h"

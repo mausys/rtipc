@@ -52,12 +52,13 @@ target_sources(${PROJECT_NAME}
     BASE_DIRS
       include
     FILES
-      include/rtipc.h
+      include/rtipc/rtipc.h
+      include/rtipc/log.h
+      include/rtipc/connect.h
 )
 
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra  -Wsign-compare)
-target_compile_definitions(${PROJECT_NAME} PUBLIC -DRTIPC_LOG_API=1)
 
 
 install(

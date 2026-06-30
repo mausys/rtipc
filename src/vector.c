@@ -5,7 +5,7 @@
 #include <errno.h>
 #include <string.h>
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 #include "channel.h"
 #include "unix.h"
 #include "request.h"

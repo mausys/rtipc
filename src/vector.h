@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rtipc.h"
+#include "rtipc/rtipc.h"
 
 void ri_vector_delete(ri_vector_t* vec);
 
