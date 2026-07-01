@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 4.0)
 
 include(GNUInstallDirs)
 
@@ -37,7 +37,8 @@ set(RTIPC_SRCS
 
 set(RTIPC_COMPILER_OPTIONS -Wall -Wextra  -Wsign-compare)
 
-add_library(${PROJECT_NAME} SHARED)
+add_library(${PROJECT_NAME})
+set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(rtipc PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
